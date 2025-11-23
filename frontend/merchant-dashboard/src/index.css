@@ -1,0 +1,223 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    html {
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    body {
+        @apply bg-gray-50 text-gray-900;
+    }
+
+    /* RTL Support */
+    [dir="rtl"] {
+        direction: rtl;
+        text-align: right;
+    }
+
+    [dir="rtl"] .sidebar-link {
+        @apply flex-row-reverse;
+    }
+
+    [dir="rtl"] .btn-primary,
+    [dir="rtl"] .btn-secondary,
+    [dir="rtl"] .btn-success,
+    [dir="rtl"] .btn-danger,
+    [dir="rtl"] .btn-outline {
+        @apply flex-row-reverse;
+    }
+
+    /* RTL spacing utilities */
+    [dir="rtl"] .space-x-1 > * + * {
+        margin-right: 0.25rem;
+        margin-left: 0;
+    }
+
+    [dir="rtl"] .space-x-2 > * + * {
+        margin-right: 0.5rem;
+        margin-left: 0;
+    }
+
+    [dir="rtl"] .space-x-3 > * + * {
+        margin-right: 0.75rem;
+        margin-left: 0;
+    }
+
+    [dir="rtl"] .space-x-4 > * + * {
+        margin-right: 1rem;
+        margin-left: 0;
+    }
+
+    [dir="rtl"] .space-x-6 > * + * {
+        margin-right: 1.5rem;
+        margin-left: 0;
+    }
+
+    [dir="rtl"] .space-x-8 > * + * {
+        margin-right: 2rem;
+        margin-left: 0;
+    }
+
+    /* RTL margin utilities */
+    [dir="rtl"] .ml-1 { margin-left: 0; margin-right: 0.25rem !important; }
+    [dir="rtl"] .ml-2 { margin-left: 0; margin-right: 0.5rem !important; }
+    [dir="rtl"] .ml-3 { margin-left: 0; margin-right: 0.75rem !important; }
+    [dir="rtl"] .ml-4 { margin-left: 0; margin-right: 1rem !important; }
+    [dir="rtl"] .ml-6 { margin-left: 0; margin-right: 1.5rem !important; }
+    [dir="rtl"] .ml-8 { margin-left: 0; margin-right: 2rem !important; }
+
+    [dir="rtl"] .mr-1 { margin-right: 0; margin-left: 0.25rem !important; }
+    [dir="rtl"] .mr-2 { margin-right: 0; margin-left: 0.5rem !important; }
+    [dir="rtl"] .mr-3 { margin-right: 0; margin-left: 0.75rem !important; }
+    [dir="rtl"] .mr-4 { margin-right: 0; margin-left: 1rem !important; }
+    [dir="rtl"] .mr-6 { margin-right: 0; margin-left: 1.5rem !important; }
+    [dir="rtl"] .mr-8 { margin-right: 0; margin-left: 2rem !important; }
+
+    /* RTL padding utilities */
+    [dir="rtl"] .pl-1 { padding-left: 0; padding-right: 0.25rem !important; }
+    [dir="rtl"] .pl-2 { padding-left: 0; padding-right: 0.5rem !important; }
+    [dir="rtl"] .pl-3 { padding-left: 0; padding-right: 0.75rem !important; }
+    [dir="rtl"] .pl-4 { padding-left: 0; padding-right: 1rem !important; }
+    [dir="rtl"] .pl-6 { padding-left: 0; padding-right: 1.5rem !important; }
+    [dir="rtl"] .pl-8 { padding-left: 0; padding-right: 2rem !important; }
+    [dir="rtl"] .pl-10 { padding-left: 0; padding-right: 2.5rem !important; }
+
+    [dir="rtl"] .pr-1 { padding-right: 0; padding-left: 0.25rem !important; }
+    [dir="rtl"] .pr-2 { padding-right: 0; padding-left: 0.5rem !important; }
+    [dir="rtl"] .pr-3 { padding-right: 0; padding-left: 0.75rem !important; }
+    [dir="rtl"] .pr-4 { padding-right: 0; padding-left: 1rem !important; }
+    [dir="rtl"] .pr-6 { padding-right: 0; padding-left: 1.5rem !important; }
+    [dir="rtl"] .pr-8 { padding-right: 0; padding-left: 2rem !important; }
+    [dir="rtl"] .pr-10 { padding-right: 0; padding-left: 2.5rem !important; }
+
+    /* RTL positioning utilities */
+    [dir="rtl"] .left-1 { left: 0; right: 0.25rem !important; }
+    [dir="rtl"] .left-2 { left: 0; right: 0.5rem !important; }
+    [dir="rtl"] .left-3 { left: 0; right: 0.75rem !important; }
+    [dir="rtl"] .left-4 { left: 0; right: 1rem !important; }
+
+    [dir="rtl"] .right-1 { right: 0; left: 0.25rem !important; }
+    [dir="rtl"] .right-2 { right: 0; left: 0.5rem !important; }
+    [dir="rtl"] .right-3 { right: 0; left: 0.75rem !important; }
+    [dir="rtl"] .right-4 { right: 0; left: 1rem !important; }
+
+    /* Arabic font support */
+    [lang="ar"] {
+        font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
+    }
+
+    /* Ensure proper sidebar spacing */
+    .lg\:pl-64 {
+        padding-left: 16rem !important;
+    }
+
+    .lg\:pr-64 {
+        padding-right: 16rem !important;
+    }
+
+    /* Fix sidebar positioning */
+    .lg\:left-0 {
+        left: 0 !important;
+    }
+
+    .lg\:right-0 {
+        right: 0 !important;
+    }
+
+    /* Ensure main content doesn't overlap with sidebar */
+    .min-h-screen {
+        min-height: 100vh;
+    }
+
+    /* Fix any potential z-index issues */
+    .lg\:fixed {
+        position: fixed !important;
+    }
+
+    /* Ensure proper content flow */
+    .lg\:flex {
+        display: flex !important;
+    }
+
+    /* Additional layout fixes */
+    .lg\:w-64 {
+        width: 16rem !important;
+    }
+
+    .lg\:inset-y-0 {
+        top: 0 !important;
+        bottom: 0 !important;
+    }
+}
+
+@layer components {
+    .btn-primary {
+        @apply bg-primary-600 hover:bg-primary-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 shadow-sm hover:shadow-md;
+    }
+
+    .btn-secondary {
+        @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 px-6 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 shadow-sm hover:shadow-md;
+    }
+
+    .btn-success {
+        @apply bg-success-600 hover:bg-success-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-success-500 focus:ring-offset-2 shadow-sm hover:shadow-md;
+    }
+
+    .btn-danger {
+        @apply bg-danger-600 hover:bg-danger-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-danger-500 focus:ring-offset-2 shadow-sm hover:shadow-md;
+    }
+
+    .btn-outline {
+        @apply border-2 border-primary-600 text-primary-600 hover:bg-primary-600 hover:text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    }
+
+    .input-field {
+        @apply w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200 bg-white shadow-sm;
+    }
+
+    .input-field:focus {
+        @apply shadow-md;
+    }
+
+    .card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-all duration-200;
+    }
+
+    .stat-card {
+        @apply bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 cursor-pointer;
+    }
+
+    .sidebar-link {
+        @apply flex items-center px-4 py-3 text-gray-600 rounded-lg transition-all duration-200 hover:bg-primary-50 hover:text-primary-700;
+    }
+
+    .sidebar-link.active {
+        @apply bg-primary-100 text-primary-700 font-semibold;
+    }
+
+    .table-row {
+        @apply hover:bg-gray-50 transition-colors duration-150;
+    }
+
+    .badge {
+        @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    }
+
+    .badge-success {
+        @apply bg-success-100 text-success-800;
+    }
+
+    .badge-warning {
+        @apply bg-warning-100 text-warning-800;
+    }
+
+    .badge-danger {
+        @apply bg-danger-100 text-danger-800;
+    }
+
+    .badge-info {
+        @apply bg-primary-100 text-primary-800;
+    }
+}

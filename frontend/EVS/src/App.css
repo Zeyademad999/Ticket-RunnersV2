@@ -1,0 +1,16 @@
+.App {
+    min-height: 100vh;
+    background-color: #F5F7FA;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .App {
+        padding: 10px;
+    }
+}
+
+/* RTL Support */
+[dir="rtl"] .App {
+    direction: rtl;
+}

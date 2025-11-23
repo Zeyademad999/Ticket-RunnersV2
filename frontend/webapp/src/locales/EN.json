@@ -1,0 +1,1421 @@
+{
+  "english": "English",
+  "arabic": "Arabic",
+  "searchEvents": "Search events...",
+  "searchResults": "Search Results",
+  "home": "Home",
+  "bookings": "Bookings",
+  "events": "Events",
+  "register": "Register",
+  "login": "Login",
+  "logout": "Logout",
+  "profile": "Profile",
+  "light": "Light",
+  "dark": "Dark",
+  "themeSwitched": "Switched to {{theme}} Mode",
+  "themeChangedSuccess": "Theme changed successfully!",
+  "languageChanged": "Language changed to {{lang}}",
+  "interfaceLanguageUpdated": "Interface language updated!",
+
+  "hero": {
+    "badge": "Welcome to Ticket Runners",
+    "badge_sub": "Coming soon to Egypt",
+    "headline_discover": "Discover",
+    "headline_amazing": "Amazing",
+    "headline_events": "Events",
+    "subtitle": "Book tickets for the hottest concerts, festivals, and events in Egypt. Secure, fast, and reliable ticket booking experience.",
+    "cta_explore": "Explore Events",
+    "cta_trending": "Trending Now",
+    "featured_title": "Today's Featured Events",
+    "featured_button": "View Event",
+    "book_now": "Book Now",
+    "organized_by": "Organized by"
+  },
+  "footer": {
+    "tagline": "Your trusted ticket marketplace in Egypt. Discover, book, and enjoy the hottest events with secure and fast booking experience.",
+    "quickLinks": "Quick Links",
+    "aboutUs": "About Us",
+    "contactUs": "Contact Us",
+    "howItWorks": "How It Works",
+    "nearbyMerchants": "Nearby Merchants",
+    "legal": "Legal",
+    "faqs": "FAQs",
+    "terms": "Terms & Conditions",
+    "privacy": "Privacy Policy",
+    "refund": "Refund Policy",
+    "contact": "Contact",
+    "location": "Cairo, Egypt",
+    "trustTagline": "Your Trusted Ticket Marketplace",
+    "technicalSupport": "Technical Support",
+    "poweredBy": "Powered by",
+    "logoAlt": "Ticket Runners Logo",
+    "phoneLabel": "+20 122 652 1747",
+    "emailLabel": "support@ticketrunners.com",
+    "copyright": "TicketRunners",
+    "floki": "Floki Systems"
+  },
+  "eventCard": {
+    "featured": "Featured",
+    "bookNow": "Book Now",
+    "addedToFavorites": "Added to favorites",
+    "removedFromFavorites": "Removed from favorites",
+    "favoriteDescription": "{{title}} {{action}} your favorites!",
+    "added": "added to",
+    "removed": "removed from",
+    "sharePrefix": "Check out this event",
+    "linkCopied": "Link copied!",
+    "linkCopiedDescription": "Event link copied to clipboard",
+    "location": "Location",
+    "date": "Date",
+    "time": "Time",
+    "price": "Starting from",
+    "currency": "EGP"
+  },
+  "eventPreview": {
+    "date": "Date",
+    "time": "Time",
+    "location": "Location"
+  },
+
+  "trendingEvents": "Trending Events",
+  "checkOutMostPopular": "Check out the most popular events in Egypt.",
+  "upcomingEvents": "Upcoming Events",
+  "dontMissUpcoming": "Don't miss these amazing upcoming events.",
+  "recommendedEvents": "Events That May Interest You",
+  "personalizedRecommendations": "Personalized recommendations just for you.",
+  "ctaTitle": "Ready to Discover Amazing Events?",
+  "ctaDescription": "Join thousands of event‑goers and never miss out on the best experiences in Egypt.",
+  "contactUs": "Contact Us",
+  "aboutUs": "About Us",
+  "viewAll": "View All",
+  "event": {
+    "ticketsLeft": "Tickets Left",
+    "sold": "Sold",
+    "giftable": "Giftable",
+    "giftTicket": "Gift Ticket",
+    "viewMetrics": "View Event Metrics",
+    "hideMetrics": "Hide Event Metrics",
+    "completionRate": "Completion Rate",
+    "netEarnings": "Net Earnings",
+    "receivedPayouts": "Received Payouts",
+    "pendingPayouts": "Pending Payouts"
+  },
+  "filters": {
+    "title": "Filter Events",
+    "clearAll": "Clear All",
+    "category": "Category",
+    "venue": "Venue",
+    "organizer": "Organizer",
+    "date": "Date",
+    "location": "Location",
+    "tags": "Interest Tags",
+    "interests": "Interests",
+    "allDates": "All Dates",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "startDate": "Start Date",
+    "endDate": "End Date",
+    "minPrice": "Min Price",
+    "maxPrice": "Max Price"
+  },
+  "categories": {
+    "All": "All",
+    "Music": "Music",
+    "Comedy": "Comedy",
+    "Sports": "Sports",
+    "Technology": "Technology",
+    "Theater": "Theater",
+    "Art": "Art",
+    "Food": "Food",
+    "Cultural": "Cultural",
+    "Social": "Social",
+    "EDM": "EDM",
+    "Classical": "Classical",
+    "Jazz": "Jazz",
+    "Workshop": "Workshop"
+  },
+  "locations": {
+    "All": "All",
+    "Cairo Opera House": "Cairo Opera House",
+    "Al-Azhar Park": "Al-Azhar Park",
+    "Museum of Modern Art": "Museum of Modern Art",
+    "Sayed Darwish Theatre": "Sayed Darwish Theatre",
+    "New Capital": "New Capital",
+    "Zamalek District": "Zamalek District",
+    "Downtown Cairo": "Downtown Cairo",
+    "Nile Corniche": "Nile Corniche"
+  },
+  "venues": {
+    "All": "All",
+    "Cairo Opera House": "Cairo Opera House",
+    "Al-Azhar Park": "Al-Azhar Park",
+    "Museum of Modern Art": "Museum of Modern Art",
+    "Sayed Darwish Theatre": "Sayed Darwish Theatre",
+    "New Capital": "New Capital",
+    "Zamalek District": "Zamalek District",
+    "Downtown Cairo": "Downtown Cairo",
+    "Nile Corniche": "Nile Corniche"
+  },
+  "organizers": {
+    "All": "All",
+    "Cairo Events": "Cairo Events",
+    "Music Hub": "Music Hub",
+    "Tech Summit": "Tech Summit",
+    "Art Gallery": "Art Gallery",
+    "Cultural Center": "Cultural Center"
+  },
+  "tags": {
+    "Music": "Music",
+    "Comedy": "Comedy",
+    "Sports": "Sports",
+    "Theater": "Theater",
+    "Art": "Art",
+    "Food": "Food",
+    "Technology": "Technology",
+    "Fashion": "Fashion",
+    "Photography": "Photography",
+    "Dance": "Dance",
+    "Literature": "Literature",
+    "Film": "Film",
+    "Business": "Business",
+    "Jazz": "Jazz",
+    "Other": "Other"
+  },
+  "booking": {
+    "title": "Book Your Tickets",
+    "description": "Complete your booking for {{event}}",
+    "eventDetails": "Event Details",
+    "ageRestrictionNotice": "You must be at least {{age}} years old to book tickets for this event.",
+    "ticketQuantities": "Ticket Quantities",
+    "subtotal": "Subtotal",
+    "customerInfo": "Customer Information",
+    "fullName": "Full Name",
+    "mobile": "Mobile Number",
+    "allTicketsInfo": "All Tickets Information",
+    "ticket": "Ticket",
+    "ticketDisclaimer": "Each ticket must have complete information to proceed.",
+    "thisIsMyTicket": "This is my ticket",
+    "ownersTicket": "Owner's Ticket",
+    "ownersTicketDescription": "This ticket will use your account information.",
+    "oneOwnerTicketOnlyTitle": "Limit Reached",
+    "oneOwnerTicketOnlyMessage": "You can only assign yourself one ticket.",
+    "childAge": "Child's Age",
+    "childAgePlaceholder": "Enter child's age",
+    "freeChildMessage": "Children under {{age}} years old attend for free!",
+    "freeChildrenDiscount": "Free Children Discount",
+    "vipDiscount": "VIP Black Card (2 Free Tickets)",
+    "childrenWelcome": "Children under {{age}} years old welcome (free entry)",
+    "name": "Name",
+    "assigned": "Assigned",
+    "child": "Child",
+    "mobilePlaceholder": "Mobile number",
+    "email": "Dependant's Email",
+    "EmailPlaceholder": "Enter an Email",
+    "socialMedia": "Social Media",
+    "optionalUsername": "@username (optional)",
+    "priceBreakdown": "Price Breakdown",
+    "ticketPrice": "Ticket Price (x{{count}})",
+    "vat": "VAT (14%)",
+    "cardCost": "NFC Card Cost (First Purchase)",
+    "renewalCost": "card renewal cost",
+    "totalAmount": "Total Amount",
+    "completePayment": "Complete Payment",
+    "paymentNoticeTitle": "First Purchase Notice",
+    "paymentNoticeBody": "After payment, please visit our nearest outlet to collect your NFC card for seamless event entry.",
+    "paymentMethods": "Payment Methods",
+    "creditDebit": "Credit/Debit Card",
+    "paymentSuccessTitle": "Payment Successful",
+    "paymentSuccessDescription": "Thank you! Your booking has been completed.",
+    "fullNamePlaceholder": "Enter your full name",
+    "perTicket": "per Ticket",
+    "firstPurchaseNotice": "First Purchase Notice",
+    "nfcInstruction": "you will need to get your NFC card from one of our merchants",
+    "ticketsOptional": "Fill in the details for each ticket holder",
+    "namePlaceholder": "Enter a name",
+    "ticketType": "Ticket Tier",
+    "mainUserInfo": "Your ticket",
+    "unassignedTransferFeeWarning": "Transferring unassigned tickets later will incur a transfer fee.",
+    "transferFeeWarning": "Transferring this ticket later will incur a transfer fee.",
+
+    "tiers": {
+      "gold": "gold",
+      "regular": "Regular",
+      "platinum": "platinum"
+    },
+    "tierDescriptions": {
+      "regular": "Standard access with general seating and basic amenities",
+      "gold": "Premium access with reserved seating, complimentary refreshments, and priority entry",
+      "platinum": "VIP access with front-row seating, exclusive lounge access, meet & greet opportunities, and premium amenities"
+    },
+    "signInRequired": "Sign In Required",
+    "signInPrompt": "Please sign in or create an account to book tickets for this event.",
+    "signIn": "Sign In",
+    "signUp": "Sign Up"
+  },
+  "paymentConfirmation": {
+    "title": "Payment Successful",
+    "thankYou": "Thank you for booking with Ticket Runners!",
+    "detailsTitle": "Payment Details",
+    "event": "Event",
+    "transactionId": "Transaction ID",
+    "totalPaid": "Total Paid",
+    "browseEvents": "Browse More Events"
+  },
+  "profilepage": {
+    "loading": "Loading profile...",
+    "noUserData": "Unable to load user data. Please try again.",
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing...",
+    "profileTabs": {
+      "bookings": "My Bookings",
+      "visits": "My Visits",
+      "billing": "Billing",
+      "nfc": "NFC Card",
+      "settings": "Settings",
+      "title": "My Profile",
+      "favorites": "Favorites",
+      "dependants": "Dependants",
+      "description": "Manage your account, bookings, and preferences"
+    },
+    "favorites": {
+      "title": "Favorite Events",
+      "description": "Events you have marked as favorites.",
+      "empty": "No favorite events yet.",
+      "remove": "Remove from Favorites",
+      "upcomingEvents": "Upcoming Events",
+      "pastEvents": "Past Events",
+      "bookNow": "Book Now",
+      "viewEvent": "View Event"
+    },
+    "dependentBookings": {
+      "title": "Dependent Bookings",
+      "description": "View and manage bookings for your dependants",
+      "status": {
+        "pending": "Pending",
+        "claimed": "Claimed"
+      }
+    },
+    "myBookings": {
+      "title": "My Bookings",
+      "description": "View and manage your ticket bookings",
+      "status": {
+        "Card": "Card",
+        "Wallet": "Wallet",
+        "Both": "Both",
+        "confirmed": "Confirmed",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded"
+      },
+      "loading": "Loading bookings...",
+      "loadingMore": "Loading more...",
+      "loadMore": "Load More",
+      "retry": "Retry",
+      "noBookings": "No bookings found",
+      "quantity": "Quantity:",
+      "total": "Total:",
+      "category": "Category:",
+      "dependents": "Dependents",
+      "qr": "QR Code",
+      "addToCalendar": "Add to Calendar",
+      "viewDetails": "View Details",
+      "date": "Date",
+      "time": "Time",
+      "location": "Location"
+    },
+    "visits": {
+      "title": "My Visits",
+      "description": "Here are your event visit records.",
+      "date": "Date",
+      "enteredAt": "Entrance Time",
+      "location": "Location",
+      "dependents": "Dependents",
+      "feedback": {
+        "title": "Provide Feedback",
+        "placeholder": "Write your feedback here...",
+        "submit": "Submit Feedback",
+        "button": "Provide Feedback"
+      }
+    },
+    "billing": {
+      "title": "Billing History",
+      "description": "View your payment history and download invoices",
+      "invoice": "Invoice",
+      "download": "Download",
+      "status": {
+        "paid": "Paid",
+        "pending": "Pending",
+        "failed": "Failed"
+      }
+    },
+    "nfc": {
+      "title": "My NFC Card",
+      "description": "Manage your NFC card for seamless event entry",
+      "cardStatus": "Card Status",
+      "walletStatus": "Wallet Status",
+      "walletExpiryDate": "Wallet Expiry Date",
+      "loading": "Loading card details...",
+      "retry": "Retry",
+      "noCardData": "No card data available",
+      "status": {
+        "Active": "Active",
+        "Inactive": "Inactive",
+        "Blocked": "Blocked",
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "walletStatusOptions": {
+        "active": "Active",
+        "inactive": "Inactive"
+      },
+      "cardNumber": "Card Number:",
+      "issueDate": "Issue Date:",
+      "expiryDate": "Expiry Date:",
+      "walletexpiryDate": "Wallet expiry date",
+      "deactivateCard": "Deactivate Card",
+      "activateCard": "Activate Card",
+      "buyNewCard": "Buy New Card",
+      "cardFeaturesTitle": "Card Features",
+      "feature1": "Contactless entry to events",
+      "feature2": "Faster check-in process",
+      "feature3": "Works with all supported venues",
+      "feature4": "Backup QR code always available",
+      "cardTitle": "NFC Access Card",
+      "issued": "Issued",
+      "expires": "Expires",
+      "addToWallet": "Add to Wallet",
+      "notice": "You don't have an active NFC card. Please collect your card from the nearest merchant.",
+      "deactivatedDisclaimer": "Your card is deactivated. Please buy a new card from the nearest merchant."
+    },
+    "settingsTab": {
+      "tab": "Settings",
+      "ID": "Your User ID:",
+      "description": "Update your account information and preferences.",
+      "fullName": "Full Name",
+      "phone": "Phone Number",
+      "email": "Email Address",
+      "changePassword": "Change Password",
+      "oldPassword": "Current Password",
+      "oldPasswordPlaceholder": "Enter current password",
+      "newPassword": "New Password",
+      "newPasswordPlaceholder": "Enter a new password",
+      "notificationPreferences": "Notification Preferences",
+      "notifyEmail": "Receive email notifications",
+      "notifySMS": "Receive SMS notifications",
+      "notifyMarketing": "Receive marketing offers",
+      "saveChanges": "Save Changes",
+      "update": "Update",
+      "profileImage": "Profile Image",
+      "profileImageDisabled": "Profile photo can only be changed during card renewal or replacement. Contact support for assistance.",
+      "bloodType": "Blood Type",
+      "emergencyContact": "Emergency Contact number",
+      "emergencyContactName": "Emergency Contact Name",
+      "emergencyContactNamePlaceholder": "Contact Name",
+      "emergencyContactPlaceholder": "Contact Number",
+      "selectOption": "Select an option",
+      "changesSaved": "Changes saved successfully",
+      "browse": "Upload new image",
+      "atLeastOneNotification": "At least one notification method must be selected."
+    },
+    "subscriptions": {
+      "title": "My Subscriptions",
+      "description": "Manage your active and past subscriptions",
+      "plan": "Plan",
+      "price": "Price",
+      "duration": "Duration",
+      "status": {
+        "active": "Active",
+        "expired": "Expired",
+        "cancelled": "Cancelled"
+      },
+      "renew": "Renew",
+      "cancel": "Cancel",
+      "viewDetails": "View Details"
+    },
+    "wishlist": {
+      "title": "Wishlist",
+      "description": "Events you’ve saved for later",
+      "empty": "Your wishlist is empty.",
+      "remove": "Remove",
+      "viewEvent": "View Event"
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Update your personal information",
+      "name": "Name",
+      "email": "Email",
+      "language": "Preferred Language",
+      "update": "Update",
+      "success": "Settings updated successfully"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Manage how you receive notifications",
+      "email": "Email Notifications",
+      "sms": "SMS Notifications",
+      "push": "Push Notifications",
+      "on": "On",
+      "off": "Off",
+      "save": "Save Preferences"
+    }
+  },
+  "ticketDetails": {
+    "title": "Ticket Details",
+    "reference": "Booking Reference #{{id}}",
+    "notFound": "Booking not found.",
+    "eventInfo": {
+      "title": "Event Information",
+      "category": "Category",
+      "purchaseDate": "Purchase Date"
+    },
+    "tickets": {
+      "title": "Your Tickets",
+      "description": "Transfer tickets individually or select multiple to transfer together",
+      "ticketNumber": "Ticket #{{index}}",
+      "transferred": "Transferred (Code: {{code}})",
+      "transfer": "Transfer",
+      "transferSelected": "Transfer Selected Tickets",
+      "category": "Category",
+      "price": "Price",
+      "checkedIn": "Checked In",
+      "assignedTo": "Assigned to",
+      "purchasedBy": "Purchased by",
+      "myTicket": "My Ticket",
+      "thisIsMyTicket": "This is your ticket",
+      "readOnly": "Read Only"
+    },
+    "summary": {
+      "title": "Order Summary",
+      "subtotal": "Subtotal",
+      "vat": "VAT (14%)",
+      "total": "Total"
+    },
+    "status": {
+      "valid": "Valid",
+      "used": "Used",
+      "refunded": "Refunded",
+      "banned": "Banned"
+    },
+    "error": {
+      "title": "Error",
+      "description": "Failed to load ticket details"
+    }
+  },
+  "transferTicket": {
+    "title": "Transfer Ticket #{{ticketIndex}}",
+    "emailLabel": "Recipient's Email",
+    "emailPlaceholder": "example@email.com",
+    "policyLabel": "I agree to the ticket transfer policy and service fee.",
+    "feeNotice": "A service fee of {{amount}} will apply to this transfer.",
+    "confirmButton": "Confirm & Pay",
+    "toast": {
+      "errorTitle": "Error",
+      "errorDescription": "Please enter the email and accept the transfer policy.",
+      "successTitle": "Transfer Complete",
+      "successDescription": "Ticket #{{ticketIndex}} for booking {{bookingId}} transferred to {{email}}."
+    }
+  },
+  "transferTickets": {
+    "missingData": "Missing transfer data.",
+    "title": "Transfer {{count}} Ticket{{plural}}",
+    "recipientEmail": "Recipient Email",
+    "emailPlaceholder": "friend@example.com",
+    "checkboxLabel": "I agree to the transfer policy and 50EGP fee.",
+    "confirmButton": "Confirm & Pay",
+    "toast": {
+      "incompleteTitle": "Incomplete",
+      "incompleteDescription": "Enter an email and accept the policy.",
+      "successTitle": "Transfer Initiated",
+      "successDescription": "Tickets {{tickets}} for booking {{bookingId}} will be sent to {{email}}."
+    }
+  },
+
+  "eventDetail": {
+    "title": "Ahmed Sheba Live Concert",
+    "date": "March 15, 2025",
+    "time": "8:00 PM",
+    "gateOpen": "Gates Open:",
+    "gateClose": "Gates Close:",
+    "location": "Cairo Opera House",
+    "category": "Music",
+    "venueInfoTitle": "About the Venue",
+    "venueInfo": "The Cairo Opera House is a cultural landmark offering world-class acoustics, comfortable seating, and rich history.",
+    "description": "Join us for an unforgettable evening with Ahmed Sheba, one of Egypt's most beloved musicians. Experience his greatest hits in an intimate setting at the prestigious Cairo Opera House.",
+    "organizer": {
+      "name": "Sheba Events LLC"
+    },
+    "attendees": "{{count}} attending",
+    "aboutEvent": "About this event",
+    "showLayout": "Show Layout",
+    "facilitiesTitle": "Venue Facilities",
+    "facilities": {
+      "Parking": "Parking",
+      "Wheelchair Access": "Wheelchair Access",
+      "Wi-Fi": "Wi-Fi",
+      "Food": "Food",
+      "Baby": "Baby Facilities",
+      "Green Area": "Green Area",
+      "Showers": "Showers",
+      "Music": "Music",
+      "Outdoor": "Outdoor Area"
+    },
+    "perTicket": "per ticket",
+    "vipFreeAccess": "VIP Free Access",
+    "vipBlackCardBenefit": "Your Black Card grants 2 free tickets to this unseated event",
+    "organizers": "Organizers",
+    "termsTitle": "Terms and Conditions",
+    "eventTermsTitle": "Event Terms and Conditions",
+    "termsContent": "By purchasing a ticket, you agree to abide by the venue rules and event policies. Tickets are non-refundable and non-transferable unless the event is cancelled or rescheduled.",
+    "termsBullets": [
+      "No refunds unless the event is cancelled.",
+      "Entry requires a valid digital or printed ticket.",
+      "Event organizers reserve the right to deny entry."
+    ],
+    "shareToast": {
+      "title": "Link copied!",
+      "description": "Event link copied to clipboard"
+    },
+    "calendarToast": "Calendar file downloaded",
+    "noMediaAvailable": "Media Coming Soon",
+    "noMediaDescription": "Photos and videos for this event will be available soon. Check back later for updates!",
+    "stayTuned": "✨ Stay tuned for updates",
+    "venueDetailsTitle": "Venue Details",
+    "capacity": "Capacity",
+    "phone": "Phone",
+    "email": "Email",
+    "website": "Website",
+    "gatesTitle": "Event Gates",
+    "occupancy": "Current Occupancy",
+    "hours": "Operating Hours",
+    "requirements": "Requirements",
+    "accessRequirementsTitle": "Access Requirements",
+    "cardRequirements": "Card Requirements",
+    "walletRequirements": "Wallet Requirements",
+    "required": "Required",
+    "optional": "Optional",
+    "supportedCards": "Supported Card Types",
+    "supportedWallets": "Supported Wallets",
+    "minimumBalance": "Minimum Balance",
+    "ticketCategories": "Ticket Categories",
+    "totalTickets": "Total Tickets",
+    "available": "Available",
+    "ticketOptions": "Ticket Options",
+    "moreOptions": "more options",
+    "organizer": "Event Organizer"
+  },
+  "badges": {
+    "featured": "Featured",
+    "vipEligible": "VIP Eligible"
+  },
+
+  "ariaLabels": {
+    "share": "Share",
+    "addToCalendar": "Add to calendar",
+    "addToFavorites": "Add to favorites"
+  },
+  "currency": {
+    "egp": "EGP"
+  },
+  "eventspage": {
+    "all": "All Events",
+    "trending": "Trending Events",
+    "upcoming": "Upcoming Events",
+    "recommended": "Events You May Like",
+    "subtitle": "Discover amazing events happening around you",
+    "no_matches": "No events match your criteria."
+  },
+
+  "contact": {
+    "title": "Contact Us",
+    "get_in_touch": "Get in Touch",
+    "send_message": "Send Message",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "form": {
+      "name": "Your Name",
+      "email": "Your Email",
+      "message": "Your Message",
+      "submit": "Send Message"
+    }
+  },
+
+  "about": {
+    "title": "About Us",
+    "mission": {
+      "title": "Our Mission",
+      "text": "At Ticket Runners, we're passionate about connecting people with amazing events. Our platform makes it easy to discover, book, and attend the events that matter to you."
+    },
+    "what_we_do": {
+      "title": "What We Do",
+      "text": "We provide a comprehensive event booking platform that helps event organizers reach their audience and helps attendees find their perfect events. From concerts to conferences, festivals to workshops, we've got it all covered."
+    },
+    "values": {
+      "title": "Our Values",
+      "innovation": {
+        "title": "Innovation",
+        "text": "Constantly improving our platform with cutting-edge technology"
+      },
+      "community": {
+        "title": "Community",
+        "text": "Building connections between event organizers and attendees"
+      },
+      "excellence": {
+        "title": "Excellence",
+        "text": "Delivering exceptional experiences for all our users"
+      }
+    }
+  },
+
+  "organizers": {
+    "Utitle": "Upcoming Events",
+    "Ftitle": "Former Events",
+    "description": "Browse all organizers and explore their events.",
+    "attendees": "{{count}} attendees",
+    "rating": "rating",
+    "fetchErrorTitle": "Failed to Load Organizers",
+    "fetchErrorMessage": "There was an error fetching organizers. Please try again later.",
+    "date": "Date",
+    "time": "Time",
+    "location": "Location",
+    "organizerDescription": "Sheba Events focuses on bringing authentic Egyptian music experiences to fans around the world. From intimate unplugged sessions to grand arena shows, we curate, promote, and manage live performances with passion and precision.",
+    "eventCategories": {
+      "music": "Music",
+      "festival": "Festival"
+    },
+    "mockData": {
+      "organizerName": "Sheba Events LLC",
+      "events": {
+        "concert1": {
+          "title": "Ahmed Sheba Live Concert",
+          "date": "March 15, 2025",
+          "time": "8:00 PM",
+          "location": "Cairo Opera House"
+        },
+        "concert2": {
+          "title": "Oriental Fusion Night",
+          "date": "April 10, 2025",
+          "time": "7:30 PM",
+          "location": "Bibliotheca Alexandrina Open Air Theater"
+        },
+        "festival1": {
+          "title": "Cairo Ramadan Festival",
+          "date": "May 5, 2025",
+          "time": "9:00 PM",
+          "location": "Azhar Park"
+        }
+      }
+    }
+  },
+
+  "invoice": {
+    "view_template": "View Template",
+    "preview_title": "Invoice Template Preview",
+    "number": "Invoice #",
+    "date": "Date",
+    "customer": "Billed To",
+    "description": "Description",
+    "quantity": "Qty",
+    "price": "Price",
+    "total": "Total",
+    "note": "This is a sample invoice. Actual charges may vary.",
+    "item_1": "Premium Event Access",
+    "item_2": "Service Fee"
+  },
+  "organizer": {
+    "login": {
+      "title": "Organizer Login",
+      "mobilePlaceholder": "Mobile Number",
+      "passwordPlaceholder": "Password",
+      "loginButton": "Login",
+      "otpTitle": "Enter the OTP sent to your mobile",
+      "otpPlaceholder": "Enter OTP (try 123456)",
+      "verifyButton": "Verify OTP",
+      "error": {
+        "invalidCredentials": "Invalid mobile number or password.",
+        "missingFields": "Please enter both mobile number and password.",
+        "invalidOtp": "Invalid OTP. Try 123456."
+      }
+    },
+    "overviewTitle": "Organizer Overview",
+    "overviewDescription": "View your events, track ticket sales, and manage promotions."
+  },
+
+  "dashboard": {
+    "title": "Organizer Dashboard",
+    "subtitle": "Monitor your events, track sales, and view analytics",
+    "stats": {
+      "totalEvents": "Total Events",
+      "runningEvents": "Running Events",
+      "completedEvents": "Completed Events",
+      "availableTickets": "Available Tickets",
+      "totalTicketsSold": "Sold Tickets",
+      "totalAttendees": "Total Attendees",
+      "totalRevenues": "Total Revenues",
+      "netRevenues": "Net Revenues",
+      "totalProcessedPayouts": "Processed Payouts",
+      "totalPendingPayouts": "Pending Payouts"
+    },
+    "tabs": {
+      "events": "Events",
+      "analytics": "Analytics",
+      "payouts": "Payouts",
+      "profile": "Profile"
+    },
+    "filters": {
+      "title": "Filters",
+      "searchPlaceholder": "Search events...",
+      "status": "Status",
+      "location": "Location",
+      "date": "Date",
+      "allStatus": "All Status",
+      "upcoming": "Upcoming",
+      "ongoing": "Ongoing",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "allLocations": "All Locations",
+      "allDates": "All Dates"
+    },
+    "event": {
+      "ticketsSold": "Tickets Sold",
+      "ticketsAvailable": "Available",
+      "peopleAdmitted": "Admitted",
+      "peopleRemaining": "Remaining",
+      "salesProgress": "Sales Progress",
+      "pendingPayout": "Pending Payout",
+      "paidPayout": "Paid Payout",
+      "viewDetails": "View Details"
+    },
+    "analytics": {
+      "ticketCategories": "Ticket Categories",
+      "overallStats": "Overall Statistics",
+      "payoutInfo": "Payout Information",
+      "salesProgress": "Sales Progress",
+      "sold": "Sold",
+      "available": "Available",
+      "totalSold": "Total Sold",
+      "totalAvailable": "Total Available",
+      "totalAdmitted": "Total Admitted",
+      "totalRemaining": "Total Remaining",
+      "pendingPayout": "Pending Payout",
+      "paidPayout": "Paid Payout",
+      "soldPercentage": "Sold Percentage",
+      "remainingPercentage": "Remaining Percentage",
+      "selectEvent": "Select an event to view detailed analytics",
+      "backToEvents": "Back to Events"
+    },
+    "status": {
+      "upcoming": "Upcoming",
+      "ongoing": "Ongoing",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "noEvents": "No events match your criteria",
+    "profile": {
+      "title": "Business Profile",
+      "subtitle": "View and manage your business information",
+      "editButton": "Edit Profile",
+      "taxId": "Tax ID",
+      "commercialRegistration": "Commercial Registration",
+      "legalBusinessName": "Legal Business Name",
+      "tradeName": "Trade Name",
+      "about": "About",
+      "aboutPlaceholder": "Tell us about your business...",
+      "contactMobile": "Contact Mobile",
+      "requestChanges": "Request Changes",
+      "cancel": "Cancel",
+      "changesRequested": "Changes Requested",
+      "changesRequestedDesc": "Your change request has been submitted for review. We'll notify you once it's processed."
+    },
+    "payout": {
+      "title": "Payout History",
+      "subtitle": "Track all your payout transactions and download invoices",
+      "invoiceDownload": "Invoice Download",
+      "invoiceDownloadDesc": "Downloading invoice for transaction",
+      "status": {
+        "completed": "Completed",
+        "pending": "Pending",
+        "failed": "Failed"
+      },
+      "filters": {
+        "title": "Payout Filters",
+        "searchPlaceholder": "Search payouts...",
+        "status": "Status",
+        "date": "Date",
+        "allStatus": "All Status",
+        "completed": "Completed",
+        "pending": "Pending",
+        "failed": "Failed",
+        "allDates": "All Dates"
+      },
+      "history": {
+        "title": "Payout History",
+        "transactionId": "Transaction ID",
+        "event": "Event",
+        "amount": "Amount",
+        "date": "Date",
+        "status": "Status",
+        "invoice": "Invoice",
+        "download": "Download",
+        "noInvoice": "No Invoice",
+        "noPayouts": "No payouts match your criteria"
+      },
+      "summary": {
+        "title": "Payout Summary",
+        "totalCompleted": "Total Completed",
+        "totalPending": "Total Pending",
+        "totalTransactions": "Total Transactions"
+      }
+    }
+  },
+
+  "auth": {
+    "sign_in": "Sign In",
+    "sign_up": "Sign Up",
+    "login": "Login",
+    "emailOrMobile": "Email or Mobile",
+    "enterEmailOrMobile": "Enter your email or mobile number",
+    "enterPassword": "Enter your password",
+    "fillAllFields": "Please fill in all fields",
+    "loggingIn": "Logging in...",
+    "loginSuccess": "Login Successful",
+    "loginError": "Login Failed",
+    "loginErrorMessage": "Invalid credentials. Please try again.",
+    "rateLimitError": "Too Many Attempts",
+    "rateLimitMessage": "You have exceeded the maximum number of login attempts. Please wait 5-10 minutes before trying again, or try using the 'Login with OTP' option.",
+    "invalidCredentials": "Invalid Credentials",
+    "invalidCredentialsMessage": "The email/phone or password you entered is incorrect. Please try again.",
+    "accountBlocked": "Account Blocked",
+    "accountBlockedMessage": "Your account has been temporarily blocked. Please contact support for assistance.",
+    "serverError": "Server Error",
+    "serverErrorMessage": "There was a problem with our servers. Please try again later.",
+    "dataSyncError": "Server error: Data synchronization issue. Please try again in a moment.",
+    "serverUnavailableError": "Server temporarily unavailable. Please try again later.",
+    "genericServerError": "Server error occurred. Please try again or contact support if the issue persists.",
+    "apiError": "API Error",
+    "apiErrorMessage": "There was an issue with the API response. Please try again.",
+    "logoutConfirmationTitle": "Confirm Logout",
+    "logoutConfirmationMessage": "Are you sure you want to logout? You will need to sign in again to access your account.",
+    "loggingOut": "Logging out...",
+    "cancel": "Cancel",
+    "logout": "Logout",
+    "logoutAll": "Logout from All Devices",
+    "tryOtpLogin": "Try OTP Login",
+    "otpLoginSuggestion": "You can also try logging in with OTP instead of password to avoid rate limiting.",
+    "welcomeBack": "Welcome back, {{name}}!",
+    "noAccount": "Don't have an account?",
+    "signUp": "Sign up",
+    "loginWithOtp": "Login with OTP",
+    "otpLoginDescription": "Enter your email or mobile number to receive a verification code",
+    "sendOtp": "Send OTP",
+    "sendingOtp": "Sending OTP...",
+    "verifyOtp": "Verify OTP",
+    "enterOtp": "Enter OTP",
+    "otpPlaceholder": "Enter 6-digit code",
+    "verifying": "Verifying...",
+    "otpSent": "OTP Sent",
+    "otpSentDescription": "Verification code has been sent to your contact",
+    "otpExpiresAt": "OTP expires at {{time}}",
+    "otpSentTo": "Code sent to {{contact}}",
+    "resendOtp": "Resend OTP",
+    "resendIn": "Resend in {{seconds}}s",
+    "resendOtpMissingCredentials": "Please re-enter your email/phone and password to resend the code.",
+    "otpSendError": "Failed to Send OTP",
+    "otpSendErrorMessage": "Unable to send verification code. Please try again.",
+    "otpLoginError": "OTP Verification Failed",
+    "otpLoginErrorMessage": "Invalid OTP code. Please try again.",
+    "authenticationRequired": "Authentication Required",
+    "authenticationRequiredMessage": "Your session has expired. Please log in again to continue.",
+    "provideContactInfo": "Please provide email or mobile number",
+    "invalidContactFormat": "Please enter a valid email or mobile number",
+    "tokenRefreshed": "Token Refreshed",
+    "tokenRefreshSuccess": "Your session has been extended successfully",
+    "tokenRefreshError": "Session Expired",
+    "tokenRefreshErrorMessage": "Please log in again to continue",
+    "logoutSuccess": "Logged Out",
+    "logoutSuccessMessage": "You have been successfully logged out",
+    "logoutError": "Logout Error",
+    "logoutErrorMessage": "There was an issue logging out, but your session has been cleared locally",
+    "logoutAllSuccess": "Logged Out from All Devices",
+    "logoutAllSuccessMessage": "You have been successfully logged out from all devices",
+    "logoutAllError": "Logout All Error",
+    "logoutAllErrorMessage": "There was an issue logging out from all devices, but your session has been cleared locally",
+    "getUserError": "Failed to Get User Information",
+    "getUserErrorMessage": "There was an error fetching your user information. Please try again.",
+    "unauthorized": "Unauthorized Access",
+    "unauthorizedMessage": "Your session has expired. Please log in again.",
+    "forbidden": "Access Forbidden",
+    "forbiddenMessage": "You don't have permission to access this resource.",
+    "first_name": "First Name",
+    "last_name": "Last Name",
+    "email": "Email",
+    "phone_number": "Phone Number",
+    "password": "Password",
+    "confirm_password": "Confirm Password",
+    "continue": "Continue",
+    "select_interests": "Select Your Interests",
+    "welcome": "Welcome",
+    "all_set": "You're all set!",
+    "verify": "Verify",
+    "verified": "Verified",
+    "verifyOtp": "Verify OTP",
+    "verifying": "Verifying...",
+    "enter_otp": "Enter OTP",
+    "cancel": "Cancel",
+    "otp_sent": "OTP sent",
+    "otp_verified": "Phone number verified",
+    "resend_otp": "resend OTP",
+    "verify_otp": "Verify OTP",
+    "verified": "Verified",
+    "placeholders": {
+      "email_or_phone": "Email or Mobile Number",
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "password": "Password",
+      "phone": "Phone Number",
+      "email": "Email Address",
+      "otp": "Enter OTP",
+      "new_password": "New Password",
+      "confirm_new_password": "Confirm New Password"
+    },
+    "errors": {
+      "email_required": "Email is required.",
+      "email_invalid": "Invalid email address.",
+      "email_or_phone_required": "Email or phone number is required.",
+      "email_or_phone_invalid": "Please enter a valid email address or phone number.",
+      "password_required": "Password is required.",
+      "password_min": "Password must be at least 6 characters.",
+      "first_name_required": "First name is required.",
+      "first_name_min": "First name must be at least 3 characters.",
+      "last_name_required": "Last name is required.",
+      "last_name_min": "Last name must be at least 3 characters.",
+      "phone_required": "Phone number is required.",
+      "phone_invalid": "Phone number must be valid (10–15 digits).",
+      "confirm_password_required": "Confirm your password.",
+      "confirm_password_mismatch": "Passwords do not match.",
+      "otp_invalid": "Invalid OTP",
+      "phone_not_verified": "Phone number must be verified before signing up",
+      "captcha_required": "Captcha is required"
+    },
+    "no_account": "Don't have an account?",
+    "already_account": "Already have an account?",
+    "forgot_password": "Forgot Password",
+    "remember_password": "Remember your password?",
+    "back_to_signin": "Back to Sign In",
+    "send_otp": "Send OTP",
+    "reset_password": "Reset Password",
+    "password_reset_success": "Password Reset Successful",
+    "password_reset_description": "Your password has been reset successfully. You can now sign in with your new password.",
+    "password_reset_error": "Password Reset Error",
+    "password_reset_token_missing": "Password reset token is missing. Please try again.",
+    "passwordResetOtpSent": "Password Reset OTP Sent",
+    "passwordResetOtpSentDescription": "If an account exists for this mobile, an OTP has been sent.",
+    "passwordResetOtpError": "Failed to Send Password Reset OTP",
+    "passwordResetOtpErrorMessage": "Unable to send password reset OTP. Please try again.",
+    "passwordResetOtpVerified": "Password Reset OTP Verified",
+    "passwordResetOtpVerifiedDescription": "OTP verified successfully. You can now set your new password. Token expires in {{expiresIn}} minutes.",
+    "passwordResetOtpVerificationError": "OTP Verification Failed",
+    "passwordResetOtpVerificationErrorMessage": "Invalid OTP code. Please try again.",
+    "passwordResetSuccess": "Password Reset Successful",
+    "passwordResetSuccessDescription": "Your password has been reset successfully. You can now sign in with your new password.",
+    "passwordResetConfirmationError": "Password Reset Failed",
+    "passwordResetConfirmationErrorMessage": "Unable to reset password. Please try again.",
+    "provideMobileNumber": "Please provide mobile number",
+    "provideMobileAndOtp": "Please provide mobile number and OTP code",
+    "provideAllFields": "Please provide all required fields",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "vip_welcome": "Welcome VIP Member!",
+    "vip_access_granted": "You have access to VIP Black Card benefits.",
+    "signup": {
+      "title": "Sign Up",
+      "completingSignup": "Completing Signup",
+      "completingDescription": "Please wait while we finalize your account...",
+      "verifyMobile": "Verify Mobile Number",
+      "otpSentTo": "We've sent a verification code to {{mobile}}",
+      "enterOtpCode": "Enter OTP Code",
+      "verifying": "Verifying...",
+      "resendOtp": "Resend OTP",
+      "sending": "Sending...",
+      "setPassword": "Set Your Password",
+      "createPassword": "Create a secure password for your account",
+      "passwordRequirements": "Password Requirements:",
+      "atLeast8Chars": "At least 8 characters long",
+      "oneUppercase": "One uppercase letter",
+      "oneLowercase": "One lowercase letter",
+      "oneNumber": "One number",
+      "oneSpecialChar": "One special character",
+      "confirmPassword": "Confirm Password",
+      "enterPassword": "Enter password",
+      "confirmYourPassword": "Confirm your password",
+      "passwordsDoNotMatch": "Passwords do not match",
+      "settingPassword": "Setting Password...",
+      "createAccount": "Create Account",
+      "uploadProfileImage": "Upload Profile Image",
+      "addProfilePicture": "Add a profile picture to personalize your account",
+      "imageShouldBeClear": "Your image should be clear like this example:",
+      "exampleOfClearImage": "Example of clear profile image",
+      "profileImage": "Profile Image",
+      "supportsAllFormats": "Supports all image formats (JPEG, PNG, GIF, WebP, BMP, SVG, TIFF, ICO, etc.) - max 5MB",
+      "profilePreview": "Profile preview",
+      "uploadingImage": "Uploading image...",
+      "continue": "Continue",
+      "optionalInformation": "Optional Information",
+      "addMedicalInfo": "Add medical and emergency contact information (optional)",
+      "bloodType": "Blood Type",
+      "selectBloodType": "Select blood type",
+      "emergencyContactName": "Emergency Contact Name",
+      "enterEmergencyContactName": "Enter emergency contact name",
+      "emergencyContactMobile": "Emergency Contact Mobile",
+      "enterEmergencyContactMobile": "Enter emergency contact mobile number",
+      "saving": "Saving...",
+      "saveAndCreateAccount": "Save & Create Account",
+      "skipForNow": "Skip for Now",
+      "backToLogin": "Back to Login",
+      "creatingAccount": "Creating Account...",
+      "agreeToTerms": "I agree to the",
+      "termsAndConditions": "Terms & Conditions",
+      "validPhoneNumber": "Please enter a valid phone number (10-15 digits)",
+      "accountCreatedSuccess": "Account created and activated successfully!",
+      "failedToCompleteSignup": "Failed to complete signup. Please try again."
+    }
+  },
+
+  "interests": {
+    "music": "Music",
+    "sports": "Sports",
+    "technology": "Technology",
+    "theatre": "Theatre"
+  },
+
+  "profileSetup": {
+    "complete_profile": "Complete Your Profile",
+    "step1_title": "Upload Profile Image",
+    "step2_title": "Additional Information",
+    "image_disclaimer": "To ensure security, please upload a clear and recent photo. You may be denied entry to events if your image does not match your appearance.",
+    "image_warning": "⚠️ WARNING: Profile photo cannot be changed after upload. Any incorrect photo will deny access to the venue. ⚠️",
+    "example_image": "Example of a Good Profile Photo",
+    "upload_placeholder": "Upload a clear photo like this example",
+    "upload_image": "Upload Image",
+    "image_preview": "Image Preview",
+    "next": "Next",
+    "back": "Back",
+    "select_blood_type": "Select blood type (optional)",
+    "emergency_contact": "Emergency contact (optional)",
+    "emergency_contact_name": "Emergency Contact Name",
+    "emergency_contact_number": "Emergency Contact Number",
+    "submit": "Submit",
+    "errors": {
+      "image_required": "Profile image is required"
+    },
+    "submitted": "Profile completed successfully"
+  },
+  "terms": {
+    "title": "Terms and Conditions",
+    "message": "Please review and accept the terms and conditions before proceeding."
+  },
+  "common": {
+    "textDirection": "ltr",
+    "accept": "Accept",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "invalidDate": "Invalid Date",
+    "backToDashboard": "Back to Dashboard"
+  },
+  "editEvent": {
+    "title": "Edit Event Request",
+    "editEvent": "Edit Event",
+    "descriptionLabel": "Edit Description",
+    "descriptionPlaceholder": "Please describe what changes you would like to make to this event...",
+    "descriptionHelp": "Provide a detailed description of the changes you want to make. This will help us process your request faster.",
+    "descriptionRequired": "Description Required",
+    "pleaseProvideDescription": "Please provide a description of the changes you want to make.",
+    "attachmentsLabel": "Attachments (Optional)",
+    "dragDropOrClick": "Drag and drop files here, or click to browse",
+    "supportedFormats": "Supported formats: Images (JPG, PNG, GIF) and Videos (MP4, MOV, AVI)",
+    "chooseFiles": "Choose Files",
+    "attachments": "Attachments",
+    "invalidFileType": "Invalid File Type",
+    "onlyImagesAndVideos": "Only image and video files are supported.",
+    "submitRequest": "Submit Edit Request",
+    "submitting": "Submitting...",
+    "submitted": "Edit Request Submitted",
+    "editRequestSubmitted": "Your edit request has been submitted successfully. We will review and process it within 24-48 hours.",
+    "error": "Submission Error",
+    "submissionFailed": "Failed to submit edit request. Please try again."
+  },
+  "buttons": {
+    "book_now": "Book Now",
+    "view_event": "View Event"
+  },
+  "wallet": {
+    "expiresOn": "Expires in",
+    "virtualExpired": "Your temporary virtual access has expired.",
+    "renewTemporaryAccess": "Renew Temporary Access",
+    "add": "Add to Wallet",
+    "added": "Added to Wallet",
+    "renew": "Renew Wallet",
+    "timer": "{{days}}d {{hours}}:{{minutes}}:{{seconds}} left"
+  },
+
+  "how_it_works": {
+    "title": "How It Works",
+    "step1": {
+      "title": "Discover Amazing Events",
+      "text": "Browse through our curated collection of events happening across Egypt. From concerts and festivals to workshops and cultural events, find the perfect experience that matches your interests. Use our advanced filters to search by category, location, date, or price range."
+    },
+    "step2": {
+      "title": "Secure Your Tickets",
+      "text": "Select your preferred event and choose from different ticket tiers (Regular, Gold, Platinum). Our secure payment system accepts all major credit cards and ensures your financial information is protected. Complete your booking and receive instant confirmation with your ticket details."
+    },
+    "step3": {
+      "title": "Get Your NFC Card",
+      "text": "For your first purchase, visit any of our authorized merchants to collect your NFC access card. This contactless card provides faster entry to events and works at all supported venues. Don't forget to bring your booking confirmation and a valid ID."
+    },
+    "step4": {
+      "title": "Enjoy the Experience",
+      "text": "Arrive at your event with your NFC card or digital ticket QR code. Our streamlined entry process gets you inside quickly so you can focus on enjoying the experience. Share your memories and discover your next adventure!"
+    }
+  },
+  "termspage": {
+    "title": "Terms & Conditions",
+    "section1": {
+      "title": "Acceptance of Terms",
+      "text": "By accessing and using Ticket Runners' platform, you accept and agree to be bound by these Terms and Conditions. If you do not agree to these terms, please do not use our services. These terms apply to all users of the platform, including event organizers, attendees, and visitors."
+    },
+    "section2": {
+      "title": "User Accounts and Registration",
+      "text": "You must create an account to book tickets. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must provide accurate and complete information when creating your account. You must be at least 18 years old to create an account, or have parental consent if under 18."
+    },
+    "section3": {
+      "title": "Ticket Booking and Payment",
+      "text": "All ticket purchases are final and non-refundable unless otherwise stated in our refund policy. Prices are subject to change without notice. Payment must be made in full at the time of booking. We accept major credit cards and other payment methods as indicated on our platform. All transactions are processed securely through our payment partners."
+    },
+    "section4": {
+      "title": "Event Attendance and Conduct",
+      "text": "You must comply with all venue rules and regulations when attending events. Event organizers reserve the right to deny entry or remove attendees who violate venue policies or engage in disruptive behavior. You are responsible for your own safety and the safety of any dependents accompanying you."
+    },
+    "section5": {
+      "title": "NFC Card Usage",
+      "text": "NFC cards are issued for your personal use and are non-transferable. You are responsible for the security of your NFC card and must report any loss or theft immediately. Replacement cards may incur additional fees. The NFC card remains the property of Ticket Runners and must be returned upon request."
+    },
+    "section6": {
+      "title": "Intellectual Property",
+      "text": "All content on our platform, including text, graphics, logos, and software, is owned by Ticket Runners or our licensors and is protected by copyright and other intellectual property laws. You may not reproduce, distribute, or create derivative works without our express written consent."
+    },
+    "section7": {
+      "title": "Limitation of Liability",
+      "text": "Ticket Runners is not liable for any indirect, incidental, special, or consequential damages arising from your use of our platform or attendance at events. Our total liability is limited to the amount you paid for the specific ticket giving rise to the claim."
+    },
+    "section8": {
+      "title": "Modifications to Terms",
+      "text": "We reserve the right to modify these terms at any time. Changes will be effective immediately upon posting on our platform. Your continued use of our services after changes are posted constitutes acceptance of the modified terms. We will notify users of significant changes via email."
+    }
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "data_collection": {
+      "title": "Information We Collect",
+      "text": "We collect information you provide directly to us, such as when you create an account, book tickets, or contact our support team. This includes your name, email address, phone number, payment information, and event preferences. We also collect information about your device and how you use our platform to improve your experience."
+    },
+    "usage": {
+      "title": "How We Use Your Information",
+      "text": "We use your information to process your ticket bookings, send you confirmations and updates about events, provide customer support, and improve our services. We may also use your information to send you personalized recommendations for events that match your interests, with your consent."
+    },
+    "sharing": {
+      "title": "Information Sharing and Disclosure",
+      "text": "We do not sell your personal information. We may share your information with event organizers to facilitate your attendance, with payment processors to complete transactions, and with service providers who help us operate our platform. We may also disclose information when required by law or to protect our rights and safety."
+    },
+    "security": {
+      "title": "Data Security",
+      "text": "We implement industry-standard security measures to protect your personal information. This includes encryption of sensitive data, secure payment processing, and regular security audits. However, no method of transmission over the internet is 100% secure, and we cannot guarantee absolute security."
+    },
+    "cookies": {
+      "title": "Cookies and Tracking",
+      "text": "We use cookies and similar technologies to enhance your browsing experience, remember your preferences, and analyze how you use our platform. You can control cookie settings through your browser, but disabling cookies may affect some features of our website."
+    },
+    "rights": {
+      "title": "Your Rights and Choices",
+      "text": "You have the right to access, update, or delete your personal information. You can also opt out of marketing communications at any time. To exercise these rights, contact us at privacy@ticketrunners.com. We will respond to your request within 30 days."
+    }
+  },
+  "refund": {
+    "title": "Refund Policy",
+    "eligibility": {
+      "title": "Refund Eligibility",
+      "text": "Refunds are available in the following circumstances: Event cancellation by the organizer, event postponement where you cannot attend the new date, significant changes to event details that affect your ability to attend, or technical issues on our platform that prevent successful booking. Refund eligibility is determined on a case-by-case basis."
+    },
+    "process": {
+      "title": "How to Request a Refund",
+      "text": "To request a refund, contact our customer support team at support@ticketrunners.com or call +20 122 652 1747. Include your booking reference number, the reason for your refund request, and any supporting documentation. We will review your request and respond within 3-5 business days. Approved refunds will be processed within 5-7 business days to your original payment method."
+    },
+    "exceptions": {
+      "title": "Non-Refundable Situations",
+      "text": "Refunds are not available for: Change of mind or personal circumstances, failure to attend the event without prior notice, minor changes to event details (time, venue within same city), or if the event proceeds as scheduled. Additionally, service fees and NFC card costs are non-refundable once the card has been issued."
+    },
+    "partial_refunds": {
+      "title": "Partial Refunds",
+      "text": "In some cases, partial refunds may be offered. This could include situations where only part of a multi-day event is cancelled, or when alternative arrangements are made that reduce the event's value. The amount of partial refund will be determined based on the specific circumstances."
+    },
+    "transfer_fees": {
+      "title": "Transfer Fees",
+      "text": "If you transfer your ticket to another person, the 50 EGP transfer fee is non-refundable. This fee covers the administrative costs of processing the transfer and updating our systems."
+    },
+    "contact": {
+      "title": "Contact Us",
+      "text": "If you have questions about our refund policy or need to request a refund, please contact our customer support team. We're here to help ensure you have a positive experience with Ticket Runners."
+    }
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "q1": {
+      "question": "How do I book a ticket?",
+      "answer": "Booking a ticket is simple! Browse our events, select your preferred event, choose your ticket type and quantity, fill in your details, and complete the payment. You'll receive a confirmation email with your ticket details."
+    },
+    "q2": {
+      "question": "Can I refund my ticket?",
+      "answer": "Refund policies vary by event organizer. Generally, tickets are non-refundable unless the event is cancelled or rescheduled. Please check the specific refund policy for each event before booking."
+    },
+    "q3": {
+      "question": "Is my payment secure?",
+      "answer": "Absolutely! We use industry-standard SSL encryption and secure payment gateways to protect your financial information. All transactions are processed through trusted payment providers."
+    },
+    "q4": {
+      "question": "What is an NFC card and why do I need it?",
+      "answer": "An NFC (Near Field Communication) card is a contactless access card that allows you to enter events quickly and securely. It's required for your first purchase and provides faster entry compared to QR codes."
+    },
+    "q5": {
+      "question": "How do I get my NFC card?",
+      "answer": "After your first purchase, visit any of our authorized merchants to collect your NFC card. Bring your booking confirmation and a valid ID. The card will be activated and ready to use immediately."
+    },
+    "q6": {
+      "question": "Can I transfer my tickets to someone else?",
+      "answer": "Yes, you can transfer tickets to another person. There's a small transfer fee of 50 EGP per ticket. You'll need the recipient's email address to complete the transfer."
+    },
+    "q7": {
+      "question": "What happens if an event is cancelled?",
+      "answer": "If an event is cancelled, you'll be automatically refunded the full ticket price. You'll receive an email notification and the refund will be processed within 5-7 business days."
+    },
+    "q8": {
+      "question": "Can I book tickets for multiple people?",
+      "answer": "Yes! You can book multiple tickets in a single transaction. For dependents (children, family members), you'll need to provide their email addresses so they can receive their individual tickets."
+    },
+    "q9": {
+      "question": "What should I do if I lose my NFC card?",
+      "answer": "If you lose your NFC card, contact our support team immediately. You can still access events using the QR code in your digital ticket, but you'll need to purchase a new NFC card for future events."
+    },
+    "q10": {
+      "question": "How do I contact customer support?",
+      "answer": "You can reach our customer support team at support@ticketrunners.com or call us at +20 122 652 1747. We're available 24/7 to help with any questions or issues."
+    }
+  },
+  "nearby_merchants": {
+    "title": "Nearby Merchants",
+    "view_on_map": "View On Map",
+    "howToGetCard": {
+      "title": "How to Get Your NFC Card",
+      "shortDescription": "Find merchant locations",
+      "description": "Follow these simple steps to receive your NFC card",
+      "step1": {
+        "title": "Create Your Account",
+        "description": "Make sure you already have an account on Ticket Runners website. If you don't have one, sign up now to get started."
+      },
+      "step2": {
+        "title": "Visit Nearest Merchant",
+        "description": "Go to the nearest merchant location listed below to receive your NFC card. Make sure to bring a valid ID for verification."
+      }
+    },
+    "merchants": {
+      "cairo_bookstore": {
+        "name": "Cairo Bookstore",
+        "address": "12 Tahrir St, Downtown Cairo"
+      },
+      "alex_boutique": {
+        "name": "Alex Boutique",
+        "address": "45 El Raml Station, Alexandria"
+      },
+      "giza_cafe": {
+        "name": "Giza Café",
+        "address": "87 Haram Street, Giza"
+      }
+    }
+  },
+  "merchant_page": {
+    "title": "Merchant Portal",
+    "description": "Search customer by email and assign NFC card.",
+    "customer_email": "Customer Email",
+    "email_placeholder": "customer@example.com",
+    "user_not_found": "User Not Found",
+    "user_not_found_desc": "No account associated with {{email}}.",
+    "user_found": "User Found",
+    "user_found_desc": "Account belongs to {{name}}.",
+    "assigning_to": "Assigning card to:",
+    "nfc_card_number": "NFC Card Number",
+    "card_placeholder": "Enter card serial / ID",
+    "assign_card": "Assign Card",
+    "card_assigned": "Card Assigned Successfully",
+    "card_assigned_desc": "Card {{cardNumber}} is now linked to {{name}}.",
+    "assign_error": "Error",
+    "assign_error_desc": "Failed to assign card."
+  },
+  "share": {
+    "title": "Share this Event",
+    "copy": "Copy Link",
+    "copied": "Link Copied",
+    "copied_description": "You can now share it anywhere.",
+    "copyLink": "Copy Link",
+    "facebook": "Facebook",
+    "twitter": "Twitter",
+    "whatsapp": "WhatsApp",
+    "telegram": "Telegram",
+    "instagram": "Instagram",
+    "instagramTitle": "Link Copied for Instagram",
+    "instagramDescription": "The link has been copied. You can now paste it in your Instagram story or post.",
+    "linkedin": "LinkedIn",
+    "email": "Email"
+  },
+  "cardExpired": {
+    "title": "Access Card Expired",
+    "message": "Your access card has expired. Please renew your card to continue using premium features. You can continue using the app normally.",
+    "missingTitle": "NFC Card Required",
+    "missingMessage": "You need to upgrade or get an NFC card to access premium features. You can continue using the app normally.",
+    "renewButton": "Renew Now",
+    "upgradeButton": "Upgrade Now",
+    "laterButton": "Maybe Later",
+    "toastMessage": "Your card has expired. Please renew to continue using premium features.",
+    "missingToast": "Consider upgrading to an NFC card for premium features."
+  },
+  "eventsPage": {
+    "allEvents": "All Events",
+    "filteredEvents": "Filtered Events",
+    "noEventsFound": "No events found matching your criteria",
+    "loadingEvents": "Loading events...",
+    "filterEvents": "Filter Events"
+  },
+  "pagination": {
+    "showing": "Showing {{start}} to {{end}} of {{total}} results",
+    "page": "Page {{current}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next",
+    "first": "First",
+    "last": "Last"
+  },
+  "serverError": {
+    "title": "Server Error",
+    "singleError": "Server is experiencing issues. Some features may not work properly.",
+    "multipleErrors": "Multiple server errors detected ({{count}})",
+    "lastError": "Last error"
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "description": "We encountered an unexpected error. Please try again or go back to the home page.",
+    "errorDetails": "Error Details"
+  }
+}

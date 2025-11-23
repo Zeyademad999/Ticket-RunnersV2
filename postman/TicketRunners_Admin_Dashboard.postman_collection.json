@@ -1,0 +1,1832 @@
+{
+	"info": {
+		"_postman_id": "ticket-runners-admin-dashboard",
+		"name": "Ticket Runners - Admin Dashboard API",
+		"description": "Complete API collection for testing the Admin Dashboard backend",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.environment.set(\"access_token\", jsonData.access_token);",
+									"    pm.environment.set(\"refresh_token\", jsonData.refresh_token);",
+									"    pm.environment.set(\"user_id\", jsonData.user.id);",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.access_token);",
+									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refresh_token);",
+									"    pm.collectionVariables.set(\"user_id\", jsonData.user.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login", ""]
+						}
+					}
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me", ""]
+						}
+					}
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"old_password\": \"admin123\",\n    \"new_password\": \"newpassword123\",\n    \"confirm_password\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/change-password/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "change-password", ""]
+						}
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh", ""]
+						}
+					}
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/logout/",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout", ""]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Get All Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/customers/?page=1&page_size=10",
+							"host": ["{{base_url}}"],
+							"path": ["customers", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/customers/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["customers", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Customer\",\n    \"email\": \"test@example.com\",\n    \"phone\": \"+201234567890\",\n    \"password\": \"password123\",\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/customers/",
+							"host": ["{{base_url}}"],
+							"path": ["customers", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Customer\",\n    \"email\": \"updated@example.com\",\n    \"phone\": \"+201234567891\",\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/customers/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["customers", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Events",
+			"item": [
+				{
+					"name": "Get All Events",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/events/?page=1&page_size=10",
+							"host": ["{{base_url}}"],
+							"path": ["events", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "category",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Event by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/events/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["events", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Event",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Test Event\",\n    \"description\": \"Test event description\",\n    \"date\": \"2025-12-31\",\n    \"time\": \"19:00:00\",\n    \"venue\": 1,\n    \"organizer\": 1,\n    \"category\": null,\n    \"total_tickets\": 100,\n    \"ticket_limit\": 10,\n    \"ticket_transfer_enabled\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/events/",
+							"host": ["{{base_url}}"],
+							"path": ["events", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Event",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"title\": \"Updated Event\",\n    \"description\": \"Updated description\",\n    \"date\": \"2025-12-31\",\n    \"time\": \"20:00:00\",\n    \"venue\": 1,\n    \"organizer\": 1,\n    \"category\": 1,\n    \"total_tickets\": 150,\n    \"ticket_limit\": 10,\n    \"ticket_transfer_enabled\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/events/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["events", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Event",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/events/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["events", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Event Ushers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/events/:id/ushers/",
+							"host": ["{{base_url}}"],
+							"path": ["events", ":id", "ushers", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Tickets",
+			"item": [
+				{
+					"name": "Get All Tickets",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/?page=1&page_size=10",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "event",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Ticket by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"event_id\": 1,\n    \"customer_id\": 1,\n    \"category\": \"vip\",\n    \"price\": 500.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Ticket",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"used\",\n    \"category\": \"vip\",\n    \"price\": 500.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Ticket",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/tickets/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Check-in Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"device_name\": \"NFC Reader Main Gate\",\n    \"device_type\": \"nfc_reader\",\n    \"notes\": \"Check-in successful\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/:id/checkin/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ":id", "checkin", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Transfer Ticket",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"to_customer_id\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/tickets/:id/transfer/",
+							"host": ["{{base_url}}"],
+							"path": ["tickets", ":id", "transfer", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Venues",
+			"item": [
+				{
+					"name": "Get All Venues",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/venues/?page=1&page_size=10",
+							"host": ["{{base_url}}"],
+							"path": ["venues", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "city",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Venue by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/venues/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["venues", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Venue",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Test Venue\",\n    \"address\": \"123 Test Street\",\n    \"city\": \"Cairo\",\n    \"capacity\": 1000,\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/venues/",
+							"host": ["{{base_url}}"],
+							"path": ["venues", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Venue",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Updated Venue\",\n    \"address\": \"456 Updated Street\",\n    \"city\": \"Alexandria\",\n    \"capacity\": 1500,\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/venues/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["venues", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Venue",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/venues/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["venues", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"item": [
+				{
+					"name": "Organizers",
+					"item": [
+						{
+							"name": "Get All Organizers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/organizers/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["organizers", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Organizer",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"John Doe Organizer\",\n    \"email\": \"organizer@example.com\",\n    \"phone\": \"+201234567890\",\n    \"category\": \"Music Events\",\n    \"location\": \"Cairo, Egypt\",\n    \"status\": \"active\",\n    \"password\": \"password123\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/organizers/",
+									"host": ["{{base_url}}"],
+									"path": ["organizers", ""]
+								}
+							}
+						},
+						{
+							"name": "Update Organizer",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Jane Smith Organizer\",\n    \"email\": \"jane@example.com\",\n    \"phone\": \"+201234567891\",\n    \"category\": \"Sports Events\",\n    \"location\": \"Alexandria, Egypt\",\n    \"status\": \"active\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/organizers/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["organizers", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Verify Organizer",
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/organizers/:id/verify/",
+									"host": ["{{base_url}}"],
+									"path": ["organizers", ":id", "verify", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Delete Organizer",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/organizers/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["organizers", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Ushers",
+					"item": [
+						{
+							"name": "Get All Ushers",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ushers/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["ushers", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Usher by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ushers/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["ushers", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Usher",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Ahmed Hassan\",\n    \"email\": \"usher@example.com\",\n    \"phone\": \"+201234567890\",\n    \"role\": \"general\",\n    \"status\": \"active\",\n    \"location\": \"Cairo\",\n    \"hire_date\": \"2024-01-01\",\n    \"hourly_rate\": 50.00,\n    \"experience\": 2,\n    \"events\": [1, 2],\n    \"password\": \"password123\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/ushers/",
+									"host": ["{{base_url}}"],
+									"path": ["ushers", ""]
+								}
+							}
+						},
+						{
+							"name": "Update Usher",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Mohamed Ali\",\n    \"email\": \"mohamed@example.com\",\n    \"phone\": \"+201234567891\",\n    \"status\": \"active\",\n    \"location\": \"Alexandria\",\n    \"hourly_rate\": 60.00,\n    \"experience\": 3,\n    \"role\": \"security\",\n    \"events\": [1, 2]\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/ushers/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["ushers", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Delete Usher",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/ushers/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["ushers", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Merchants",
+					"item": [
+						{
+							"name": "Get All Merchants",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/merchants/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["merchants", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Merchant by ID",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/merchants/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["merchants", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						},
+				{
+					"name": "Create Merchant",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"business_name\": \"Sarah's Merchandise Shop\",\n    \"owner_name\": \"Sarah Mohamed\",\n    \"email\": \"merchant@example.com\",\n    \"phone\": \"+201234567890\",\n    \"location\": \"Cairo, Egypt\",\n    \"business_type\": \"Retail\",\n    \"status\": \"active\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/merchants/",
+							"host": ["{{base_url}}"],
+							"path": ["merchants", ""]
+						}
+					}
+				},
+				{
+					"name": "Update Merchant",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"business_name\": \"Fatima's Food Stand\",\n    \"owner_name\": \"Fatima Ahmed\",\n    \"email\": \"fatima@example.com\",\n    \"phone\": \"+201234567891\",\n    \"location\": \"Alexandria, Egypt\",\n    \"business_type\": \"Food & Beverage\",\n    \"status\": \"active\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/merchants/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["merchants", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Delete Merchant",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/merchants/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["merchants", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Verify Merchant",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/merchants/:id/verify/",
+							"host": ["{{base_url}}"],
+							"path": ["merchants", ":id", "verify", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+					]
+				}
+			]
+		},
+		{
+			"name": "Finances",
+			"item": [
+				{
+					"name": "Expenses",
+					"item": [
+						{
+							"name": "Get All Expenses",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/expenses/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "expenses", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "category",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_from",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_to",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Expense Summary",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/expenses/summary/",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "expenses", "summary", ""]
+								}
+							}
+						},
+						{
+							"name": "Create Expense",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"category\": \"marketing\",\n    \"amount\": 1000.00,\n    \"description\": \"Marketing campaign expenses\",\n    \"date\": \"2024-01-15\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/finances/expenses/",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "expenses", ""]
+								}
+							}
+						},
+						{
+							"name": "Update Expense",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"category\": \"marketing\",\n    \"amount\": 1200.00,\n    \"description\": \"Updated marketing campaign expenses\",\n    \"date\": \"2024-01-15\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/finances/expenses/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "expenses", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Delete Expense",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/expenses/:id/",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "expenses", ":id", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Payments",
+					"item": [
+						{
+							"name": "Get All Payments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/payments/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["payments", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "payment_method",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_from",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_to",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Get Payment Stats",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/payments/stats/",
+									"host": ["{{base_url}}"],
+									"path": ["payments", "stats", ""]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Payouts",
+					"item": [
+						{
+							"name": "Get All Payouts",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/payouts/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "payouts", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "organizer",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Create Payout",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"organizer\": 1,\n    \"amount\": 5000.00,\n    \"description\": \"Monthly payout\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/finances/payouts/",
+							"host": ["{{base_url}}"],
+							"path": ["finances", "payouts", ""]
+						}
+					}
+				},
+				{
+					"name": "Process Payout",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/finances/payouts/:id/process/",
+							"host": ["{{base_url}}"],
+							"path": ["finances", "payouts", ":id", "process", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+					]
+				},
+				{
+					"name": "Company Finances",
+					"item": [
+						{
+							"name": "Get Company Finances",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/company/?start_date=&end_date=",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "company", ""],
+									"query": [
+										{
+											"key": "start_date",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "end_date",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Profit Share",
+					"item": [
+						{
+							"name": "Get Profit Share",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/profit-share/?start_date=&end_date=",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "profit-share", ""],
+									"query": [
+										{
+											"key": "start_date",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "end_date",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Settlements",
+					"item": [
+						{
+							"name": "Get Settlements",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/settlements/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "settlements", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_from",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_to",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Deposits",
+					"item": [
+						{
+							"name": "Get Deposits",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/deposits/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "deposits", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_from",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_to",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						}
+					]
+				},
+				{
+					"name": "Profit Withdrawals",
+					"item": [
+						{
+							"name": "Get Profit Withdrawals",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/withdrawals/?page=1&page_size=10",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "withdrawals", ""],
+									"query": [
+										{
+											"key": "page",
+											"value": "1"
+										},
+										{
+											"key": "page_size",
+											"value": "10"
+										},
+										{
+											"key": "search",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "status",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_from",
+											"value": "",
+											"disabled": true
+										},
+										{
+											"key": "date_to",
+											"value": "",
+											"disabled": true
+										}
+									]
+								}
+							}
+						},
+						{
+							"name": "Approve Withdrawal",
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/finances/withdrawals/:id/approve/",
+									"host": ["{{base_url}}"],
+									"path": ["finances", "withdrawals", ":id", "approve", ""],
+									"variable": [
+										{
+											"key": "id",
+											"value": "1"
+										}
+									]
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "System Logs",
+			"item": [
+				{
+					"name": "Get System Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/logs/system/?page=1&page_size=50",
+							"host": ["{{base_url}}"],
+							"path": ["logs", "system", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "50"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "category",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "severity",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "user",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "date_from",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "date_to",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get System Log by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/logs/system/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["logs", "system", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Check-in Logs",
+			"item": [
+				{
+					"name": "Get Check-in Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/logs/checkin/?page=1&page_size=50",
+							"host": ["{{base_url}}"],
+							"path": ["logs", "checkin", ""],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "page_size",
+									"value": "50"
+								},
+								{
+									"key": "search",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "event",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "customer",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "device",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "operator",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "date_from",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "date_to",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Check-in Log by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/logs/checkin/:id/",
+							"host": ["{{base_url}}"],
+							"path": ["logs", "checkin", ":id", ""],
+							"variable": [
+								{
+									"key": "id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Event Check-in Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/logs/checkin/event/:event_id/",
+							"host": ["{{base_url}}"],
+							"path": ["logs", "checkin", "event", ":event_id", ""],
+							"variable": [
+								{
+									"key": "event_id",
+									"value": "1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Dashboard & Analytics",
+			"item": [
+				{
+					"name": "Get Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/dashboard/stats/",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "stats", ""]
+						}
+					}
+				},
+				{
+					"name": "Get Revenue Analytics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/analytics/revenue/?start_date=&end_date=",
+							"host": ["{{base_url}}"],
+							"path": ["analytics", "revenue", ""],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "",
+									"disabled": true
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get User Analytics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/analytics/users/",
+							"host": ["{{base_url}}"],
+							"path": ["analytics", "users", ""]
+						}
+					}
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [""]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/api",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+
