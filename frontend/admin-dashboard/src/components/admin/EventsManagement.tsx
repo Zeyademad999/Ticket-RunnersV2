@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -63,7 +64,7 @@ import { useTranslation } from "react-i18next";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eventsApi, usersApi, venuesApi, ticketsApi } from "@/lib/api/adminApi";
+import { eventsApi, usersApi, venuesApi, ticketsApi, homePageSectionsApi } from "@/lib/api/adminApi";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatNumberForLocale, formatCurrencyForLocale } from "@/lib/utils";
 import i18n from "@/lib/i18n";
@@ -128,6 +129,7 @@ interface Event {
     totalTickets: number;
     soldTickets?: number;
     description?: string;
+    color?: string;
   }>;
   tickets?: Array<any>;
   salesTrend?: Array<any>;
@@ -214,6 +216,8 @@ const EventsManagement: React.FC = () => {
     category: "",
     totalTickets: 0,
     ticketLimit: 1,
+    isTicketLimitUnlimited: false,
+    isTicketLimitUnlimited: false,
     description: "",
     aboutVenue: "",
     gatesOpenTime: "",
@@ -243,7 +247,9 @@ const EventsManagement: React.FC = () => {
       totalTickets: number;
       soldTickets: number;
       description: string;
+      color?: string;
     }>,
+    homePageSectionIds: [] as number[], // Selected home page sections
   });
 
   // Edit event state for new features
@@ -256,6 +262,7 @@ const EventsManagement: React.FC = () => {
     category: "",
     totalTickets: 0,
     ticketLimit: 1,
+    isTicketLimitUnlimited: false,
     description: "",
     aboutVenue: "",
     gatesOpenTime: "",
@@ -278,6 +285,7 @@ const EventsManagement: React.FC = () => {
     },
     imageUrl: "",
     gallery: [] as GalleryImage[],
+    homePageSectionIds: [] as number[],
     venueLayouts: [
       {
         id: "1",
@@ -411,6 +419,12 @@ const EventsManagement: React.FC = () => {
     queryFn: () => eventsApi.getCategories(),
   });
 
+  // Fetch home page sections
+  const { data: homePageSections = [] } = useQuery({
+    queryKey: ["homePageSections"],
+    queryFn: () => homePageSectionsApi.getSections(),
+  });
+
   // Debug: Log organizers and venues data
   useEffect(() => {
     if (organizersData) {
@@ -508,6 +522,27 @@ const EventsManagement: React.FC = () => {
   }, [eventsData]);
 
   // Create event mutation
+  const formatValidationMessages = (messages: any): string => {
+    if (Array.isArray(messages)) {
+      return messages
+        .map((message) => formatValidationMessages(message))
+        .filter(Boolean)
+        .join(", ");
+    }
+    if (typeof messages === "object" && messages !== null) {
+      return Object.entries(messages)
+        .map(([key, value]) => {
+          const formatted = formatValidationMessages(value);
+          if (!formatted) return "";
+          return key === "__all__" ? formatted : `${key}: ${formatted}`;
+        })
+        .filter(Boolean)
+        .join(", ");
+    }
+    if (messages === undefined || messages === null) return "";
+    return String(messages);
+  };
+
   const createEventMutation = useMutation({
     mutationFn: async (eventData: any) => {
       return await eventsApi.createEvent(eventData);
@@ -539,10 +574,8 @@ const EventsManagement: React.FC = () => {
           const details = errorData.error.details;
           const errorList = Object.entries(details).map(
             ([field, messages]: [string, any]) => {
-              const msg = Array.isArray(messages)
-                ? messages.join(", ")
-                : messages;
-              return `${field}: ${msg}`;
+              const msg = formatValidationMessages(messages);
+              return msg ? `${field}: ${msg}` : field;
             }
           );
           errorMessage = errorList.join("; ");
@@ -551,10 +584,8 @@ const EventsManagement: React.FC = () => {
           const fieldErrors = Object.entries(errorData)
             .filter(([key]) => key !== "error")
             .map(([field, messages]: [string, any]) => {
-              const msg = Array.isArray(messages)
-                ? messages.join(", ")
-                : messages;
-              return `${field}: ${msg}`;
+              const msg = formatValidationMessages(messages);
+              return msg ? `${field}: ${msg}` : field;
             });
           if (fieldErrors.length > 0) {
             errorMessage = fieldErrors.join("; ");
@@ -1376,6 +1407,7 @@ const EventsManagement: React.FC = () => {
       console.log("Event details from API:", eventDetails);
 
       // Map ticket categories from API response - use ticket_categories_read for read
+      // Map ticket categories and preserve color field
       const ticketCategories =
         (
           eventDetails.ticket_categories_read ||
@@ -1388,6 +1420,7 @@ const EventsManagement: React.FC = () => {
           totalTickets: cat.total_tickets || 0,
           soldTickets: cat.sold_tickets || 0,
           description: cat.description || "",
+          color: cat.color || "#10B981", // Preserve color field, default to green
         })) || [];
 
       // Map gallery images if they exist in the response
@@ -1489,6 +1522,13 @@ const EventsManagement: React.FC = () => {
               value: 5,
             };
 
+      const totalTicketsValue =
+        eventDetails.total_tickets || event.totalTickets || 0;
+      const rawTicketLimit =
+        eventDetails.ticket_limit || event.ticketLimit || 1;
+      const isTicketLimitUnlimited =
+        totalTicketsValue > 0 && rawTicketLimit >= totalTicketsValue;
+
       setEditEventData({
         title: eventDetails.title || event.title || "",
         organizer: organizerId,
@@ -1496,8 +1536,9 @@ const EventsManagement: React.FC = () => {
         time: eventDetails.time || event.time || "",
         location: venueId,
         category: categoryName, // Store the category name
-        totalTickets: eventDetails.total_tickets || event.totalTickets || 0,
-        ticketLimit: eventDetails.ticket_limit || event.ticketLimit || 1,
+        totalTickets: totalTicketsValue,
+        ticketLimit: rawTicketLimit,
+        isTicketLimitUnlimited,
         description: eventDetails.description || event.description || "",
         aboutVenue: eventDetails.about_venue || event.aboutVenue || "",
         gatesOpenTime:
@@ -1532,6 +1573,13 @@ const EventsManagement: React.FC = () => {
         venueLayouts: eventDetails.venue_layouts || event.venueLayouts || [],
         ticketCategories: ticketCategories,
         discounts: eventDetails.discounts || event.discounts || [],
+        // Load home page sections that contain this event
+        homePageSectionIds: (() => {
+          const eventId = parseInt(event.id);
+          return (homePageSections || [])
+            .filter((section) => section.events?.some((e) => e.id === eventId))
+            .map((section) => section.id);
+        })(),
       });
 
       console.log("Edit event data set:", {
@@ -1571,6 +1619,11 @@ const EventsManagement: React.FC = () => {
           foundVenue?.id?.toString() || event.location?.toString() || "none";
       }
 
+      const totalTicketsValue = event.totalTickets || 0;
+      const rawTicketLimit = event.ticketLimit || 1;
+      const isTicketLimitUnlimited =
+        totalTicketsValue > 0 && rawTicketLimit >= totalTicketsValue;
+
       setEditEventData({
         title: event.title || "",
         organizer: organizerId,
@@ -1578,8 +1631,9 @@ const EventsManagement: React.FC = () => {
         time: event.time || "",
         location: venueId,
         category: event.category || "",
-        totalTickets: event.totalTickets || 0,
-        ticketLimit: event.ticketLimit || 1,
+        totalTickets: totalTicketsValue,
+        ticketLimit: rawTicketLimit,
+        isTicketLimitUnlimited,
         description: event.description || "",
         aboutVenue: event.aboutVenue || "",
         gatesOpenTime: event.gatesOpenTime || "",
@@ -1948,9 +2002,15 @@ const EventsManagement: React.FC = () => {
       editEventData.totalTickets?.toString() || "0"
     );
     // Handle empty string for ticketLimit - default to 1
-    const ticketLimit = editEventData.ticketLimit === "" || editEventData.ticketLimit === null || editEventData.ticketLimit === undefined
-      ? 1
-      : parseInt(editEventData.ticketLimit?.toString() || "1");
+    const parsedTicketLimit =
+      editEventData.ticketLimit === "" ||
+      editEventData.ticketLimit === null ||
+      editEventData.ticketLimit === undefined
+        ? 1
+        : parseInt(editEventData.ticketLimit?.toString() || "1");
+    const ticketLimit = editEventData.isTicketLimitUnlimited
+      ? totalTickets || parsedTicketLimit || 1
+      : parsedTicketLimit;
 
     if (!totalTickets || totalTickets < 1) {
       toast({
@@ -1961,7 +2021,10 @@ const EventsManagement: React.FC = () => {
       return;
     }
 
-    if (!ticketLimit || ticketLimit < 1) {
+    if (
+      !editEventData.isTicketLimitUnlimited &&
+      (!ticketLimit || ticketLimit < 1)
+    ) {
       toast({
         title: "Validation Error",
         description: "Ticket limit must be at least 1",
@@ -1981,6 +2044,7 @@ const EventsManagement: React.FC = () => {
       time: timeValue,
       total_tickets: totalTickets,
       ticket_limit: ticketLimit,
+      is_ticket_limit_unlimited: editEventData.isTicketLimitUnlimited,
       ticket_transfer_enabled:
         editEventData.ticketTransferEnabled !== undefined
           ? editEventData.ticketTransferEnabled
@@ -2016,11 +2080,8 @@ const EventsManagement: React.FC = () => {
       updateData.venue = null;
     }
 
-    // Add starting price if provided
-    if (editEventData.startingPrice) {
-      updateData.starting_price =
-        parseFloat(editEventData.startingPrice.toString()) || null;
-    }
+    // Starting price is now calculated automatically from ticket categories
+    // No need to set it manually
 
     // Add category - backend now expects category name (string)
     if (category) {
@@ -2089,13 +2150,35 @@ const EventsManagement: React.FC = () => {
 
     // Add ticket categories - always send as array to avoid backend errors
     updateData.ticket_categories = (editEventData.ticketCategories && editEventData.ticketCategories.length > 0)
-      ? editEventData.ticketCategories.map((cat: any) => ({
-          name: cat.name || "",
-          price: cat.price || 0,
-          total_tickets: cat.totalTickets || 0,
-          description: cat.description || "",
-        }))
+      ? editEventData.ticketCategories.map((cat: any) => {
+          // Ensure color is a valid hex color, default to green if invalid
+          let colorValue = cat.color || "#10B981";
+          // Validate hex color format
+          if (typeof colorValue === 'string') {
+            colorValue = colorValue.trim();
+            // If it doesn't start with #, add it
+            if (colorValue && !colorValue.startsWith('#')) {
+              colorValue = '#' + colorValue;
+            }
+            // Validate hex color pattern
+            if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
+              colorValue = "#10B981"; // Default to green if invalid
+            }
+          } else {
+            colorValue = "#10B981";
+          }
+          
+          return {
+            name: cat.name || "",
+            price: cat.price || 0,
+            total_tickets: cat.totalTickets || 0,
+            description: cat.description || "",
+            color: colorValue, // Include validated color
+          };
+        })
       : [];
+    
+    console.log("Ticket categories being saved:", updateData.ticket_categories);
 
     // Add main image file if provided - handle FormData separately
     if (editEventData.mainImageFile) {
@@ -2132,8 +2215,55 @@ const EventsManagement: React.FC = () => {
       return;
     }
 
+    // Store selected home page section IDs to update after event update
+    const selectedSectionIds = editEventData.homePageSectionIds;
+    const eventId = parseInt(selectedEvent.id);
+
     // Don't close dialog here - let the mutation's onSuccess handle it
-    updateEventMutation.mutate({ id: selectedEvent.id, data: updateData });
+    updateEventMutation.mutate(
+      { id: selectedEvent.id, data: updateData },
+      {
+        onSuccess: async () => {
+          // Update home page sections after event is updated
+          if (selectedSectionIds.length >= 0) {
+            try {
+              // Get all sections and update them
+              const allSections = homePageSections || [];
+              await Promise.all(
+                allSections.map(async (section) => {
+                  const currentEventIds = section.events?.map((e) => e.id) || [];
+                  const shouldInclude = selectedSectionIds.includes(section.id);
+                  const currentlyIncludes = currentEventIds.includes(eventId);
+
+                  if (shouldInclude && !currentlyIncludes) {
+                    // Add event to section
+                    await homePageSectionsApi.updateSection(section.id, {
+                      event_ids: [...currentEventIds, eventId],
+                    });
+                  } else if (!shouldInclude && currentlyIncludes) {
+                    // Remove event from section
+                    await homePageSectionsApi.updateSection(section.id, {
+                      event_ids: currentEventIds.filter((id) => id !== eventId),
+                    });
+                  }
+                })
+              );
+              // Invalidate home page sections query to refresh
+              queryClient.invalidateQueries({ queryKey: ["homePageSections"] });
+            } catch (error: any) {
+              console.error("Error updating home page sections:", error);
+              const errorMessage = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Unknown error";
+              console.error("Error details:", error?.response?.data);
+              toast({
+                title: t("admin.events.toast.error"),
+                description: t("admin.events.toast.homePageSectionsUpdateError", "Event updated but failed to update home page sections") + `: ${errorMessage}`,
+                variant: "destructive",
+              });
+            }
+          }
+        },
+      }
+    );
   };
 
   // New handlers for enhanced edit features
@@ -2307,6 +2437,7 @@ const EventsManagement: React.FC = () => {
       totalTickets: 0,
       soldTickets: 0,
       description: "",
+      color: "#10B981", // Default green color
     };
     setEditEventData((prev) => ({
       ...prev,
@@ -2343,6 +2474,7 @@ const EventsManagement: React.FC = () => {
       totalTickets: 0,
       soldTickets: 0,
       description: "",
+      color: "#10B981", // Default green color
     };
     setNewEvent((prev) => ({
       ...prev,
@@ -2561,8 +2693,11 @@ const EventsManagement: React.FC = () => {
       return;
     }
 
-    // Validate ticket limit
-    if (!newEvent.ticketLimit || newEvent.ticketLimit < 1) {
+    // Validate ticket limit (skip when unlimited)
+    if (
+      !newEvent.isTicketLimitUnlimited &&
+      (!newEvent.ticketLimit || (newEvent.ticketLimit as number) < 1)
+    ) {
       toast({
         title: t("admin.events.toast.validationError"),
         description: "Ticket limit must be at least 1",
@@ -2631,19 +2766,29 @@ const EventsManagement: React.FC = () => {
     }
     formData.append("total_tickets", newEvent.totalTickets.toString());
     // Handle empty string for ticketLimit - default to 1
-    const ticketLimit = newEvent.ticketLimit === "" || newEvent.ticketLimit === null || newEvent.ticketLimit === undefined 
-      ? 1 
-      : (typeof newEvent.ticketLimit === "string" ? parseInt(newEvent.ticketLimit) || 1 : newEvent.ticketLimit);
-    formData.append("ticket_limit", ticketLimit.toString());
+    const parsedTicketLimit =
+      newEvent.ticketLimit === "" ||
+      newEvent.ticketLimit === null ||
+      newEvent.ticketLimit === undefined
+        ? 1
+        : typeof newEvent.ticketLimit === "string"
+        ? parseInt(newEvent.ticketLimit) || 1
+        : newEvent.ticketLimit;
+    const ticketLimitValue = newEvent.isTicketLimitUnlimited
+      ? newEvent.totalTickets || parsedTicketLimit || 1
+      : parsedTicketLimit;
+    formData.append("ticket_limit", ticketLimitValue.toString());
+    formData.append(
+      "is_ticket_limit_unlimited",
+      newEvent.isTicketLimitUnlimited ? "true" : "false"
+    );
     formData.append(
       "ticket_transfer_enabled",
       newEvent.ticketTransferEnabled.toString()
     );
 
-    // Add starting price if provided
-    if (newEvent.startingPrice) {
-      formData.append("starting_price", newEvent.startingPrice);
-    }
+    // Starting price is now calculated automatically from ticket categories
+    // No need to set it manually
 
     // Add main image file if provided
     if (newEvent.mainImageFile) {
@@ -2653,12 +2798,32 @@ const EventsManagement: React.FC = () => {
     // Add ticket categories as JSON string (FormData doesn't handle nested objects well)
     // Always send ticket_categories, even if empty, to avoid backend errors
     const ticketCategoriesData = (newEvent.ticketCategories && newEvent.ticketCategories.length > 0)
-      ? newEvent.ticketCategories.map((cat: any) => ({
-          name: cat.name || "",
-          price: cat.price || 0,
-          total_tickets: cat.totalTickets || 0,
-          description: cat.description || "",
-        }))
+      ? newEvent.ticketCategories.map((cat: any) => {
+          // Ensure color is a valid hex color, default to green if invalid
+          let colorValue = cat.color || "#10B981";
+          // Validate hex color format
+          if (typeof colorValue === 'string') {
+            colorValue = colorValue.trim();
+            // If it doesn't start with #, add it
+            if (colorValue && !colorValue.startsWith('#')) {
+              colorValue = '#' + colorValue;
+            }
+            // Validate hex color pattern
+            if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
+              colorValue = "#10B981"; // Default to green if invalid
+            }
+          } else {
+            colorValue = "#10B981";
+          }
+          
+          return {
+            name: cat.name || "",
+            price: cat.price || 0,
+            total_tickets: cat.totalTickets || 0,
+            description: cat.description || "",
+            color: colorValue, // Include validated color
+          };
+        })
       : [];
     formData.append("ticket_categories", JSON.stringify(ticketCategoriesData));
 
@@ -2699,7 +2864,52 @@ const EventsManagement: React.FC = () => {
     console.log("Raw form data:", newEvent);
     console.log("Ticket categories:", newEvent.ticketCategories);
 
-    createEventMutation.mutate(formData);
+    // Store selected home page section IDs to update after event creation
+    const selectedSectionIds = newEvent.homePageSectionIds;
+
+    createEventMutation.mutate(formData, {
+      onSuccess: async (response) => {
+        // After event is created, update home page sections
+        if (selectedSectionIds.length > 0 && response?.id) {
+          try {
+            // Parse event ID - handle both string and number
+            const eventId = typeof response.id === 'string' ? parseInt(response.id) : response.id;
+            if (isNaN(eventId)) {
+              console.error("Invalid event ID:", response.id);
+              return;
+            }
+            
+            // Update each selected section to include this event
+            await Promise.all(
+              selectedSectionIds.map(async (sectionId) => {
+                const section = homePageSections.find((s) => s.id === sectionId);
+                if (section) {
+                  // Get current event IDs and add the new event ID
+                  const currentEventIds = section.events?.map((e) => e.id) || [];
+                  if (!currentEventIds.includes(eventId)) {
+                    const updatedEventIds = [...currentEventIds, eventId];
+                    await homePageSectionsApi.updateSection(sectionId, {
+                      event_ids: updatedEventIds,
+                    });
+                  }
+                }
+              })
+            );
+            // Invalidate home page sections query to refresh
+            queryClient.invalidateQueries({ queryKey: ["homePageSections"] });
+          } catch (error: any) {
+            console.error("Error updating home page sections:", error);
+            const errorMessage = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Unknown error";
+            console.error("Error details:", error?.response?.data);
+            toast({
+              title: t("admin.events.toast.error"),
+              description: t("admin.events.toast.homePageSectionsUpdateError", "Event created but failed to update home page sections") + `: ${errorMessage}`,
+              variant: "destructive",
+            });
+          }
+        }
+      },
+    });
 
     // Reset form
     setNewEvent({
@@ -3452,20 +3662,21 @@ const EventsManagement: React.FC = () => {
                         {t("admin.events.actions.ticketTransfers")}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
-                      <div
-                        className={`w-4 h-4 rounded-full ${
-                          selectedEvent.childrenAllowed
-                            ? "bg-green-500"
-                            : "bg-red-500"
-                        }`}
-                      ></div>
-                      <span className="text-sm">
-                        {selectedEvent.childrenAllowed
-                          ? "Children Allowed"
-                          : "Children Not Allowed"}
-                      </span>
-                    </div>
+                    {selectedEvent.childrenAllowed ? (
+                      <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
+                        <div className="w-4 h-4 rounded-full bg-green-500"></div>
+                        <span className="text-sm">
+                          {t("admin.events.childrenAllowed", "Children Allowed")}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
+                        <div className="w-4 h-4 rounded-full bg-red-500"></div>
+                        <span className="text-sm">
+                          {t("admin.events.childrenNotAllowed", "Children Not Allowed")}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -3844,12 +4055,45 @@ const EventsManagement: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium rtl:text-right">
-                    {t("admin.events.form.ticketLimit")}
-                  </label>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-sm font-medium rtl:text-right">
+                      {t("admin.events.form.ticketLimit")}
+                    </label>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground rtl:flex-row-reverse rtl:space-x-reverse">
+                      <Switch
+                        checked={editEventData.isTicketLimitUnlimited}
+                        onCheckedChange={(checked) =>
+                          setEditEventData((prev) => ({
+                            ...prev,
+                            isTicketLimitUnlimited: checked,
+                          }))
+                        }
+                        id="edit-ticket-limit-unlimited"
+                      />
+                      <label
+                        htmlFor="edit-ticket-limit-unlimited"
+                        className="cursor-pointer"
+                      >
+                        {t(
+                          "admin.events.form.unlimitedTicketLimit",
+                          "Unlimited"
+                        )}
+                      </label>
+                    </div>
+                  </div>
                   <Input
                     type="number"
-                    value={editEventData.ticketLimit}
+                    value={
+                      editEventData.isTicketLimitUnlimited
+                        ? ""
+                        : editEventData.ticketLimit
+                    }
+                    disabled={editEventData.isTicketLimitUnlimited}
+                    className={
+                      editEventData.isTicketLimitUnlimited
+                        ? "bg-muted text-muted-foreground cursor-not-allowed"
+                        : undefined
+                    }
                     onChange={(e) => {
                       const val = e.target.value;
                       handleEditEventDataChange(
@@ -3857,24 +4101,23 @@ const EventsManagement: React.FC = () => {
                         val === "" ? "" : (parseInt(val) || 1)
                       );
                     }}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium rtl:text-right">
-                    {t("admin.events.form.startingPrice")}
-                  </label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editEventData.startingPrice || ""}
-                    onChange={(e) =>
-                      handleEditEventDataChange("startingPrice", e.target.value)
+                    placeholder={
+                      editEventData.isTicketLimitUnlimited
+                        ? t(
+                            "admin.events.form.ticketLimitUnlimitedPlaceholder",
+                            "Unlimited"
+                          )
+                        : "1"
                     }
-                    placeholder={t(
-                      "admin.events.form.startingPricePlaceholder"
-                    )}
                   />
+                  {editEventData.isTicketLimitUnlimited && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t(
+                        "admin.events.form.unlimitedTicketLimitDescription",
+                        "Guests can buy up to the total tickets when this is enabled."
+                      )}
+                    </p>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="text-sm font-medium rtl:text-right">
@@ -4343,6 +4586,42 @@ const EventsManagement: React.FC = () => {
                                 placeholder="0"
                               />
                             </div>
+                            <div>
+                              <label className="text-sm font-medium rtl:text-right">
+                                Color
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="color"
+                                  value={category.color || "#10B981"}
+                                  onChange={(e) =>
+                                    handleUpdateTicketCategory(
+                                      index,
+                                      "color",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-16 h-10 cursor-pointer"
+                                />
+                                <Input
+                                  type="text"
+                                  value={category.color || "#10B981"}
+                                  onChange={(e) =>
+                                    handleUpdateTicketCategory(
+                                      index,
+                                      "color",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="#10B981"
+                                  className="flex-1"
+                                  pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                                Choose a color for this ticket category
+                              </p>
+                            </div>
                             <div className="md:col-span-2">
                               <label className="text-sm font-medium rtl:text-right">
                                 Description
@@ -4364,15 +4643,63 @@ const EventsManagement: React.FC = () => {
                         </CardContent>
                       </Card>
                     ))
-                  )}
-                </div>
+                )}
               </div>
+            </div>
 
-              {/* Event Gallery */}
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3 rtl:text-right">
-                  Event Gallery
-                </h4>
+            {/* Home Page Sections */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                {t("admin.events.form.homePageSections", "Home Page Sections")}
+              </h4>
+              <p className="text-sm text-muted-foreground mb-4 rtl:text-right">
+                {t("admin.events.form.homePageSectionsDescription", "Select which home page sections this event should appear in")}
+              </p>
+              {homePageSections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("admin.events.form.noHomePageSections", "No home page sections available. Create sections in the Home Page Sections management.")}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {homePageSections.map((section) => (
+                    <div key={section.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <Checkbox
+                        id={`edit-section-${section.id}`}
+                        checked={(editEventData.homePageSectionIds || []).includes(section.id)}
+                        onCheckedChange={(checked) => {
+                          const currentIds = editEventData.homePageSectionIds || [];
+                          if (checked) {
+                            handleEditEventDataChange("homePageSectionIds", [
+                              ...currentIds,
+                              section.id,
+                            ]);
+                          } else {
+                            handleEditEventDataChange("homePageSectionIds", 
+                              currentIds.filter((id) => id !== section.id)
+                            );
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`edit-section-${section.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                      >
+                        {section.title} {section.subtitle && `(${section.subtitle})`}
+                      </label>
+                      <Badge variant={section.is_active ? "default" : "secondary"}>
+                        {section.is_active ? t("admin.events.form.active", "Active") : t("admin.events.form.inactive", "Inactive")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Event Gallery */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                Event Gallery
+              </h4>
 
                 {/* Add Image Section */}
                 <Card className="mb-4">
@@ -4785,21 +5112,6 @@ const EventsManagement: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.startingPrice")}
-                </label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={newEvent.startingPrice}
-                  onChange={(e) =>
-                    handleNewEventChange("startingPrice", e.target.value)
-                  }
-                  placeholder={t("admin.events.form.startingPricePlaceholder")}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.totalTickets")}
                 </label>
                 <Input
@@ -4847,12 +5159,41 @@ const EventsManagement: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.ticketLimit")}
-                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-sm font-medium rtl:text-right">
+                    {t("admin.events.form.ticketLimit")}
+                  </label>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground rtl:flex-row-reverse rtl:space-x-reverse">
+                    <Switch
+                      checked={newEvent.isTicketLimitUnlimited}
+                      onCheckedChange={(checked) =>
+                        setNewEvent((prev) => ({
+                          ...prev,
+                          isTicketLimitUnlimited: checked,
+                        }))
+                      }
+                      id="new-ticket-limit-unlimited"
+                    />
+                    <label
+                      htmlFor="new-ticket-limit-unlimited"
+                      className="cursor-pointer"
+                    >
+                      {t(
+                        "admin.events.form.unlimitedTicketLimit",
+                        "Unlimited"
+                      )}
+                    </label>
+                  </div>
+                </div>
                 <Input
                   type="number"
-                  value={newEvent.ticketLimit}
+                  value={newEvent.isTicketLimitUnlimited ? "" : newEvent.ticketLimit}
+                  disabled={newEvent.isTicketLimitUnlimited}
+                  className={
+                    newEvent.isTicketLimitUnlimited
+                      ? "bg-muted text-muted-foreground cursor-not-allowed"
+                      : undefined
+                  }
                   onChange={(e) => {
                     const val = e.target.value;
                     handleNewEventChange(
@@ -4860,8 +5201,23 @@ const EventsManagement: React.FC = () => {
                       val === "" ? "" : (parseInt(val) || 1)
                     );
                   }}
-                  placeholder="1"
+                  placeholder={
+                    newEvent.isTicketLimitUnlimited
+                      ? t(
+                          "admin.events.form.ticketLimitUnlimitedPlaceholder",
+                          "Unlimited"
+                        )
+                      : "1"
+                  }
                 />
+                {newEvent.isTicketLimitUnlimited && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t(
+                      "admin.events.form.unlimitedTicketLimitDescription",
+                      "Guests can buy up to the total tickets when this is enabled."
+                    )}
+                  </p>
+                )}
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium rtl:text-right">
@@ -5325,6 +5681,42 @@ const EventsManagement: React.FC = () => {
                               placeholder="0"
                             />
                           </div>
+                          <div>
+                            <label className="text-sm font-medium rtl:text-right">
+                              Color
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="color"
+                                value={category.color || "#10B981"}
+                                onChange={(e) =>
+                                  handleUpdateNewEventTicketCategory(
+                                    index,
+                                    "color",
+                                    e.target.value
+                                  )
+                                }
+                                className="w-16 h-10 cursor-pointer"
+                              />
+                              <Input
+                                type="text"
+                                value={category.color || "#10B981"}
+                                onChange={(e) =>
+                                  handleUpdateNewEventTicketCategory(
+                                    index,
+                                    "color",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="#10B981"
+                                className="flex-1"
+                                pattern="^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                              Choose a color for this ticket category
+                            </p>
+                          </div>
                           <div className="md:col-span-2">
                             <label className="text-sm font-medium rtl:text-right">
                               Description
@@ -5348,6 +5740,54 @@ const EventsManagement: React.FC = () => {
                   ))
                 )}
               </div>
+            </div>
+
+            {/* Home Page Sections */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                {t("admin.events.form.homePageSections", "Home Page Sections")}
+              </h4>
+              <p className="text-sm text-muted-foreground mb-4 rtl:text-right">
+                {t("admin.events.form.homePageSectionsDescription", "Select which home page sections this event should appear in")}
+              </p>
+              {homePageSections.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  {t("admin.events.form.noHomePageSections", "No home page sections available. Create sections in the Home Page Sections management.")}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {homePageSections.map((section) => (
+                    <div key={section.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <Checkbox
+                        id={`section-${section.id}`}
+                        checked={(newEvent.homePageSectionIds || []).includes(section.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setNewEvent((prev) => ({
+                              ...prev,
+                              homePageSectionIds: [...(prev.homePageSectionIds || []), section.id],
+                            }));
+                          } else {
+                            setNewEvent((prev) => ({
+                              ...prev,
+                              homePageSectionIds: (prev.homePageSectionIds || []).filter((id) => id !== section.id),
+                            }));
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor={`section-${section.id}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                      >
+                        {section.title} {section.subtitle && `(${section.subtitle})`}
+                      </label>
+                      <Badge variant={section.is_active ? "default" : "secondary"}>
+                        {section.is_active ? t("admin.events.form.active", "Active") : t("admin.events.form.inactive", "Inactive")}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Event Gallery */}

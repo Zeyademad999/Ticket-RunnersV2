@@ -19,6 +19,8 @@ interface DependantTicket {
   quantity: number;
   qrEnabled: boolean;
   status: "pending" | "claimed";
+  dependentName?: string;
+  dependentMobile?: string;
 }
 
 interface Visit {
@@ -76,20 +78,9 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
   const transformBookingsData = (bookings: CustomerBookingItem[]) => {
     const now = new Date();
 
-    // Transform to dependants (bookings with quantity > 1)
-    const dependants: DependantTicket[] = bookings
-      .filter((item) => (item.quantity || 0) > 1)
-      .map((item, index) => ({
-        id: index + 1,
-        eventTitle: item.event_title || "",
-        date: item.event_date || "",
-        time: item.event_time || "",
-        location: item.event_location || "TBD",
-        ticketPrice: (item.total_amount || 0) / (item.quantity || 1),
-        quantity: (item.quantity || 1) - 1, // Exclude the main ticket holder
-        qrEnabled: item.status === "confirmed",
-        status: item.status === "confirmed" ? "claimed" : "pending",
-      }));
+    // Dependants are now fetched from a separate endpoint (user_dependants_tickets)
+    // No need to transform from bookings anymore
+    const dependants: DependantTicket[] = [];
 
     // Transform to visits (past events with confirmed status)
     const visits: Visit[] = bookings
@@ -147,6 +138,7 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
           visits: [],
           billingHistory: [],
           cardDetails: null,
+          favoriteEvents: [],
         });
         return;
       }
@@ -161,6 +153,7 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
           visits: [],
           billingHistory: [],
           cardDetails: null,
+          favoriteEvents: [],
         });
         return;
       }
@@ -168,10 +161,11 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
       // Import services dynamically to avoid circular dependencies
       const { FavoritesService } = await import("@/lib/api/services/favorites");
       
-      // Fetch bookings, card details, and favorites in parallel
-      const [bookingsResponse, cardDetailsResponse, favoritesResponse] =
+      // Fetch bookings, dependants tickets, card details, and favorites in parallel
+      const [bookingsResponse, dependantsResponse, cardDetailsResponse, favoritesResponse] =
         await Promise.allSettled([
           BookingsService.getCustomerBookings(1, 50),
+          BookingsService.getDependantsTickets(1, 50),
           BookingsService.getCustomerCardDetails(), // Use the correct endpoint that returns dates
           FavoritesService.getFavorites({ page: 1, limit: 50 }),
         ]);
@@ -193,6 +187,26 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
           useFallbackBookings = true;
         } else {
           bookings = [];
+        }
+      }
+
+      // Process dependants tickets data with better error handling
+      let dependantsTickets: CustomerBookingItem[] = [];
+      let useFallbackDependants = false;
+
+      if (
+        dependantsResponse.status === "fulfilled" &&
+        dependantsResponse.value?.items
+      ) {
+        dependantsTickets = dependantsResponse.value.items;
+      } else if (dependantsResponse.status === "rejected") {
+        const error = dependantsResponse.reason;
+        // Use fallback data for database errors
+        if (FallbackService.shouldUseFallback(error)) {
+          dependantsTickets = [];
+          useFallbackDependants = true;
+        } else {
+          dependantsTickets = [];
         }
       }
 
@@ -241,10 +255,26 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
       // Transform the data
       const transformed = transformBookingsData(bookings);
 
+      // Transform dependants tickets to DependantTicket format (individual tickets, not grouped)
+      const dependants: DependantTicket[] = dependantsTickets.map((item, index) => ({
+        id: item.ticket_id || item.id || `ticket-${index}`,
+        eventTitle: item.event_title || "",
+        date: item.event_date || "",
+        time: item.event_time || "",
+        location: item.event_location || "TBD",
+        ticketPrice: item.price || 0,  // Individual ticket price, not total
+        quantity: 1,  // Each ticket is shown individually, so quantity is always 1
+        qrEnabled: item.status === "confirmed" || item.status === "valid",
+        status: item.is_claimed || item.status === "claimed" ? "claimed" : "pending",
+        dependentName: item.dependent_name || item.assigned_name || "",
+        dependentMobile: item.dependent_mobile || item.assigned_mobile || "",
+        category: item.category || "",
+      }));
+
       // Update state with all data (even if some failed)
       setData({
         bookings,
-        dependants: transformed.dependants,
+        dependants: dependants, // Use dependants from separate endpoint
         visits: transformed.visits,
         billingHistory: transformed.billingHistory,
         cardDetails,
@@ -252,10 +282,12 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
       });
 
       // Show appropriate messages based on fallback usage
-      if (useFallbackBookings || useFallbackCard || useFallbackFavorites) {
+      if (useFallbackBookings || useFallbackDependants || useFallbackCard || useFallbackFavorites) {
         const message = FallbackService.getErrorMessage(
           useFallbackBookings
             ? bookingsResponse.reason
+            : useFallbackDependants
+            ? dependantsResponse.reason
             : useFallbackCard
             ? cardDetailsResponse.reason
             : favoritesResponse.reason
@@ -268,9 +300,11 @@ export const useUnifiedProfileData = (): UseUnifiedProfileDataReturn => {
         });
       } else if (
         bookingsResponse.status === "rejected" &&
+        dependantsResponse.status === "rejected" &&
         cardDetailsResponse.status === "rejected" &&
         favoritesResponse.status === "rejected" &&
         !useFallbackBookings &&
+        !useFallbackDependants &&
         !useFallbackCard &&
         !useFallbackFavorites
       ) {

@@ -102,6 +102,7 @@ import {
   formatCurrencyForLocale,
   formatPhoneNumberForLocale,
 } from "@/lib/utils";
+import { COUNTRY_DIAL_CODES } from "@/constants/countryCodes";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { commonColumns } from "@/lib/exportUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -173,8 +174,47 @@ const CustomerManagement: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Add customer form state
-  const [newCustomer, setNewCustomer] = useState({
+  const resetNewCustomerForm = () => {
+    setNewCustomer((prev) => {
+      if (prev.profileImagePreview) {
+        URL.revokeObjectURL(prev.profileImagePreview);
+      }
+      return createInitialCustomerState();
+    });
+  };
+
+  const nationalityOptions = useMemo(() => {
+    const uniqueNames = Array.from(
+      new Set(COUNTRY_DIAL_CODES.map((country) => country.name))
+    );
+    const rest = uniqueNames
+      .filter((name) => name.toLowerCase() !== "egypt")
+      .sort((a, b) => a.localeCompare(b));
+    const egypt =
+      uniqueNames.find((name) => name.toLowerCase() === "egypt") || null;
+    return egypt ? [egypt, ...rest] : rest;
+  }, []);
+
+  const genderOptions = useMemo(
+    () => [
+      { value: "male", label: "admin.customers.form.genderMale" },
+      { value: "female", label: "admin.customers.form.genderFemale" },
+      { value: "other", label: "admin.customers.form.genderOther" },
+    ],
+    []
+  );
+
+  const bloodTypeOptions = useMemo(
+    () => ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"],
+    []
+  );
+
+  const maxBirthDate = useMemo(
+    () => new Date().toISOString().split("T")[0],
+    []
+  );
+
+  const createInitialCustomerState = () => ({
     name: "",
     email: "",
     phone: "",
@@ -182,7 +222,20 @@ const CustomerManagement: React.FC = () => {
     password: "",
     confirmPassword: "",
     status: "active" as "active" | "inactive" | "banned",
+    nationality: "",
+    gender: "",
+    date_of_birth: "",
+    emergency_contact_name: "",
+    emergency_contact_mobile: "",
+    blood_type: "",
+    profileImageFile: null as File | null,
+    profileImagePreview: "",
   });
+
+  // Add customer form state
+  const [newCustomer, setNewCustomer] = useState(
+    () => createInitialCustomerState()
+  );
 
   // Label management state
   const [showLabelDialog, setShowLabelDialog] = useState(false);
@@ -759,16 +812,7 @@ const CustomerManagement: React.FC = () => {
         description: t("admin.customers.toast.customerAddedDesc"),
       });
       setIsAddDialogOpen(false);
-      // Reset form
-      setNewCustomer({
-        name: "",
-        email: "",
-        phone: "",
-        mobile_number: "",
-        password: "",
-        confirmPassword: "",
-        status: "active",
-      });
+      resetNewCustomerForm();
     },
     onError: (error: any) => {
       toast({
@@ -1008,6 +1052,31 @@ const CustomerManagement: React.FC = () => {
     }
   };
 
+  const handleProfileImageChange = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null;
+    setNewCustomer((prev) => {
+      if (prev.profileImagePreview) {
+        URL.revokeObjectURL(prev.profileImagePreview);
+      }
+      return {
+        ...prev,
+        profileImageFile: file,
+        profileImagePreview: file ? URL.createObjectURL(file) : "",
+      };
+    });
+  };
+
+  const handleRemoveProfileImage = () => {
+    setNewCustomer((prev) => {
+      if (prev.profileImagePreview) {
+        URL.revokeObjectURL(prev.profileImagePreview);
+      }
+      return { ...prev, profileImageFile: null, profileImagePreview: "" };
+    });
+  };
+
   const handleAddCustomer = () => {
     if (!requirePermission("customers_create")) {
       return;
@@ -1017,6 +1086,15 @@ const CustomerManagement: React.FC = () => {
       toast({
         title: t("common.error"),
         description: t("admin.customers.form.requiredFields"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!newCustomer.nationality || !newCustomer.gender || !newCustomer.date_of_birth) {
+      toast({
+        title: t("common.error"),
+        description: t("admin.customers.form.requiredDemographics"),
         variant: "destructive",
       });
       return;
@@ -1035,26 +1113,37 @@ const CustomerManagement: React.FC = () => {
       return;
     }
 
-    // Prepare data for API
-    const customerData: any = {
-      name: newCustomer.name,
-      email: newCustomer.email,
-      phone: newCustomer.phone,
-      status: newCustomer.status,
+    const formData = new FormData();
+    const appendIfValue = (key: string, value?: string | null) => {
+      if (value !== undefined && value !== null && value !== "") {
+        formData.append(key, value);
+      }
     };
 
-    // Add mobile_number if provided
-    if (newCustomer.mobile_number) {
-      customerData.mobile_number = newCustomer.mobile_number;
+    appendIfValue("name", newCustomer.name.trim());
+    appendIfValue("email", newCustomer.email.trim());
+    appendIfValue("phone", newCustomer.phone.trim());
+    appendIfValue("mobile_number", newCustomer.mobile_number.trim());
+    appendIfValue("status", newCustomer.status);
+    appendIfValue("nationality", newCustomer.nationality);
+    appendIfValue("gender", newCustomer.gender);
+    appendIfValue("date_of_birth", newCustomer.date_of_birth);
+    appendIfValue(
+      "emergency_contact_name",
+      newCustomer.emergency_contact_name.trim()
+    );
+    appendIfValue(
+      "emergency_contact_mobile",
+      newCustomer.emergency_contact_mobile.trim()
+    );
+    appendIfValue("blood_type", newCustomer.blood_type);
+    appendIfValue("password", newCustomer.password);
+
+    if (newCustomer.profileImageFile) {
+      formData.append("profile_image", newCustomer.profileImageFile);
     }
 
-    // Add password if provided
-    if (newCustomer.password) {
-      customerData.password = newCustomer.password;
-    }
-
-    // Create customer
-    createCustomerMutation.mutate(customerData);
+    createCustomerMutation.mutate(formData);
   };
 
   const handleSaveCustomerChanges = () => {
@@ -2123,7 +2212,7 @@ const CustomerManagement: React.FC = () => {
 
       {/* Add Customer Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="rtl:text-right ltr:text-left">
+        <DialogContent className="rtl:text-right ltr:text-left max-w-4xl w-full max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="rtl:text-right ltr:text-left">
               {t("admin.customers.dialogs.addCustomer")}
@@ -2132,8 +2221,8 @@ const CustomerManagement: React.FC = () => {
               {t("admin.customers.dialogs.addCustomerSubtitle")}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div>
                 <label className="text-sm font-medium rtl:text-right ltr:text-left">
                   {t("admin.customers.form.name")} *
@@ -2218,6 +2307,171 @@ const CustomerManagement: React.FC = () => {
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Demographics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.customers.form.nationality")} *
+                </label>
+                <Select
+                  value={newCustomer.nationality}
+                  onValueChange={(value) =>
+                    setNewCustomer({ ...newCustomer, nationality: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t(
+                        "admin.customers.form.selectNationality"
+                      )}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nationalityOptions.map((nation) => (
+                      <SelectItem key={nation} value={nation}>
+                        {nation}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.customers.form.gender")} *
+                </label>
+                <Select
+                  value={newCustomer.gender}
+                  onValueChange={(value) =>
+                    setNewCustomer({ ...newCustomer, gender: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t("admin.customers.form.selectGender")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {genderOptions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {t(option.label)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.customers.form.dateOfBirth")} *
+                </label>
+                <Input
+                  type="date"
+                  max={maxBirthDate}
+                  value={newCustomer.date_of_birth}
+                  onChange={(e) =>
+                    setNewCustomer({
+                      ...newCustomer,
+                      date_of_birth: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.customers.form.bloodType")}
+                </label>
+                <Select
+                  value={newCustomer.blood_type}
+                  onValueChange={(value) =>
+                    setNewCustomer({ ...newCustomer, blood_type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={t("admin.customers.form.selectBloodType")}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {bloodTypeOptions.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Emergency Contact */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.customers.form.emergencyContactName")}
+                </label>
+                <Input
+                  value={newCustomer.emergency_contact_name}
+                  onChange={(e) =>
+                    setNewCustomer({
+                      ...newCustomer,
+                      emergency_contact_name: e.target.value,
+                    })
+                  }
+                  placeholder={t(
+                    "admin.customers.form.emergencyContactNamePlaceholder"
+                  )}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.customers.form.emergencyContactPhone")}
+                </label>
+                <Input
+                  value={newCustomer.emergency_contact_mobile}
+                  onChange={(e) =>
+                    setNewCustomer({
+                      ...newCustomer,
+                      emergency_contact_mobile: e.target.value,
+                    })
+                  }
+                  placeholder={t(
+                    "admin.customers.form.emergencyContactPhonePlaceholder"
+                  )}
+                  dir="ltr"
+                />
+              </div>
+            </div>
+
+            {/* Profile Photo */}
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                {t("admin.customers.form.profilePhoto")}
+              </label>
+              <p className="text-xs text-muted-foreground mt-1 rtl:text-right ltr:text-left">
+                {t("admin.customers.form.profilePhotoDescription")}
+              </p>
+              {newCustomer.profileImagePreview && (
+                <div className="flex items-center gap-4 mt-3">
+                  <img
+                    src={newCustomer.profileImagePreview}
+                    alt={newCustomer.name || "Customer preview"}
+                    className="h-16 w-16 rounded-full object-cover border"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleRemoveProfileImage}
+                  >
+                    {t("admin.customers.form.removePhoto")}
+                  </Button>
+                </div>
+              )}
+              <Input
+                type="file"
+                accept="image/*"
+                className="mt-3"
+                onChange={handleProfileImageChange}
+              />
             </div>
 
             {/* Password Section */}

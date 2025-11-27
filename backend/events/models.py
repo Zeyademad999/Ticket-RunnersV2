@@ -50,6 +50,12 @@ class TicketCategory(models.Model):
         verbose_name="Total Tickets Available"
     )
     description = models.TextField(blank=True, verbose_name="Description")
+    color = models.CharField(
+        max_length=7,
+        default='#10B981',
+        verbose_name="Color",
+        help_text="Hex color code for this ticket category (e.g., #10B981 for green)"
+    )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -153,6 +159,10 @@ class Event(models.Model):
     ticket_limit = models.PositiveIntegerField(
         default=10,
         validators=[MinValueValidator(1)]
+    )
+    is_ticket_limit_unlimited = models.BooleanField(
+        default=False,
+        help_text="Allow attendees to purchase up to the total number of available tickets (no per-order cap)"
     )
     ticket_transfer_enabled = models.BooleanField(default=True)
     transfer_fee_type = models.CharField(

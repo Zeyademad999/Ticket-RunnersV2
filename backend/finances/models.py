@@ -22,8 +22,8 @@ class Expense(models.Model):
     
     category = models.CharField(
         max_length=50,
-        choices=CATEGORY_CHOICES,
-        db_index=True
+        db_index=True,
+        help_text="Expense category (can be any value, not restricted to predefined choices)"
     )
     amount = models.DecimalField(
         max_digits=10,

@@ -26,7 +26,7 @@ class TicketCategorySerializer(serializers.ModelSerializer):
         model = TicketCategory
         fields = [
             'id', 'name', 'price', 'total_tickets', 'sold_tickets',
-            'tickets_available', 'description', 'created_at', 'updated_at'
+            'tickets_available', 'description', 'color', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'sold_tickets', 'tickets_available', 'created_at', 'updated_at']
 
@@ -50,7 +50,7 @@ class EventListSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'title', 'date', 'time', 'status', 'organizer_name',
-            'venue_name', 'category_name', 'total_tickets', 'tickets_sold',
+            'venue_name', 'category_name', 'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited', 'tickets_sold',
             'tickets_available', 'created_at', 'thumbnail_path', 'image_url',
             'location', 'starting_price', 'revenue', 'commission', 'commission_rate',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
@@ -139,6 +139,7 @@ class TicketCategoryCreateSerializer(serializers.Serializer):
     price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, min_value=0)
     total_tickets = serializers.IntegerField(required=True, min_value=1)
     description = serializers.CharField(required=False, allow_blank=True)
+    color = serializers.CharField(max_length=7, required=False, allow_blank=True, allow_null=True, default='#10B981')
 
 
 class EventDetailSerializer(serializers.ModelSerializer):
@@ -164,7 +165,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
             'organizer', 'venue', 'date', 'time',
             'category', 'status', 'image', 'starting_price',
-            'total_tickets', 'ticket_limit',
+            'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited',
             'ticket_transfer_enabled', 'tickets_sold', 'tickets_available',
             'ticket_categories', 'ticket_categories_read', 'revenue', 'commission', 'commission_rate',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
@@ -194,6 +195,14 @@ class EventDetailSerializer(serializers.ModelSerializer):
         # Make a mutable copy if needed
         if not isinstance(data, dict):
             data = dict(data) if hasattr(data, '__iter__') else {}
+        
+        # Normalize boolean fields coming from FormData
+        bool_fields = ['is_ticket_limit_unlimited']
+        for field in bool_fields:
+            if field in data:
+                value = data.get(field)
+                if isinstance(value, str):
+                    data[field] = value.lower() in ['true', '1', 'yes', 'on']
         
         # If ticket_categories is a string (JSON from FormData), parse it
         if 'ticket_categories' in data:
@@ -237,15 +246,29 @@ class EventDetailSerializer(serializers.ModelSerializer):
             TicketCategory.objects.filter(event=instance).delete()
             
             # Create new ticket categories if list is not empty
+            min_price = None
             if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
                 for category_data in ticket_categories_data:
                     try:
+                        # Ensure color is set - use default if empty or None
+                        if not category_data.get('color') or category_data.get('color', '').strip() == '':
+                            category_data['color'] = '#10B981'
                         TicketCategory.objects.create(event=instance, **category_data)
+                        
+                        # Track minimum price for starting_price calculation
+                        category_price = float(category_data.get('price', 0))
+                        if min_price is None or category_price < min_price:
+                            min_price = category_price
                     except Exception as e:
                         import logging
                         logger = logging.getLogger(__name__)
                         logger.error(f"Error creating ticket category: {e}, data: {category_data}")
                         raise
+                
+                # Update starting_price to the lowest ticket category price
+                if min_price is not None:
+                    instance.starting_price = min_price
+                    instance.save(update_fields=['starting_price'])
         
         return instance
     
@@ -304,7 +327,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
             'id', 'title', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
             'organizer', 'venue', 'date', 'time',
             'category', 'status', 'image', 'starting_price',
-            'total_tickets', 'ticket_limit',
+            'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited',
             'ticket_transfer_enabled', 'transfer_fee_type', 'transfer_fee_value',
             'commission_rate_type', 'commission_rate_value',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
@@ -354,6 +377,12 @@ class EventCreateSerializer(serializers.ModelSerializer):
                     # It's already a name string, keep it
                     pass
         
+        # Normalize boolean fields from FormData strings
+        if 'is_ticket_limit_unlimited' in data:
+            value = data.get('is_ticket_limit_unlimited')
+            if isinstance(value, str):
+                data['is_ticket_limit_unlimited'] = value.lower() in ['true', '1', 'yes', 'on']
+
         # If ticket_categories is a string (JSON from FormData), parse it
         if 'ticket_categories' in data:
             ticket_categories_value = data.get('ticket_categories')
@@ -414,19 +443,40 @@ class EventCreateSerializer(serializers.ModelSerializer):
         
         validated_data['category'] = category_obj
         
+        # Ensure ticket limit honours unlimited flag
+        if validated_data.get('is_ticket_limit_unlimited'):
+            total_tickets = validated_data.get('total_tickets') or validated_data.get('ticket_limit')
+            if total_tickets:
+                validated_data['ticket_limit'] = total_tickets
+
         # Create the event
         event = Event.objects.create(**validated_data)
         logger.info(f"Created event: {event.id} - {event.title}")
         
         # Create ticket categories
         if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
+            min_price = None
             for category_data in ticket_categories_data:
                 try:
+                    # Ensure color is set - use default if empty or None
+                    if not category_data.get('color') or category_data.get('color', '').strip() == '':
+                        category_data['color'] = '#10B981'
                     TicketCategory.objects.create(event=event, **category_data)
-                    logger.info(f"Created ticket category: {category_data.get('name')} for event {event.id}")
+                    logger.info(f"Created ticket category: {category_data.get('name')} with color {category_data.get('color')} for event {event.id}")
+                    
+                    # Track minimum price for starting_price calculation
+                    category_price = float(category_data.get('price', 0))
+                    if min_price is None or category_price < min_price:
+                        min_price = category_price
                 except Exception as e:
                     logger.error(f"Error creating ticket category: {e}, data: {category_data}")
                     raise
+            
+            # Set starting_price to the lowest ticket category price
+            if min_price is not None:
+                event.starting_price = min_price
+                event.save(update_fields=['starting_price'])
+                logger.info(f"Set starting_price to {min_price} (lowest ticket category price)")
         else:
             logger.info(f"No ticket categories to create (data: {ticket_categories_data})")
         
@@ -449,6 +499,13 @@ class EventCreateSerializer(serializers.ModelSerializer):
                 # Empty string or None - set category to None
                 validated_data['category'] = None
         
+        # Ensure ticket limit honours unlimited flag
+        is_unlimited = validated_data.get('is_ticket_limit_unlimited', instance.is_ticket_limit_unlimited)
+        if is_unlimited:
+            total_tickets = validated_data.get('total_tickets', instance.total_tickets)
+            if total_tickets:
+                validated_data['ticket_limit'] = total_tickets
+
         # Update event fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -460,15 +517,29 @@ class EventCreateSerializer(serializers.ModelSerializer):
             TicketCategory.objects.filter(event=instance).delete()
             
             # Create new ticket categories if list is not empty
+            min_price = None
             if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
                 for category_data in ticket_categories_data:
                     try:
+                        # Ensure color is set - use default if empty or None
+                        if not category_data.get('color') or category_data.get('color', '').strip() == '':
+                            category_data['color'] = '#10B981'
                         TicketCategory.objects.create(event=instance, **category_data)
+                        
+                        # Track minimum price for starting_price calculation
+                        category_price = float(category_data.get('price', 0))
+                        if min_price is None or category_price < min_price:
+                            min_price = category_price
                     except Exception as e:
                         import logging
                         logger = logging.getLogger(__name__)
                         logger.error(f"Error creating ticket category: {e}, data: {category_data}")
                         raise
+                
+                # Update starting_price to the lowest ticket category price
+                if min_price is not None:
+                    instance.starting_price = min_price
+                    instance.save(update_fields=['starting_price'])
         
         return instance
 

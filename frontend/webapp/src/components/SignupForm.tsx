@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,8 @@ import { setSecureToken, setSecureRefreshToken, setSecureUserData } from "@/lib/
 import { normalizeImageUrl } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/Contexts/AuthContext";
+import { PhoneNumberInput } from "@/components/PhoneNumberInput";
+import { COUNTRY_DIAL_CODES, DEFAULT_DIAL_CODE } from "@/constants/countryCodes";
 
 interface SignupFormProps {
   onClose: () => void;
@@ -35,13 +37,15 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, isAuthenticated, openLogin, loginWithCredentials, verifyLoginOtp } = useAuth();
   const [formData, setFormData] = useState<SignupStartRequest>({
     first_name: "",
     last_name: "",
     mobile_number: "",
     email: "",
-    national_id: "",
+    nationality: "",
+    gender: "",
+    date_of_birth: "",
   });
   const [isPhoneLocked, setIsPhoneLocked] = useState(false);
   const [tokenInfo, setTokenInfo] = useState<{
@@ -77,6 +81,30 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   });
   const [isSavingOptional, setIsSavingOptional] = useState(false);
   const [isCompletingSignup, setIsCompletingSignup] = useState(false);
+  const [showLoginInstead, setShowLoginInstead] = useState(false);
+  const [prefilledPhone, setPrefilledPhone] = useState<string>("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginOtpCode, setLoginOtpCode] = useState("");
+  const [showLoginOtp, setShowLoginOtp] = useState(false);
+  const [loginError, setLoginError] = useState("");
+  const [selectedDialCode, setSelectedDialCode] = useState<string>(DEFAULT_DIAL_CODE);
+  const [otpDeliveryMethod, setOtpDeliveryMethod] = useState<"sms" | "email">("sms");
+  const canUseEmailOtp = selectedDialCode !== "+20";
+  const nationalityOptions = useMemo(() => {
+    const uniqueNames = Array.from(
+      new Set(COUNTRY_DIAL_CODES.map((country) => country.name))
+    ).sort((a, b) => a.localeCompare(b));
+
+    const egyptIndex = uniqueNames.findIndex(
+      (name) => name.toLowerCase() === "egypt"
+    );
+    if (egyptIndex > 0) {
+      const [egypt] = uniqueNames.splice(egyptIndex, 1);
+      uniqueNames.unshift(egypt);
+    }
+
+    return uniqueNames;
+  }, []);
 
   // Validate registration token on mount if present in URL
   useEffect(() => {
@@ -84,8 +112,35 @@ export const SignupForm: React.FC<SignupFormProps> = ({
     if (token) {
       setIsValidatingToken(true);
       AuthService.validateRegistrationToken(token)
-        .then((result) => {
+        .then(async (result) => {
           if (result.valid && result.phone_number) {
+            // Check if user is already registered
+            if (result.user_already_registered) {
+              // Show info message
+              toast.info(
+                result.message ||
+                  t("auth.signup.userAlreadyRegistered", "You are already registered. Please login to claim your ticket.")
+              );
+              
+              // If already logged in, redirect to tickets
+              if (isAuthenticated) {
+                navigate('/profile#bookings', { replace: true });
+                return;
+              }
+              
+              // Store phone number and redirect URL for login form
+              if (result.phone_number) {
+                sessionStorage.setItem('loginPhoneNumber', result.phone_number);
+                setPrefilledPhone(result.phone_number);
+              }
+              sessionStorage.setItem('authRedirectUrl', '/profile#bookings');
+              
+              // Show login form instead of signup form
+              setShowLoginInstead(true);
+              setIsValidatingToken(false);
+              return;
+            }
+            
             // Pre-fill and lock phone number
             setFormData((prev) => ({
               ...prev,
@@ -128,7 +183,13 @@ export const SignupForm: React.FC<SignupFormProps> = ({
     }
   }, [searchParams, navigate, t]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    if (selectedDialCode === "+20" && otpDeliveryMethod === "email") {
+      setOtpDeliveryMethod("sms");
+    }
+  }, [selectedDialCode, otpDeliveryMethod]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
@@ -136,19 +197,51 @@ export const SignupForm: React.FC<SignupFormProps> = ({
     }));
   };
 
+  const handleMobileNumberChange = (value: string) => {
+    if (isPhoneLocked) return;
+    setFormData((prev) => ({
+      ...prev,
+      mobile_number: value,
+    }));
+  };
+
+  const handleEmergencyContactMobileChange = (value: string) => {
+    setOptionalInfo((prev) => ({
+      ...prev,
+      emergency_contact_mobile: value,
+    }));
+  };
+  
+  const handleDialCodeChange = (dialCode: string) => {
+    setSelectedDialCode(dialCode);
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validate national_id
-    if (!formData.national_id || formData.national_id.trim().length < 5) {
-      toast.error(t("auth.signup.validNationalId") || "Please enter a valid National ID (at least 5 characters)");
-      return;
-    }
     
     setIsLoading(true);
 
     try {
-      const response = await AuthService.signupStart(formData);
+      const signupPayload: SignupStartRequest = {
+        first_name: formData.first_name,
+        last_name: formData.last_name,
+        mobile_number: formData.mobile_number,
+        email: formData.email,
+      };
+      
+      if (formData.nationality) {
+        signupPayload.nationality = formData.nationality;
+      }
+      if (formData.gender) {
+        signupPayload.gender = formData.gender;
+      }
+      if (formData.date_of_birth) {
+        signupPayload.date_of_birth = formData.date_of_birth;
+      }
+      
+      signupPayload.otp_delivery_method = otpDeliveryMethod;
+      
+      const response = await AuthService.signupStart(signupPayload);
       const signupIdValue = response.signup_id || response.mobile_number || formData.mobile_number;
       setSignupId(signupIdValue);
 
@@ -165,21 +258,38 @@ export const SignupForm: React.FC<SignupFormProps> = ({
     }
   };
 
-  const sendMobileOtp = async (signupId: string) => {
+  const sendOtp = async (signupId: string) => {
     setIsSendingOtp(true);
     try {
-      // Resend OTP by calling register again (backend will resend OTP)
-      await AuthService.register({
-        mobile_number: formData.mobile_number,
-        password: "", // Not needed for resend
-        name: formData.first_name + " " + formData.last_name,
-        email: formData.email,
-      });
+      if (otpDeliveryMethod === "email") {
+        await AuthService.sendEmailOtp({
+          signup_id: signupId,
+          mobile_number: formData.mobile_number,
+          email: formData.email,
+        });
+      } else {
+        await AuthService.register({
+          mobile_number: formData.mobile_number,
+          password: "", // Not needed for resend
+          name: formData.first_name + " " + formData.last_name,
+          email: formData.email,
+          otp_delivery_method: otpDeliveryMethod,
+        });
+      }
       setOtpSent(true);
-      toast.success("OTP sent to your mobile number!");
+      toast.success(
+        otpDeliveryMethod === "email"
+          ? t("auth.signup.otpSentToEmailToast") || "OTP sent to your email!"
+          : "OTP sent to your mobile number!"
+      );
     } catch (error: any) {
       console.error("OTP send error:", error);
-      toast.error(error.message || "Failed to send OTP");
+      toast.error(
+        error.message ||
+          (otpDeliveryMethod === "email"
+            ? t("auth.signup.otpSendEmailError") || "Failed to send OTP email"
+            : "Failed to send OTP")
+      );
     } finally {
       setIsSendingOtp(false);
     }
@@ -409,8 +519,17 @@ export const SignupForm: React.FC<SignupFormProps> = ({
       const completeData: CompleteSignupRequest = {
         mobile_number: formData.mobile_number,
         password: password,
-        national_id: formData.national_id,
       };
+      
+      if (formData.nationality) {
+        completeData.nationality = formData.nationality;
+      }
+      if (formData.gender) {
+        completeData.gender = formData.gender;
+      }
+      if (formData.date_of_birth) {
+        completeData.date_of_birth = formData.date_of_birth;
+      }
 
       const response = await AuthService.completeSignup(completeData);
 
@@ -518,6 +637,117 @@ export const SignupForm: React.FC<SignupFormProps> = ({
     }
   };
 
+  // Handle login form when user is already registered
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    
+    if (!prefilledPhone || !loginPassword) {
+      setLoginError(t("auth.errors.email_or_phone_required") || "Phone number and password are required");
+      return;
+    }
+
+    try {
+      await loginWithCredentials(prefilledPhone, loginPassword);
+      // OTP will be shown automatically via error.otpRequired
+    } catch (error: any) {
+      if (error.otpRequired) {
+        setShowLoginOtp(true);
+        toast.success(error.message || t("auth.otpSentDescription") || "OTP sent to your phone");
+      } else {
+        setLoginError(error.message || t("auth.loginError") || "Login failed");
+      }
+    }
+  };
+
+  const handleLoginOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+    
+    if (!loginOtpCode.trim()) {
+      setLoginError(t("auth.enterOtp", "Please enter the OTP code"));
+      return;
+    }
+
+    try {
+      await verifyLoginOtp(prefilledPhone, loginOtpCode.trim());
+      // Login successful - redirect to tickets
+      const redirectUrl = sessionStorage.getItem('authRedirectUrl') || '/profile#bookings';
+      sessionStorage.removeItem('authRedirectUrl');
+      navigate(redirectUrl, { replace: true });
+    } catch (error: any) {
+      setLoginError(error.message || t("auth.otpLoginErrorMessage", "Failed to verify OTP"));
+    }
+  };
+
+  // Show login form if user is already registered
+  if (showLoginInstead) {
+    if (showLoginOtp) {
+      return (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold">{t("auth.sign_in") || "Sign In"}</h2>
+          <p className="text-sm text-gray-600">
+            {t("auth.otpSentTo", { contact: prefilledPhone }) || `OTP sent to ${prefilledPhone}`}
+          </p>
+          <form onSubmit={handleLoginOtpSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="loginOtp">{t("auth.enterOtp", "Enter OTP Code")}</Label>
+              <OtpInput
+                value={loginOtpCode}
+                onChange={setLoginOtpCode}
+                length={6}
+              />
+              {loginError && (
+                <p className="text-sm text-red-500 mt-1">{loginError}</p>
+              )}
+            </div>
+            <Button type="submit" className="w-full" disabled={!loginOtpCode.trim()}>
+              {t("auth.verify", "Verify")}
+            </Button>
+          </form>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <h2 className="text-xl font-bold">{t("auth.sign_in") || "Sign In"}</h2>
+        <p className="text-sm text-gray-600">
+          {t("auth.signup.userAlreadyRegistered", "You are already registered. Please login to claim your ticket.")}
+        </p>
+        <form onSubmit={handleLoginSubmit} className="space-y-4">
+          <div>
+            <Label htmlFor="loginPhone">{t("auth.phone_number", "Phone Number")}</Label>
+            <Input
+              id="loginPhone"
+              type="tel"
+              value={prefilledPhone}
+              disabled
+              className="bg-gray-100"
+            />
+          </div>
+          <div>
+            <Label htmlFor="loginPassword">{t("auth.password", "Password")}</Label>
+            <Input
+              id="loginPassword"
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              placeholder={t("auth.password", "Password")}
+              required
+            />
+            {loginError && (
+              <p className="text-sm text-red-500 mt-1">{loginError}</p>
+            )}
+          </div>
+          <Button type="submit" className="w-full">
+            {t("auth.sign_in", "Sign In")}
+          </Button>
+        </form>
+      </div>
+    );
+  }
+
   if (currentStep === "completing" && signupId) {
     return (
       <div className="space-y-4">
@@ -577,19 +807,14 @@ export const SignupForm: React.FC<SignupFormProps> = ({
             />
           </div>
 
-          <div>
-            <Label htmlFor="emergency_contact_mobile">
-              {t("auth.signup.emergencyContactMobile")}
-            </Label>
-            <Input
-              id="emergency_contact_mobile"
-              name="emergency_contact_mobile"
-              type="tel"
-              value={optionalInfo.emergency_contact_mobile}
-              onChange={handleOptionalInfoChange}
-              placeholder={t("auth.signup.enterEmergencyContactMobile")}
-            />
-          </div>
+          <PhoneNumberInput
+            id="emergency_contact_mobile"
+            name="emergency_contact_mobile"
+            label={t("auth.signup.emergencyContactMobile")}
+            value={optionalInfo.emergency_contact_mobile}
+            onChange={handleEmergencyContactMobileChange}
+            placeholder={t("auth.signup.enterEmergencyContactMobile") || "Enter emergency contact number"}
+          />
 
           <div className="flex gap-2">
             <Button
@@ -765,7 +990,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
           </div>
 
           <Button type="submit" disabled={isSettingPassword} className="w-full">
-            {isSettingPassword ? t("auth.signup.settingPassword") : t("auth.signup.createAccount")}
+            {isSettingPassword ? t("auth.signup.settingPassword") : t("auth.signup.continue")}
           </Button>
         </form>
 
@@ -781,9 +1006,15 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   if (otpSent && signupId) {
     return (
       <div className="space-y-4">
-        <h2 className="text-xl font-bold">{t("auth.signup.verifyMobile")}</h2>
+        <h2 className="text-xl font-bold">
+          {otpDeliveryMethod === "email"
+            ? t("auth.signup.verifyEmail") || "Verify Email Address"
+            : t("auth.signup.verifyMobile")}
+        </h2>
         <p className="text-sm text-gray-600">
-          {t("auth.signup.otpSentTo", { mobile: formData.mobile_number })}
+          {otpDeliveryMethod === "email"
+            ? t("auth.signup.otpSentToEmail", { email: formData.email })
+            : t("auth.signup.otpSentTo", { mobile: formData.mobile_number })}
         </p>
 
         <form onSubmit={handleOtpSubmit} className="space-y-4">
@@ -809,7 +1040,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
         <div className="text-center">
           <Button
             variant="outline"
-            onClick={() => sendMobileOtp(signupId)}
+            onClick={() => sendOtp(signupId)}
             disabled={isSendingOtp}
             className="text-sm"
           >
@@ -855,10 +1086,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="mobile_number">{t("auth.phone_number")}</Label>
+        <div className="space-y-2">
           {tokenInfo && (
-            <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-800">
               {t("auth.signup.claimingTicket", {
                 event: tokenInfo.event_name,
                 purchaser: tokenInfo.purchaser_name,
@@ -866,31 +1096,46 @@ export const SignupForm: React.FC<SignupFormProps> = ({
             </div>
           )}
           {isValidatingToken && (
-            <div className="mb-2 text-sm text-gray-600">
+            <div className="text-sm text-gray-600">
               {t("auth.signup.validatingToken") || "Validating registration link..."}
             </div>
           )}
-          <Input
+          <PhoneNumberInput
             id="mobile_number"
             name="mobile_number"
-            type="tel"
+            label={t("auth.phone_number")}
             value={formData.mobile_number}
+            onChange={handleMobileNumberChange}
             disabled={isPhoneLocked || isValidatingToken}
-            onChange={(e) => {
-              if (isPhoneLocked) return; // Prevent changes when locked
-              const value = e.target.value;
-              // Only allow numbers, +, spaces, dashes, and parentheses
-              if (/^[\d\s\+\-\(\)]*$/.test(value) || value === "") {
-                handleInputChange(e);
-              }
-            }}
-            placeholder="+1234567890"
+            readOnly={isPhoneLocked}
             required
+            onDialCodeChange={handleDialCodeChange}
+            error={
+              formData.mobile_number && !ValidationService.validatePhone(formData.mobile_number)
+                ? t("auth.signup.validPhoneNumber")
+                : undefined
+            }
           />
-          {formData.mobile_number && !ValidationService.validatePhone(formData.mobile_number) && (
-            <p className="text-sm text-red-500 mt-1">
-              {t("auth.signup.validPhoneNumber")}
-            </p>
+          {canUseEmailOtp && (
+            <div className="mt-3 p-3 border border-dashed border-blue-300 rounded-md bg-blue-50">
+              <Label htmlFor="otp_delivery_method" className="text-sm font-medium text-blue-900">
+                {t("auth.signup.otpDeliveryMethodLabel") || "OTP Delivery Method"}
+              </Label>
+              <p className="text-xs text-blue-700 mb-2">
+                {t("auth.signup.otpDeliveryMethodDescription") ||
+                  "You're registering with an international number. You can receive your verification code via email instead of SMS."}
+              </p>
+              <select
+                id="otp_delivery_method"
+                name="otp_delivery_method"
+                value={otpDeliveryMethod}
+                onChange={(e) => setOtpDeliveryMethod(e.target.value as "sms" | "email")}
+                className="w-full p-2 border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="sms">{t("auth.signup.otpMethodSms") || "Send OTP via SMS"}</option>
+                <option value="email">{t("auth.signup.otpMethodEmail") || "Send OTP via Email"}</option>
+              </select>
+            </div>
           )}
         </div>
 
@@ -907,22 +1152,53 @@ export const SignupForm: React.FC<SignupFormProps> = ({
         </div>
 
         <div>
-          <Label htmlFor="national_id">{t("auth.nationalId") || "National ID"}</Label>
-          <Input
-            id="national_id"
-            name="national_id"
-            type="text"
-            value={formData.national_id}
+          <Label htmlFor="nationality">{t("auth.signup.nationality") || "Nationality"}</Label>
+          <select
+            id="nationality"
+            name="nationality"
+            value={formData.nationality || ""}
             onChange={handleInputChange}
-            placeholder={t("auth.nationalIdPlaceholder") || "Enter your National ID"}
-            required
-            maxLength={50}
-          />
-          {formData.national_id && formData.national_id.length < 5 && (
-            <p className="text-sm text-red-500 mt-1">
-              {t("auth.signup.validNationalId") || "National ID must be at least 5 characters"}
-            </p>
-          )}
+            className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+          >
+            <option value="">
+              {t("auth.signup.selectNationality") || "Select your nationality"}
+            </option>
+            {nationalityOptions.map((nation) => (
+              <option key={nation} value={nation}>
+                {nation}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="gender">{t("auth.signup.gender") || "Gender"}</Label>
+            <select
+              id="gender"
+              name="gender"
+              value={formData.gender || ""}
+              onChange={handleInputChange}
+              className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">{t("auth.signup.selectGender") || "Select gender"}</option>
+              <option value="male">{t("auth.signup.genderMale") || "Male"}</option>
+              <option value="female">{t("auth.signup.genderFemale") || "Female"}</option>
+              <option value="other">{t("auth.signup.genderOther") || "Prefer not to say"}</option>
+            </select>
+          </div>
+          <div>
+            <Label htmlFor="date_of_birth">{t("auth.signup.dateOfBirth") || "Date of Birth"}</Label>
+            <Input
+              id="date_of_birth"
+              name="date_of_birth"
+              type="date"
+              value={formData.date_of_birth || ""}
+              onChange={handleInputChange}
+              placeholder={t("auth.signup.enterDateOfBirth") || "Select your birth date"}
+              max={new Date().toISOString().split("T")[0]}
+            />
+          </div>
         </div>
 
         <div className="text-sm text-gray-600">
@@ -951,7 +1227,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
         </div>
 
         <Button type="submit" disabled={isLoading} className="w-full">
-          {isLoading ? t("auth.signup.creatingAccount") : t("auth.signup.createAccount")}
+          {isLoading ? t("auth.signup.creatingAccount") : t("auth.signup.continue")}
         </Button>
       </form>
     </div>

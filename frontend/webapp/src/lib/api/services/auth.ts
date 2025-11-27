@@ -80,6 +80,7 @@ export class AuthService {
     password: string;
     name: string;
     email: string;
+    otp_delivery_method?: "sms" | "email";
   }): Promise<{ message: string; mobile_number: string }> {
     return retryRequest(async () => {
       const response = await apiClient.post(
@@ -1120,12 +1121,18 @@ export class AuthService {
     token: string
   ): Promise<{
     valid: boolean;
+    user_already_registered?: boolean;
+    auto_login?: boolean;
+    access?: string;
+    refresh?: string;
+    user?: any;
     phone_number?: string;
     ticket_id?: string;
     event_name?: string;
     purchaser_name?: string;
     ticket_number?: string;
     category?: string;
+    message?: string;
     error?: { code: string; message: string };
   }> {
     return retryRequest(async () => {

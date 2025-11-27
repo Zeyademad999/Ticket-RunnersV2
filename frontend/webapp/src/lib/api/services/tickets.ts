@@ -83,6 +83,20 @@ export class TicketsService {
   }
 
   /**
+   * Claim an assigned ticket
+   * POST /api/v1/users/tickets/:id/claim/
+   */
+  static async claimTicket(ticketId: string): Promise<{
+    message: string;
+    ticket: Ticket;
+  }> {
+    return retryRequest(async () => {
+      const response = await apiClient.post(`/users/tickets/${ticketId}/claim/`);
+      return handleApiResponse(response);
+    });
+  }
+
+  /**
    * Transfer ticket
    * POST /api/v1/users/tickets/:id/transfer/
    */

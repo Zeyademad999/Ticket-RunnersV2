@@ -121,11 +121,18 @@ export default function PaymentConfirmation() {
               </button>
             </Link>
           ) : (
-            <Link to="/events">
-              <button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-3 rounded-xl transition">
-                {t("paymentConfirmation.browseEvents")}
-              </button>
-            </Link>
+            <>
+              <Link to="/events">
+                <button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-3 rounded-xl transition">
+                  {t("paymentConfirmation.browseEvents")}
+                </button>
+              </Link>
+              <Link to="/profile#bookings">
+                <button className="bg-muted hover:bg-muted/80 text-foreground font-medium px-6 py-3 rounded-xl transition">
+                  {t("paymentConfirmation.goToMyTickets", "Go to My Tickets")}
+                </button>
+              </Link>
+            </>
           )}
         </div>
       </div>

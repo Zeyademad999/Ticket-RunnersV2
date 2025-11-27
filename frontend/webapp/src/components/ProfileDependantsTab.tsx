@@ -13,7 +13,7 @@ import { Users, Calendar, Clock, MapPin } from "lucide-react";
 import { useProfile } from "@/contexts/ProfileContext";
 
 interface DependantTicket {
-  id: number;
+  id: number | string;
   eventTitle: string;
   date: string;
   time: string;
@@ -22,11 +22,14 @@ interface DependantTicket {
   quantity: number;
   qrEnabled: boolean;
   status: "pending" | "claimed";
+  dependentName?: string;
+  dependentMobile?: string;
+  category?: string;
 }
 
 interface ProfileDependantsTabProps {
   t: (key: string, defaultValue?: string) => string;
-  handleViewDetails: (id: number) => void;
+  handleViewDetails: (id: number | string) => void;
   formatDate: (date: string | Date) => string;
   loading?: boolean;
 }
@@ -78,6 +81,19 @@ export const ProfileDependantsTab: React.FC<ProfileDependantsTabProps> = (
                     <h3 className="font-semibold text-foreground">
                       {tkt.eventTitle}
                     </h3>
+                    {(tkt.dependentName || tkt.dependentMobile) && (
+                      <div className="text-sm text-muted-foreground mt-1 mb-2">
+                        <span className="font-medium">
+                          {t("profilepage.dependentBookings.dependent", "Dependent")}:
+                        </span>{" "}
+                        {tkt.dependentName || "N/A"}
+                        {tkt.dependentMobile && (
+                          <span className="ml-2">
+                            ({tkt.dependentMobile})
+                          </span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mt-1">
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
@@ -116,26 +132,24 @@ export const ProfileDependantsTab: React.FC<ProfileDependantsTabProps> = (
                 <div className="flex flex-col sm:flex-row sm:justify-between gap-3 sm:gap-0 items-start sm:items-center">
                   <div className="text-sm">
                     <span className="text-muted-foreground">
-                      {t("profilepage.myBookings.quantity")}{" "}
+                      {t("profilepage.myBookings.category", "Category")}:{" "}
                     </span>
-                    <span className="font-medium">{tkt.quantity}</span>
+                    <span className="font-medium">{tkt.category || "-"}</span>
                     <span className="text-muted-foreground ml-4">
-                      {t("profilepage.myBookings.total")}{" "}
+                      {t("profilepage.myBookings.price", "Price")}:{" "}
                     </span>
                     <span className="font-medium">
-                      {tkt.ticketPrice * tkt.quantity} EGP
+                      {tkt.ticketPrice} EGP
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {tkt.status === "pending" && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewDetails(tkt.id)}
-                      >
-                        {t("profilepage.myBookings.viewDetails")}
-                      </Button>
-                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleViewDetails(tkt.id)}
+                    >
+                      {t("profilepage.myBookings.viewDetails")}
+                    </Button>
                   </div>
                 </div>
               </div>

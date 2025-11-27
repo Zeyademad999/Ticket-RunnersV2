@@ -238,6 +238,14 @@
     "mainUserInfo": "Your ticket",
     "unassignedTransferFeeWarning": "Transferring unassigned tickets later will incur a transfer fee.",
     "transferFeeWarning": "Transferring this ticket later will incur a transfer fee.",
+      "ownerPhoneConflict": "You can’t assign another ticket to your own phone number. Use “This is my ticket” instead.",
+      "ownerTicketLockedTitle": "Ticket Locked to You",
+      "ownerTicketLockedDescription": "This ticket is automatically assigned to you so you can complete the booking. Add another ticket if you need to assign all tickets to other people.",
+      "ownerSameCategorySwitch": "You already have a ticket in this category. Choose a different category if you want to switch which ticket is yours.",
+      "emailInternationalLabel": "Email (required for international numbers)",
+      "emailInternationalDescription": "We'll send this ticket via email because SMS may not be available for this number.",
+      "emailOptionalLabel": "Email (optional)",
+      "internationalEmailMissing": "Enter an email for any ticket with a non-Egyptian phone number.",
 
     "tiers": {
       "gold": "gold",
@@ -261,6 +269,7 @@
     "event": "Event",
     "transactionId": "Transaction ID",
     "totalPaid": "Total Paid",
+      "goToMyTickets": "Go to My Tickets",
     "browseEvents": "Browse More Events"
   },
   "profilepage": {
@@ -293,6 +302,7 @@
     "dependentBookings": {
       "title": "Dependent Bookings",
       "description": "View and manage bookings for your dependants",
+      "dependent": "Dependent",
       "status": {
         "pending": "Pending",
         "claimed": "Claimed"
@@ -323,7 +333,13 @@
       "viewDetails": "View Details",
       "date": "Date",
       "time": "Time",
-      "location": "Location"
+      "location": "Location",
+      "assignedTickets": "Assigned Tickets",
+      "myBookings": "My Bookings",
+      "pendingClaim": "Pending Claim",
+      "claimed": "Claimed",
+      "active": "Active",
+      "price": "Price:"
     },
     "visits": {
       "title": "My Visits",
@@ -501,6 +517,25 @@
     "error": {
       "title": "Error",
       "description": "Failed to load ticket details"
+    },
+    "transferredTitle": "Ticket Transferred",
+    "transferred": "{{ticketName}} was transferred",
+    "transferredGeneric": "This ticket was transferred",
+    "claim": {
+      "needToClaim": {
+        "title": "Ticket Needs to be Claimed",
+        "description": "You need to claim this ticket to activate it and make it available for use."
+      },
+      "button": "Claim Ticket",
+      "claiming": "Claiming...",
+      "success": {
+        "title": "Ticket Claimed",
+        "description": "Ticket has been successfully claimed and activated."
+      },
+      "error": {
+        "title": "Error",
+        "description": "Failed to claim ticket. Please try again."
+      }
     }
   },
   "transferTicket": {
@@ -1069,6 +1104,24 @@
       "enterEmergencyContactName": "Enter emergency contact name",
       "emergencyContactMobile": "Emergency Contact Mobile",
       "enterEmergencyContactMobile": "Enter emergency contact mobile number",
+      "nationality": "Nationality",
+      "enterNationality": "Enter your nationality",
+      "gender": "Gender",
+      "selectGender": "Select gender",
+      "genderMale": "Male",
+      "genderFemale": "Female",
+      "genderOther": "Prefer not to say",
+      "dateOfBirth": "Date of Birth",
+      "enterDateOfBirth": "Select your birth date",
+      "selectNationality": "Select your nationality",
+      "verifyEmail": "Verify Email Address",
+      "otpDeliveryMethodLabel": "OTP Delivery Method",
+      "otpDeliveryMethodDescription": "Registering with an international number? Receive your verification code via email instead of SMS.",
+      "otpMethodSms": "Send OTP via SMS",
+      "otpMethodEmail": "Send OTP via Email",
+      "otpSentToEmail": "We've sent a verification code to {{email}}",
+      "otpSentToEmailToast": "OTP sent to your email!",
+      "otpSendEmailError": "Failed to send OTP email. Please try again.",
       "saving": "Saving...",
       "saveAndCreateAccount": "Save & Create Account",
       "skipForNow": "Skip for Now",
@@ -1078,8 +1131,19 @@
       "termsAndConditions": "Terms & Conditions",
       "validPhoneNumber": "Please enter a valid phone number (10-15 digits)",
       "accountCreatedSuccess": "Account created and activated successfully!",
-      "failedToCompleteSignup": "Failed to complete signup. Please try again."
-    }
+      "failedToCompleteSignup": "Failed to complete signup. Please try again.",
+      "claimingTicket": "Registering to claim your ticket for {{event}} from {{purchaser}}",
+      "validatingToken": "Validating registration link...",
+      "tokenValid": "Registering to claim your ticket for {{event}} from {{purchaser}}",
+      "tokenInvalid": "Invalid or expired registration link",
+      "tokenValidationError": "Failed to validate registration link",
+      "userAlreadyRegistered": "You are already registered. Please login to claim your ticket.",
+      "autoLoggedIn": "You have been automatically logged in. Redirecting to your tickets...",
+      "autoLoginError": "Failed to automatically log in. Please try logging in manually.",
+      "validNationalId": "Please enter a valid National ID (at least 5 characters)"
+    },
+    "nationalId": "National ID",
+    "nationalIdPlaceholder": "Enter your National ID"
   },
 
   "interests": {
@@ -1118,6 +1182,7 @@
   "common": {
     "textDirection": "ltr",
     "accept": "Accept",
+    "ok": "OK",
     "cancel": "Cancel",
     "close": "Close",
     "save": "Save",

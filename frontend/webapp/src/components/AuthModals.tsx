@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onLoginSuccess }) => {
 
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
 
   // Helper function for RTL-compatible error messages
   const ErrorMessage = ({ message }: { message: string }) => (
@@ -164,6 +166,18 @@ const [isResendingLoginOtp, setIsResendingLoginOtp] = useState(false);
   useEffect(() => {
     setIsSignup(isSignupOpen);
   }, [isSignupOpen, isLoginOpen]);
+
+  // Pre-fill phone number from sessionStorage when login modal opens
+  useEffect(() => {
+    if (isLoginOpen && !isSignupOpen) {
+      const storedPhone = sessionStorage.getItem('loginPhoneNumber');
+      if (storedPhone) {
+        setLoginIdentifier(storedPhone);
+        // Clear it after using
+        sessionStorage.removeItem('loginPhoneNumber');
+      }
+    }
+  }, [isLoginOpen, isSignupOpen]);
 
 useEffect(() => {
   if (showLoginOtp) {
@@ -691,7 +705,15 @@ useEffect(() => {
                   setShowLoginOtp(false);
                   closeLogin();
                   closeSignup(); // Ensure signup modal is also closed
-                  onLoginSuccess?.();
+                  
+                  // Check for redirect URL and navigate
+                  const redirectUrl = sessionStorage.getItem('authRedirectUrl');
+                  if (redirectUrl) {
+                    sessionStorage.removeItem('authRedirectUrl');
+                    navigate(redirectUrl, { replace: true });
+                  } else {
+                    onLoginSuccess?.();
+                  }
                 } catch (error: any) {
                   setLoginOtpError(error.message || t("auth.otpLoginErrorMessage", "Failed to verify OTP"));
                 }

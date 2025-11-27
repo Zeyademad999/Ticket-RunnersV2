@@ -2,12 +2,31 @@
 Notification service for sending SMS and email notifications about ticket assignments.
 """
 import logging
+import re
 from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 from .otp_service import send_sms_otp
 
 logger = logging.getLogger(__name__)
+
+
+def normalize_phone_number(phone_number: str) -> str:
+    """
+    Normalize phone numbers by removing any non-numeric characters.
+    """
+    if not phone_number:
+        return ""
+    return re.sub(r"\D", "", phone_number)
+
+
+def is_egyptian_number(phone_number: str) -> bool:
+    """
+    Determine whether the provided phone number belongs to Egypt.
+    Numbers coming from the frontend include the international dial code.
+    """
+    normalized = normalize_phone_number(phone_number)
+    return normalized.startswith("20")
 
 
 def send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None):
@@ -33,17 +52,37 @@ def send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None):
         logger.info(f"Using assigned_mobile for SMS: {phone_number} (ticket {ticket.id})")
         
         event_name = ticket.event.title
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:8083')
+        # Use IP address for SMS links to ensure accessibility from mobile devices
+        # SMS links should use IP address instead of localhost
+        frontend_url = 'http://192.168.0.104:8083'
         
         # Determine the link based on whether user is registered
         if registration_token:
             # New user - send registration link
-            link = f"{frontend_url}/signup?token={registration_token.token}"
-            message = f"Someone purchased a ticket for you! Event: {event_name}. Register to claim: {link}"
+            # Token from token_urlsafe() is already URL-safe, but we'll encode it to be safe
+            # This ensures special characters in the token are properly handled in SMS
+            import urllib.parse
+            # Only encode if needed - token_urlsafe already produces URL-safe tokens
+            # But some SMS services might modify URLs, so we encode to be safe
+            token_str = str(registration_token.token)
+            encoded_token = urllib.parse.quote(token_str, safe='-._~')  # Preserve URL-safe chars
+            link = f"{frontend_url}/signup?token={encoded_token}"
+            print("=" * 80)
+            print("📱 SENDING SMS WITH REGISTRATION LINK")
+            print(f"   Ticket ID: {ticket.id}")
+            print(f"   Phone: {phone_number}")
+            print(f"   Event: {event_name}")
+            print(f"   Token (first 30 chars): {token_str[:30]}...")
+            print(f"   Full token: {token_str}")
+            print(f"   Encoded token: {encoded_token[:50]}...")
+            print(f"   Full link: {link}")
+            print("=" * 80)
+            logger.info(f"Generated registration link for ticket {ticket.id}, phone: {phone_number}, token (first 20): {token_str[:20]}..., full link: {link}")
+            message = f"{purchaser_name} purchased a ticket for you! Event: {event_name}. Register to claim: {link}"
         else:
             # Existing user - send link to My Tickets
             link = f"{frontend_url}/my-tickets"
-            message = f"Someone purchased a ticket for you! Event: {event_name}. View it: {link}"
+            message = f"{purchaser_name} purchased a ticket for you! Event: {event_name}. View it: {link}"
         
         # Use Floki SMS API for bulk text messages
         from .otp_service import FLOKI_SMS_TOKEN

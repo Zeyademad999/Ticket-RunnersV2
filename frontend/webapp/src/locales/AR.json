@@ -218,6 +218,15 @@
     "mainUserInfo": "تذكرتك",
     "unassignedTransferFeeWarning": "سيتم فرض رسوم تحويل عند نقل التذاكر غير المخصصة لاحقًا.",
     "transferFeeWarning": "سيتم فرض رسوم تحويل عند نقل هذه التذكرة لاحقًا.",
+    "ownerPhoneConflict": "لا يمكنك تخصيص تذكرة أخرى برقم هاتفك. استخدم خيار \"هذه تذكرتي\" بدلاً من ذلك.",
+    "ownerTicketLockedTitle": "تم حجز هذه التذكرة لك",
+    "ownerTicketLockedDescription": "تم تعيين هذه التذكرة لك تلقائياً لإكمال الحجز. أضف تذكرة أخرى إذا كنت تريد تخصيص جميع التذاكر لأشخاص آخرين.",
+    "ownerSameCategorySwitch": "لديك بالفعل تذكرة من نفس الفئة. اختر فئة مختلفة إذا أردت تبديل التذكرة الخاصة بك.",
+    "emailInternationalLabel": "البريد الإلكتروني (مطلوب للأرقام الدولية)",
+    "emailInternationalDescription": "سنرسل التذكرة عبر البريد الإلكتروني لأن الرسائل النصية قد لا تكون متاحة لهذا الرقم.",
+    "emailOptionalLabel": "البريد الإلكتروني (اختياري)",
+    "internationalEmailMissing": "الرجاء إدخال بريد إلكتروني لأي تذكرة رقمها ليس مصرياً.",
+    "ownerSameCategorySwitch": "لديك بالفعل تذكرة من نفس الفئة. اختر فئة مختلفة إذا أردت تبديل التذكرة الخاصة بك.",
 
     "tiers": {
       "gold": "ذهبي",
@@ -241,7 +250,8 @@
     "event": "الفعالية",
     "transactionId": "رقم العملية",
     "totalPaid": "إجمالي المبلغ المدفوع",
-    "browseEvents": "تصفح المزيد من الفعاليات"
+    "browseEvents": "تصفح المزيد من الفعاليات",
+    "goToMyTickets": "الذهاب إلى تذاكري"
   },
   "profilepage": {
     "loading": "جاري تحميل الملف الشخصي...",
@@ -273,6 +283,7 @@
     "dependentBookings": {
       "title": "حجوزات المعتمدين",
       "description": "عرض وإدارة الحجوزات للمعتمدين عليك",
+      "dependent": "المعتمد",
       "status": {
         "pending": "قيد الانتظار",
         "claimed": "مطالب به"
@@ -342,7 +353,13 @@
       "viewDetails": "عرض التفاصيل",
       "date": "التاريخ",
       "time": "الوقت",
-      "location": "الموقع"
+      "location": "الموقع",
+      "assignedTickets": "التذاكر المخصصة",
+      "myBookings": "حجوزاتي",
+      "pendingClaim": "في انتظار المطالبة",
+      "claimed": "تم المطالبة",
+      "active": "نشط",
+      "price": "السعر:"
     },
     "visits": {
       "title": "زياراتي",
@@ -442,6 +459,25 @@
     "error": {
       "title": "خطأ",
       "description": "فشل تحميل تفاصيل التذكرة"
+    },
+    "transferredTitle": "تم نقل التذكرة",
+    "transferred": "تم نقل {{ticketName}}",
+    "transferredGeneric": "تم نقل هذه التذكرة",
+    "claim": {
+      "needToClaim": {
+        "title": "يجب المطالبة بالتذكرة",
+        "description": "تحتاج إلى المطالبة بهذه التذكرة لتفعيلها وجعلها متاحة للاستخدام."
+      },
+      "button": "المطالبة بالتذكرة",
+      "claiming": "جاري المطالبة...",
+      "success": {
+        "title": "تم المطالبة بالتذكرة",
+        "description": "تم المطالبة بالتذكرة وتفعيلها بنجاح."
+      },
+      "error": {
+        "title": "خطأ",
+        "description": "فشل المطالبة بالتذكرة. يرجى المحاولة مرة أخرى."
+      }
     }
   },
   "subscriptions": {
@@ -1049,6 +1085,24 @@
       "enterEmergencyContactName": "أدخل اسم جهة اتصال الطوارئ",
       "emergencyContactMobile": "رقم جوال جهة اتصال الطوارئ",
       "enterEmergencyContactMobile": "أدخل رقم جوال جهة اتصال الطوارئ",
+      "nationality": "الجنسية",
+      "enterNationality": "أدخل جنسيتك",
+      "gender": "النوع",
+      "selectGender": "اختر النوع",
+      "genderMale": "ذكر",
+      "genderFemale": "أنثى",
+      "genderOther": "أفضل عدم التحديد",
+      "dateOfBirth": "تاريخ الميلاد",
+      "enterDateOfBirth": "اختر تاريخ ميلادك",
+      "selectNationality": "اختر جنسيتك",
+      "verifyEmail": "تحقق من البريد الإلكتروني",
+      "otpDeliveryMethodLabel": "طريقة استلام رمز التحقق",
+      "otpDeliveryMethodDescription": "تسجل برقم دولي؟ يمكنك استلام رمز التحقق عبر البريد الإلكتروني بدلاً من الرسائل القصيرة.",
+      "otpMethodSms": "إرسال الرمز عبر الرسائل القصيرة",
+      "otpMethodEmail": "إرسال الرمز عبر البريد الإلكتروني",
+      "otpSentToEmail": "تم إرسال رمز التحقق إلى {{email}}",
+      "otpSentToEmailToast": "تم إرسال الرمز إلى بريدك الإلكتروني!",
+      "otpSendEmailError": "تعذر إرسال رمز التحقق عبر البريد الإلكتروني. يرجى المحاولة مرة أخرى.",
       "saving": "جاري الحفظ...",
       "saveAndCreateAccount": "حفظ وإنشاء الحساب",
       "skipForNow": "تخطي الآن",
@@ -1058,8 +1112,19 @@
       "termsAndConditions": "الشروط والأحكام",
       "validPhoneNumber": "يرجى إدخال رقم هاتف صحيح (10-15 رقم)",
       "accountCreatedSuccess": "تم إنشاء وتفعيل الحساب بنجاح!",
-      "failedToCompleteSignup": "فشل إكمال التسجيل. يرجى المحاولة مرة أخرى."
-    }
+      "failedToCompleteSignup": "فشل إكمال التسجيل. يرجى المحاولة مرة أخرى.",
+      "claimingTicket": "جارٍ التسجيل للمطالبة بتذكرتك لـ {{event}} من {{purchaser}}",
+      "validatingToken": "جارٍ التحقق من رابط التسجيل...",
+      "tokenValid": "جارٍ التسجيل للمطالبة بتذكرتك لـ {{event}} من {{purchaser}}",
+      "tokenInvalid": "رابط التسجيل غير صالح أو منتهي الصلاحية",
+      "tokenValidationError": "فشل التحقق من رابط التسجيل",
+      "userAlreadyRegistered": "أنت مسجل بالفعل. يرجى تسجيل الدخول للمطالبة بتذكرتك.",
+      "autoLoggedIn": "تم تسجيل الدخول تلقائياً. جاري التوجيه إلى تذاكرك...",
+      "autoLoginError": "فشل تسجيل الدخول التلقائي. يرجى محاولة تسجيل الدخول يدوياً.",
+      "validNationalId": "يرجى إدخال رقم قومي صحيح (5 أحرف على الأقل)"
+    },
+    "nationalId": "الرقم القومي",
+    "nationalIdPlaceholder": "أدخل الرقم القومي الخاص بك"
   },
   "interests": {
     "music": "الموسيقى",
@@ -1097,6 +1162,7 @@
   "common": {
     "textDirection": "rtl",
     "accept": "قبول",
+    "ok": "حسناً",
     "cancel": "إلغاء",
     "close": "إغلاق",
     "save": "حفظ",

@@ -387,6 +387,34 @@ def handle_payment_redirect(request):
                     tickets_created = _create_tickets_from_payment(transaction)
                     print(f"DEBUG: Successfully created {tickets_created} tickets for transaction {order_id}", flush=True)
                     logger.info(f"Created {tickets_created} tickets for transaction {order_id}")
+                    
+                    # Send email notifications for assigned tickets after payment confirmation (redirect)
+                    # Note: Webhook also sends emails, but we send here as backup in case webhook is delayed
+                    if tickets_created > 0:
+                        from tickets.models import Ticket, TicketRegistrationToken
+                        from core.notification_service import send_ticket_assignment_email
+                        
+                        # Get all tickets for this transaction that have assigned_mobile
+                        from django.utils import timezone
+                        from datetime import timedelta
+                        recent_time = timezone.now() - timedelta(minutes=5)
+                        
+                        transaction_tickets = Ticket.objects.filter(
+                            buyer=transaction.customer,
+                            purchase_date__gte=recent_time
+                        ).exclude(assigned_mobile__isnull=True).exclude(assigned_mobile='')
+                        
+                        purchaser_name = transaction.customer.name or f"{transaction.customer.first_name} {transaction.customer.last_name}".strip() or "Someone"
+                        
+                        for ticket in transaction_tickets:
+                            # Check if there's a registration token (new user)
+                            registration_token = TicketRegistrationToken.objects.filter(
+                                ticket=ticket,
+                                used=False
+                            ).first()
+                            
+                            # Send email notification (SMS was already sent during ticket creation)
+                            send_ticket_assignment_email(ticket, purchaser_name, registration_token=registration_token)
                 except Exception as e:
                     print(f"DEBUG: ERROR creating tickets: {str(e)}", flush=True)
                     logger.error(f"Error creating tickets for transaction {order_id}: {str(e)}", exc_info=True)
@@ -734,7 +762,11 @@ def _create_tickets_from_payment(transaction):
             if ticket.assigned_mobile and ticket.assigned_mobile != customer.mobile_number:
                 from customers.models import Customer
                 from tickets.models import TicketRegistrationToken
-                from core.notification_service import send_ticket_assignment_sms, send_ticket_assignment_email
+                from core.notification_service import (
+                    send_ticket_assignment_sms,
+                    send_ticket_assignment_email,
+                    is_egyptian_number,
+                )
                 
                 assigned_mobile = ticket.assigned_mobile.strip() if ticket.assigned_mobile else None
                 if not assigned_mobile:
@@ -747,18 +779,37 @@ def _create_tickets_from_payment(transaction):
                 # Check if assigned customer exists
                 assigned_customer = Customer.objects.filter(mobile_number=assigned_mobile, status='active').first()
                 
+                is_egypt = is_egyptian_number(assigned_mobile)
+
                 if assigned_customer:
                     # Option 1: Existing user - send notifications immediately
                     logger.info(f"Sending notifications to existing user {assigned_customer.id} for ticket {ticket.id}, phone: {assigned_mobile}")
-                    sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None)
-                    logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    if is_egypt:
+                        sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None)
+                        logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    else:
+                        logger.info(f"Skipping SMS for ticket {ticket.id} (international number)")
                     send_ticket_assignment_email(ticket, purchaser_name, registration_token=None)
                 else:
                     # Option 2: New user - generate token and send SMS with registration link
+                    print("=" * 80)
+                    print("🆕 NEW USER DETECTED - Creating registration token")
+                    print(f"   Ticket ID: {ticket.id}")
+                    print(f"   Assigned Mobile: {assigned_mobile}")
+                    print(f"   Event: {ticket.event.title}")
+                    print("=" * 80)
                     logger.info(f"Creating registration token for new user {assigned_mobile} for ticket {ticket.id}")
                     registration_token = TicketRegistrationToken.create_for_ticket(ticket, assigned_mobile)
-                    sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=registration_token)
-                    logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    # Refresh from database to ensure it's saved
+                    registration_token.refresh_from_db()
+                    print(f"✅ Token saved to database. Token ID: {registration_token.id}")
+                    logger.info(f"Registration token created and saved: ID={registration_token.id}, token (first 20): {registration_token.token[:20]}..., phone: {registration_token.phone_number}")
+                    if is_egypt:
+                        sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=registration_token)
+                        print(f"📱 SMS Send Result: {sms_result}")
+                        logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    else:
+                        logger.info(f"Skipping SMS for ticket {ticket.id} (international number)")
                     # Email will be sent after payment confirmation (in webhook)
         
         # Update customer stats

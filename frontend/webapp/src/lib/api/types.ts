@@ -102,6 +102,12 @@ export interface EventData {
   totalPayoutPending: number;
   totalPayoutPaid: number;
   ticketCategories: TicketCategory[];
+  minimumAge?: string | number;
+  childEligibilityEnabled?: boolean;
+  childEligibilityRuleType?: string | null;
+  childEligibilityMinAge?: number | null;
+  childEligibilityMaxAge?: number | null;
+  isUnseated?: boolean;
   // Additional fields for comprehensive event details
   gallery?: EventImage[];
   venue?: VenueDetails;
@@ -152,6 +158,8 @@ export interface TicketCategory {
   totalTickets: number;
   ticketsSold: number;
   ticketsAvailable: number;
+  color?: string; // Hex color code (e.g., #10B981)
+  description?: string;
 }
 
 // Comprehensive Event Details Types
@@ -222,6 +230,9 @@ export interface Ticket {
   id: string;
   eventId: string;
   eventTitle: string;
+  event_date?: string;
+  event_time?: string;
+  event_location?: string;
   customerId: string;
   customerName: string;
   category: string;
@@ -243,6 +254,7 @@ export interface Ticket {
   // Flags
   is_assigned_to_me?: boolean;
   is_assigned_to_other?: boolean;
+  needs_claiming?: boolean;
   // Event transfer settings
   ticket_transfer_enabled?: boolean;
   // Transfer information (if ticket was transferred to current user)
@@ -475,7 +487,11 @@ export interface SignupStartRequest {
   last_name: string;
   mobile_number: string;
   email: string;
-  national_id: string;
+  national_id?: string;
+  nationality?: string;
+  gender?: string;
+  date_of_birth?: string;
+  otp_delivery_method?: 'sms' | 'email';
 }
 
 export interface SignupStartResponse {
@@ -508,7 +524,7 @@ export interface VerifyMobileOtpResponse {
 
 // Email OTP types for signup process
 export interface SendEmailOtpRequest {
-  signup_id: number;
+  signup_id: number | string;
   mobile_number?: string;
   email: string;
   otp_code?: string;
@@ -575,6 +591,9 @@ export interface CompleteSignupRequest {
   mobile_number: string;
   password: string;
   national_id?: string;
+  nationality?: string;
+  gender?: string;
+  date_of_birth?: string;
 }
 
 export interface CustomerInfo {
@@ -823,10 +842,13 @@ export interface CustomerBookingItem {
   unit_price: number;
   total_amount: number;
   purchase_date: string;
-  status: "confirmed" | "cancelled" | "refunded";
+  status: "confirmed" | "cancelled" | "refunded" | "claimed";
   qr_enabled: boolean;
   check_in_time?: string;
   dependents?: Dependent[];
+  dependent_name?: string;
+  dependent_mobile?: string;
+  is_claimed?: boolean;
   additional_fees?: {
     card_cost?: number;
     renewal_cost?: number;

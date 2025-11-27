@@ -27,7 +27,7 @@ SECRET_KEY = config('SECRET_KEY', default='django-insecure-r^xcjpha()**g-ph67rb&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,192.168.0.103,192.168.0.101', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1,192.168.0.103,192.168.0.101,192.168.0.104', cast=lambda v: [s.strip() for s in v.split(',')])
 
 
 # Application definition
@@ -206,7 +206,7 @@ SIMPLE_JWT = {
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = config(
     'CORS_ALLOWED_ORIGINS',
-    default='http://localhost:5173,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:3000,http://localhost:3001,http://192.168.0.103:8081,http://192.168.0.103:8082,http://192.168.0.103:8083,http://192.168.0.101:8081,http://192.168.0.101:8082,http://192.168.0.101:8083',
+    default='http://localhost:5173,http://localhost:8081,http://localhost:8082,http://localhost:8083,http://localhost:3000,http://localhost:3001,http://192.168.0.103:8081,http://192.168.0.103:8082,http://192.168.0.103:8083,http://192.168.0.101:8081,http://192.168.0.101:8082,http://192.168.0.101:8083,http://192.168.0.104:8081,http://192.168.0.104:8082,http://192.168.0.104:8083',
     cast=lambda v: [s.strip() for s in v.split(',')]
 )
 
@@ -258,8 +258,8 @@ KASHIER_SECRET_KEY = config('KASHIER_SECRET_KEY', default='c84da968-1f03-43f7-83
 KASHIER_MODE = config('KASHIER_MODE', default='test')
 KASHIER_BASE_URL = config('KASHIER_BASE_URL', default='https://test-fep.kashier.io')
 KASHIER_MERCHANT_REDIRECT = config('KASHIER_MERCHANT_REDIRECT', default='http://localhost:8083/api/payment/redirect')
-KASHIER_WEBHOOK_URL = config('KASHIER_WEBHOOK_URL', default='http://localhost:8083/api/payment/webhook')
-FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:8083')
+KASHIER_WEBHOOK_URL = config('KASHIER_WEBHOOK_URL', default='http://192.168.0.104:8083/api/payment/webhook')
+FRONTEND_URL = config('FRONTEND_URL', default='http://192.168.0.104:8083')
 
 # Logging Configuration
 LOGGING = {
@@ -315,10 +315,10 @@ SPECTACULAR_SETTINGS = {
 FLOKI_SMS_TOKEN = config('FLOKI_SMS_TOKEN', default='floki-secure-token-9f8e4c1f79284d99bdad6c74ea7ac2f1')
 
 # Email Configuration
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
-EMAIL_HOST = config('EMAIL_HOST', default='localhost')
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@ticketrunners.com')
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='blankksupp@gmail.com')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='caaz mwsu gvjt mlym')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='blankksupp@gmail.com')

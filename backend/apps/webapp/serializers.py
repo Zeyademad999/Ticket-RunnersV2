@@ -12,13 +12,19 @@ from apps.webapp.models import Favorite
 
 class UserRegistrationSerializer(serializers.Serializer):
     """Serializer for user registration."""
+    OTP_DELIVERY_CHOICES = ['sms', 'email']
+    
     mobile_number = serializers.CharField(max_length=20, required=True)
     password = serializers.CharField(write_only=True, required=False, min_length=6, allow_blank=True)
     name = serializers.CharField(max_length=200, required=False, allow_blank=True)
     first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
     email = serializers.EmailField(required=True)
-    national_id = serializers.CharField(max_length=50, required=True, allow_blank=False)
+    national_id = serializers.CharField(max_length=50, required=False, allow_blank=True)
+    nationality = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    gender = serializers.ChoiceField(choices=['male', 'female', 'other'], required=False, allow_blank=True, allow_null=True)
+    date_of_birth = serializers.DateField(required=False, allow_null=True)
+    otp_delivery_method = serializers.ChoiceField(choices=OTP_DELIVERY_CHOICES, required=False, default='sms')
     
     def validate(self, data):
         """Validate that either name or first_name+last_name is provided."""
@@ -51,9 +57,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
         fields = [
-            'id', 'name', 'email', 'phone', 'mobile_number', 'national_id', 'status',
-            'total_bookings', 'total_spent', 'attended_events', 'is_recurrent',
-            'registration_date', 'emergency_contact_name', 'emergency_contact_mobile',
+            'id', 'name', 'email', 'phone', 'mobile_number', 'national_id', 'nationality',
+            'gender', 'date_of_birth', 'status', 'total_bookings', 'total_spent', 'attended_events',
+            'is_recurrent', 'registration_date', 'emergency_contact_name', 'emergency_contact_mobile',
             'blood_type', 'profile_image'
         ]
         read_only_fields = ['id', 'total_bookings', 'total_spent', 'attended_events', 'registration_date', 'national_id']
@@ -92,7 +98,7 @@ class TicketCategorySerializer(serializers.ModelSerializer):
         model = TicketCategory
         fields = [
             'id', 'name', 'price', 'total_tickets', 'sold_tickets',
-            'tickets_available', 'description', 'created_at', 'updated_at'
+            'tickets_available', 'description', 'color', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'sold_tickets', 'tickets_available', 'created_at', 'updated_at']
 
@@ -204,9 +210,21 @@ class TicketBookingSerializer(serializers.Serializer):
 
 class TicketSerializer(serializers.ModelSerializer):
     """Serializer for user tickets."""
-    event_title = serializers.CharField(source='event.title', read_only=True)
-    event_date = serializers.DateField(source='event.date', read_only=True)
-    event_time = serializers.TimeField(source='event.time', read_only=True)
+    event_title = serializers.SerializerMethodField()
+    event_date = serializers.SerializerMethodField()
+    event_time = serializers.SerializerMethodField()
+    
+    def get_event_title(self, obj):
+        """Get event title safely."""
+        return obj.event.title if obj.event else ''
+    
+    def get_event_date(self, obj):
+        """Get event date safely."""
+        return obj.event.date if obj.event else None
+    
+    def get_event_time(self, obj):
+        """Get event time safely."""
+        return obj.event.time if obj.event else None
     
     # Buyer information (who purchased the ticket)
     buyer_name = serializers.SerializerMethodField()
@@ -223,6 +241,9 @@ class TicketSerializer(serializers.ModelSerializer):
     
     # Check if this ticket was assigned to someone else
     is_assigned_to_other = serializers.SerializerMethodField()
+    
+    # Check if ticket needs to be claimed (assigned but not yet claimed)
+    needs_claiming = serializers.SerializerMethodField()
     
     # Transfer information (who transferred this ticket to current user)
     transferred_from_name = serializers.SerializerMethodField()
@@ -257,7 +278,7 @@ class TicketSerializer(serializers.ModelSerializer):
         if not request or not hasattr(request, 'customer'):
             return False
         current_customer = request.customer
-        if not current_customer:
+        if not current_customer or not current_customer.mobile_number:
             return False
         # Ticket is assigned to me if:
         # 1. assigned_mobile matches my mobile, OR
@@ -275,6 +296,23 @@ class TicketSerializer(serializers.ModelSerializer):
     def get_is_assigned_to_other(self, obj):
         """Check if ticket was assigned to someone else."""
         return bool(obj.assigned_mobile and obj.assigned_name)
+    
+    def get_needs_claiming(self, obj):
+        """Check if ticket needs to be claimed (assigned but not yet claimed)."""
+        request = self.context.get('request')
+        if not request or not hasattr(request, 'customer'):
+            return False
+        current_customer = request.customer
+        if not current_customer or not current_customer.mobile_number:
+            return False
+        # Ticket needs claiming if:
+        # 1. assigned_mobile matches current user's mobile
+        # 2. BUT customer != current_customer (ticket hasn't been claimed yet)
+        is_assigned_to_me = (obj.assigned_mobile and 
+                            current_customer.mobile_number and 
+                            obj.assigned_mobile == current_customer.mobile_number)
+        is_not_claimed = (obj.customer != current_customer)
+        return is_assigned_to_me and is_not_claimed
     
     def get_transferred_from_name(self, obj):
         """Get name of person who transferred this ticket to current user."""
@@ -347,18 +385,28 @@ class TicketSerializer(serializers.ModelSerializer):
         
         return False
     
-    event_id = serializers.IntegerField(source='event.id', read_only=True)
+    event_id = serializers.SerializerMethodField()
+    
+    def get_event_id(self, obj):
+        """Get event ID safely."""
+        return str(obj.event.id) if obj.event else ''
     
     # Transfer fee information from event
-    ticket_transfer_enabled = serializers.BooleanField(source='event.ticket_transfer_enabled', read_only=True)
-    transfer_fee_type = serializers.CharField(source='event.transfer_fee_type', read_only=True)
-    transfer_fee_value = serializers.DecimalField(
-        source='event.transfer_fee_value', 
-        max_digits=10, 
-        decimal_places=2, 
-        read_only=True, 
-        allow_null=True
-    )
+    ticket_transfer_enabled = serializers.SerializerMethodField()
+    transfer_fee_type = serializers.SerializerMethodField()
+    transfer_fee_value = serializers.SerializerMethodField()
+    
+    def get_ticket_transfer_enabled(self, obj):
+        """Get ticket transfer enabled status safely."""
+        return obj.event.ticket_transfer_enabled if obj.event else None
+    
+    def get_transfer_fee_type(self, obj):
+        """Get transfer fee type safely."""
+        return obj.event.transfer_fee_type if obj.event else None
+    
+    def get_transfer_fee_value(self, obj):
+        """Get transfer fee value safely."""
+        return obj.event.transfer_fee_value if obj.event else None
     
     class Meta:
         model = Ticket
@@ -367,7 +415,7 @@ class TicketSerializer(serializers.ModelSerializer):
             'category', 'price', 'status', 'purchase_date', 'ticket_number',
             'check_in_time', 'assigned_name', 'assigned_mobile', 'assigned_email',
             'buyer_name', 'buyer_mobile', 'buyer_email',
-            'is_assigned_to_me', 'is_assigned_to_other', 'ticket_transfer_enabled',
+            'is_assigned_to_me', 'is_assigned_to_other', 'needs_claiming', 'ticket_transfer_enabled',
             'transferred_from_name', 'transferred_from_mobile', 'is_transferred',
             'transfer_fee_type', 'transfer_fee_value'
         ]

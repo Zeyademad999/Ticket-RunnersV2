@@ -1420,7 +1420,7 @@ const TicketsManagement: React.FC = () => {
                 </SelectItem>
                 {uniqueCategories.map((category: string) => (
                   <SelectItem key={category} value={category}>
-                    {t(`admin.tickets.categories.${category?.toLowerCase() || 'regular'}`) || category}
+                    {t(`admin.tickets.categories.${category?.toLowerCase().replace(/\s+/g, '') || 'regular'}`) || category}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -1589,7 +1589,7 @@ const TicketsManagement: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {t(`admin.tickets.categories.${ticket.category?.toLowerCase() || 'regular'}`) || ticket.category}
+                        {t(`admin.tickets.categories.${ticket.category?.toLowerCase().replace(/\s+/g, '') || 'regular'}`) || ticket.category}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -1966,7 +1966,7 @@ const TicketsManagement: React.FC = () => {
                   <p className="text-sm font-medium text-muted-foreground">
                     {t("admin.tickets.form.category")}
                   </p>
-                  <p>{t(`admin.tickets.categories.${selectedTicket.category?.toLowerCase() || 'regular'}`) || selectedTicket.category}</p>
+                  <p>{t(`admin.tickets.categories.${selectedTicket.category?.toLowerCase().replace(/\s+/g, '') || 'regular'}`) || selectedTicket.category}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">

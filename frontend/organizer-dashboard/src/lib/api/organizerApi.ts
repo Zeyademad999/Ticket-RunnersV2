@@ -8,7 +8,7 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
 
 // Get API base URL from environment or use default
 // Use relative URL to work with Vite proxy (works for both localhost and network access)
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/organizer'|| "localhost:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/organizer'|| "192.168.0.104:8000";
 
 // Create axios instance
 const api: AxiosInstance = axios.create({

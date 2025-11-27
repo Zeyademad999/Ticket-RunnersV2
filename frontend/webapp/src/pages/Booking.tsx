@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -23,17 +22,12 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/Contexts/AuthContext";
-import { ValidationService } from "@/lib/validation";
-import { TicketsService } from "@/lib/api/services/tickets";
 import { PaymentsService, KashierPaymentConfig } from "@/lib/api/services/payments";
-import { EventsService } from "@/lib/api/services/events";
 import { NFCCardsService } from "@/lib/api/services/nfcCards";
 import KashierPaymentModal from "@/components/KashierPaymentModal";
 import { useEventDetails } from "@/lib/api/hooks/useEventDetails";
 import {
   Ticket,
-  User,
-  Phone,
   Users,
   Plus,
   Minus,
@@ -49,8 +43,10 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import i18n from "@/lib/i18n";
+import { COUNTRY_DIAL_CODES } from "@/constants/countryCodes";
 
 const Booking = () => {
   const { t } = useTranslation();
@@ -60,12 +56,12 @@ const Booking = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [showTerms, setShowTerms] = useState(false);
+  const [showOwnerLockDialog, setShowOwnerLockDialog] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<KashierPaymentConfig | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>("credit_card");
   const [needsCardFee, setNeedsCardFee] = useState<boolean>(true); // Default to true (charge fee) until we check
   const [needsRenewalCost, setNeedsRenewalCost] = useState<boolean>(true); // Default to true (charge renewal) until we check
-  const [cardStatusLoading, setCardStatusLoading] = useState<boolean>(false);
 
   // Fetch event details when component mounts
   useEffect(() => {
@@ -81,7 +77,6 @@ const Booking = () => {
   useEffect(() => {
     const fetchCardStatus = async () => {
       if (user) {
-        setCardStatusLoading(true);
         try {
           const status = await NFCCardsService.getCardStatus();
           setNeedsCardFee(status.needs_card_fee);
@@ -92,8 +87,6 @@ const Booking = () => {
           // Default to charging fee if check fails (safer default)
           setNeedsCardFee(true);
           setNeedsRenewalCost(true);
-        } finally {
-          setCardStatusLoading(false);
         }
       } else {
         // If user is not authenticated, default to charging fee
@@ -105,21 +98,36 @@ const Booking = () => {
   }, [user]);
 
   // Use real event data or fallback to defaults
-  const eventData = apiEvent ? {
-    title: apiEvent.title || "Event",
-    date: apiEvent.date || new Date().toISOString().split('T')[0],
-    time: apiEvent.time || "10:00",
-    location: apiEvent.location || apiEvent.venueInfo || "Venue",
-    minimumAge: apiEvent.minimumAge?.toString() || undefined,
-    price: apiEvent.price || 250,
-    startingPrice: apiEvent.startingPrice || 300, // Default price from event
-    childEligibilityEnabled: apiEvent.child_eligibility_enabled || false,
-    childEligibilityRuleType: apiEvent.child_eligibility_rule_type || null,
-    childEligibilityMinAge: apiEvent.child_eligibility_min_age || null,
-    childEligibilityMaxAge: apiEvent.child_eligibility_max_age || null,
-    isUnseated: apiEvent.isUnseated || false,
-    ticketCategories: apiEvent.ticketCategories || [],
-  } : {
+  const eventData = apiEvent ? (() => {
+    const apiEventRaw = apiEvent as any;
+    return {
+      title: apiEvent.title || "Event",
+      date: apiEvent.date || new Date().toISOString().split("T")[0],
+      time: apiEvent.time || "10:00",
+      location: apiEvent.location || apiEvent.venueInfo || "Venue",
+      minimumAge: apiEvent.minimumAge ?? apiEventRaw.minimum_age ?? undefined,
+      price: apiEvent.price || 250,
+      startingPrice: apiEvent.startingPrice || 300,
+      childEligibilityEnabled:
+        apiEvent.childEligibilityEnabled ??
+        apiEventRaw.child_eligibility_enabled ??
+        false,
+      childEligibilityRuleType:
+        apiEvent.childEligibilityRuleType ??
+        apiEventRaw.child_eligibility_rule_type ??
+        null,
+      childEligibilityMinAge:
+        apiEvent.childEligibilityMinAge ??
+        apiEventRaw.child_eligibility_min_age ??
+        null,
+      childEligibilityMaxAge:
+        apiEvent.childEligibilityMaxAge ??
+        apiEventRaw.child_eligibility_max_age ??
+        null,
+      isUnseated: apiEvent.isUnseated ?? apiEventRaw.is_unseated ?? false,
+      ticketCategories: apiEvent.ticketCategories || [],
+    };
+  })() : {
     title: "Loading...",
     date: new Date().toISOString().split('T')[0],
     time: "10:00",
@@ -135,36 +143,22 @@ const Booking = () => {
     ticketCategories: [],
   };
 
-  // Always show default ticket first, then custom ticket categories
-  const defaultTicket = {
-    key: "regular" as const,
-    label: t("booking.tiers.regular", "Regular Ticket"),
-    price: typeof eventData.startingPrice === 'number' && !isNaN(eventData.startingPrice) 
-      ? eventData.startingPrice 
-      : (eventData.startingPrice ? parseFloat(String(eventData.startingPrice)) || 300 : 300),
-    description: t("booking.tierDescriptions.regular", "Standard ticket"),
-    ticketsAvailable: apiEvent?.ticketsAvailable || 0,
-  };
-
-  // Map custom ticket categories
-  // Ensure unique keys - if a category name normalizes to "regular", use a different key
-  const customTickets = (eventData.ticketCategories || []).map((cat, index) => {
+  // Map ticket categories from admin form - only show what was explicitly added
+  const ticketTiers = (eventData.ticketCategories || []).map((cat, index) => {
     const normalizedKey = cat.name?.toLowerCase().replace(/\s+/g, '_') || `tier_${index}`;
-    // Ensure key is unique - if it's "regular", prefix with category index
-    const uniqueKey = normalizedKey === "regular" ? `category_${index}_regular` : normalizedKey;
+    const ticketColor = cat.color || '#10B981';
     return {
-      key: uniqueKey as any,
+      key: normalizedKey as any,
       label: cat.name || `Tier ${index + 1}`, // Use name as label - this matches TicketCategory.name in backend
       price: typeof cat.price === 'number' ? cat.price : (parseFloat(String(cat.price || 0)) || 0),
       description: cat.description || t("booking.tierDescriptions.regular"),
       ticketsAvailable: cat.ticketsAvailable || 0, // Track available tickets per category
       // Store the original category name for API calls
       categoryName: cat.name || `Tier ${index + 1}`,
+      // Store the color for this ticket category
+      color: ticketColor, // Use the color from API or default to green
     };
   });
-
-  // Combine: default ticket first, then custom categories
-  const ticketTiers = [defaultTicket, ...customTickets] as const;
   
   type TierKey = (typeof ticketTiers)[number]["key"];
   const [quantities, setQuantities] = useState<Record<string, number>>(() => {
@@ -223,8 +217,13 @@ const Booking = () => {
         return;
       }
 
+      let currentTickets = ensureOwnerTicket(
+        tickets.slice(0, totalTickets).map((ticket) => ({ ...ticket })),
+        totalTickets
+      );
+
       // Validate that only one owner ticket is selected
-      const ownerTicketsCount = tickets.slice(0, totalTickets).filter(t => t.isOwnerTicket).length;
+      let ownerTicketsCount = currentTickets.filter((t) => t.isOwnerTicket).length;
       if (ownerTicketsCount > 1) {
         toast({
           title: t("booking.oneOwnerTicketOnlyTitle"),
@@ -234,14 +233,41 @@ const Booking = () => {
         return;
       }
 
-      // For default ticket (regular), send "regular" as category name
-      // For custom categories, use the actual category name (categoryName or label)
-      const categoryName = selectedTier.key === "regular" 
-        ? "regular" 
-        : (selectedTier as any).categoryName || selectedTier.label;
+      if (ownerTicketsCount === 0 && totalTickets > 0) {
+        toast({
+          title: t("booking.validationError", "Validation Error"),
+          description:
+            t("booking.ownerTicketRequired") ||
+            "Please mark one ticket as yours before continuing.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const normalizedUserPhone = normalizePhoneNumber(user?.mobile_number);
+      if (normalizedUserPhone) {
+        const conflictTicket = currentTickets.find(
+          (t) =>
+            !t.isOwnerTicket &&
+            normalizePhoneNumber(t.mobile) === normalizedUserPhone
+        );
+        if (conflictTicket) {
+          toast({
+            title: t("booking.validationError", "Validation Error"),
+            description:
+              t("booking.ownerPhoneConflict") ||
+              "You cannot assign another ticket to your own phone number.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // Use the actual category name from the ticket tier
+      const categoryName = (selectedTier as any).categoryName || selectedTier.label;
       
       // Validate phone numbers before proceeding
-      const invalidTickets = tickets.slice(0, totalTickets).filter((t) => {
+      const invalidTickets = currentTickets.filter((t) => {
         if (t.isOwnerTicket) return false; // Skip owner tickets
         if (!t.mobile || !t.mobile.trim()) return true; // Missing mobile
         return !/^\+?[\d\s\-\(\)]{10,15}$/.test(t.mobile.trim()); // Invalid format
@@ -256,23 +282,42 @@ const Booking = () => {
         return;
       }
 
+      const missingInternationalEmails = currentTickets.filter(
+        (t) =>
+          !t.isOwnerTicket &&
+          requiresEmailForTicket(t) &&
+          !(t.email && t.email.trim())
+      );
+
+      if (missingInternationalEmails.length > 0) {
+        toast({
+          title: t("booking.validationError", "Validation Error"),
+          description:
+            t("booking.internationalEmailMissing") ||
+            "Please enter an email for tickets with non-Egyptian phone numbers.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Prepare ticket details for assignment
       // Map tickets array to ticket_details, ensuring we have details for all tickets
       // Include category and price for each ticket based on ticketType
-      const ticketDetails = tickets.slice(0, totalTickets).map((t, index) => {
+      const ticketDetails = currentTickets.map((t, index) => {
         // Get the ticket type (category) for this ticket from addOrder
         const ticketTypeKey = addOrder[index] || selectedTier.key;
         const ticketTier = ticketTiers.find(tier => tier.key === ticketTypeKey) || selectedTier;
         
-        // Determine category name - use categoryName if available, otherwise use label or "regular"
-        const ticketCategory = ticketTier.key === "regular" 
-          ? "regular" 
-          : (ticketTier as any).categoryName || ticketTier.label;
+        // Determine category name - use categoryName if available, otherwise use label
+        const ticketCategory = (ticketTier as any).categoryName || ticketTier.label;
+        const ownerName = user?.name || "";
+        const ownerMobile = user?.mobile_number || "";
+        const ownerEmail = user?.email || "";
         
         return {
-          name: (t.name || '').trim(),
-          mobile: (t.mobile || '').trim(),
-          email: (t.email || '').trim(),
+          name: (t.isOwnerTicket ? ownerName : t.name || '').trim(),
+          mobile: (t.isOwnerTicket ? ownerMobile : t.mobile || '').trim(),
+          email: (t.isOwnerTicket ? ownerEmail : t.email || '').trim(),
           is_owner: t.isOwnerTicket || false,
           category: ticketCategory,  // Ticket-specific category
           price: ticketTier.price,  // Ticket-specific price
@@ -302,11 +347,7 @@ const Booking = () => {
       const paymentInitResponse = await PaymentsService.initializePayment({
         event_id: parseInt(eventId!, 10),
         amount: totalAmount,
-        currency: currency,
-        subtotal: totalTicketPrice, // Ticket price before VAT
-        vat_amount: vatAmount, // VAT on tickets
-        card_cost: cardCost, // NFC card fee (if applicable)
-        renewal_cost: renewalCost, // Card renewal cost (if applicable)
+        currency: "EGP",
         booking_data: {
           category: categoryName,
           quantity: totalTickets,
@@ -315,7 +356,11 @@ const Booking = () => {
       });
 
       if (!paymentInitResponse.success || !paymentInitResponse.data) {
-        throw new Error(paymentInitResponse.error || "Failed to initialize payment");
+        throw new Error(
+          paymentInitResponse.message ||
+            paymentInitResponse.errors?.[0] ||
+            "Failed to initialize payment"
+        );
       }
 
       // Set payment config and show modal
@@ -381,12 +426,9 @@ const Booking = () => {
       ticketType: string;
       assigned?: boolean;
       isOwnerTicket?: boolean;
+      mobileCountryCode?: string | null;
     }[]
   >([]);
-
-  const [customerInfo, setCustomerInfo] = useState({ name: "", mobile: "" });
-  const userTicketTypeRef = useRef<TierKey | "">("");
-  const [userTicketType, setUserTicketType] = useState<TierKey | "">("");
   const [addOrder, setAddOrder] = useState<TierKey[]>([]);
 
   const ticketTypeColors: Record<string, string> = {
@@ -401,7 +443,7 @@ const Booking = () => {
       "bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 border-l-4 border-green-400 dark:border-green-300", // green (same as regular)
   };
 
-  const ticketTypeBadges: Record<string, { text: string; color: string }> = {
+  const ticketTypeBadges: Record<string, { text: string; color: string | null }> = {
     platinum: { text: "VIP", color: "bg-gray-600 dark:bg-gray-500 text-white" },
     gold: {
       text: "Premium",
@@ -421,14 +463,84 @@ const Booking = () => {
     },
   };
 
-  // Helper function to get ticket type color with fallback
+  // Helper function to convert hex color to RGB
+  const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+      ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16),
+        }
+      : null;
+  };
+
+  // Helper function to get ticket type color style object
+  const getTicketTypeColorStyle = (key: string): React.CSSProperties => {
+    // First, try to find the ticket tier and use its color
+    const tier = ticketTiers.find(t => t.key === key);
+    if (tier && (tier as any).color) {
+      const hexColor = (tier as any).color;
+      const rgb = hexToRgb(hexColor);
+      if (rgb) {
+        // Use more visible opacity for better color visibility
+        // Use backgroundImage for gradient and backgroundColor as fallback
+        // Important: Use background shorthand to override any Tailwind classes
+        // Return styles that will override Tailwind classes
+        // Use backgroundImage for gradient (higher specificity than background classes)
+        return {
+          backgroundImage: `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2))`,
+          backgroundColor: `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.1)`,
+          borderLeft: `4px solid ${hexColor}`,
+          // Ensure these override Tailwind classes
+          background: `linear-gradient(to right, rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.15), rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.2))`,
+        };
+      }
+    }
+    return {};
+  };
+
+  // Helper function to get ticket type color class (for fallback)
   const getTicketTypeColor = (key: string): string => {
+    // Only use class-based colors if no custom color is set
+    const tier = ticketTiers.find(t => t.key === key);
+    if (tier && (tier as any).color) {
+      return ''; // Return empty string to use inline styles instead
+    }
+    // Fallback to default colors
     return ticketTypeColors[key] || ticketTypeColors.regular;
   };
 
   // Helper function to get ticket type badge with fallback
-  const getTicketTypeBadge = (key: string): { text: string; color: string } => {
+  const getTicketTypeBadge = (key: string): { text: string; color: string | null } => {
+    // First, try to find the ticket tier and use its color
+    const tier = ticketTiers.find(t => t.key === key);
+    if (tier && (tier as any).color) {
+      // Return null for color to indicate we'll use inline styles
+      return {
+        text: "Standard",
+        color: null // Use inline styles instead of className
+      };
+    }
+    // Fallback to default badges
     return ticketTypeBadges[key] || ticketTypeBadges.regular;
+  };
+
+  // Helper function to get ticket color as hex for inline styles
+  const getTicketColorHex = (key: string): string => {
+    const tier = ticketTiers.find(t => t.key === key);
+    if (tier && (tier as any).color) {
+      return (tier as any).color;
+    }
+    // Default colors for known types
+    const defaultColors: Record<string, string> = {
+      platinum: '#6B7280',
+      gold: '#D97706',
+      regular: '#10B981',
+      default: '#10B981',
+      standard: '#10B981',
+    };
+    return defaultColors[key] || '#10B981';
   };
 
   // eventData is now defined above using real API data
@@ -499,13 +611,168 @@ const Booking = () => {
     });
   };
 
+  const normalizePhoneNumber = (phone?: string) =>
+    phone ? phone.replace(/\D+/g, "") : "";
+
+  const detectCountryFromPhone = (phone?: string) => {
+    if (!phone) return undefined;
+    const normalized = phone.replace(/[\s-]/g, "");
+    return COUNTRY_DIAL_CODES.find((country) => {
+      const dial = country.dial_code.replace(/\s+/g, "");
+      return normalized.startsWith(dial);
+    });
+  };
+
+  const getUserCountryCode = () =>
+    detectCountryFromPhone(user?.mobile_number)?.code || "EG";
+
+  const requiresEmailForTicket = (ticket: (typeof tickets)[number]) => {
+    const code =
+      ticket.mobileCountryCode ||
+      detectCountryFromPhone(ticket.mobile)?.code ||
+      null;
+    return Boolean(code && code !== "EG");
+  };
+
+  const ensureOwnerTicket = (
+    updatedTickets: typeof tickets,
+    total: number
+  ) => {
+    const slice = updatedTickets.slice(0, total);
+    if (slice.some((t) => t.isOwnerTicket)) {
+      return updatedTickets;
+    }
+
+    const isGuestAssigned = (ticket: (typeof tickets)[number]) =>
+      Boolean(ticket.name?.trim()) && Boolean(ticket.mobile?.trim());
+
+    if (total <= 1) {
+      return updatedTickets;
+    }
+
+    const assignedGuestCount = slice.filter((ticket) =>
+      isGuestAssigned(ticket)
+    ).length;
+
+    if (assignedGuestCount === 0 || assignedGuestCount < total - 1) {
+      return updatedTickets;
+    }
+
+    const unassignedIndexes = slice
+      .map((ticket, idx) => ({ ticket, idx }))
+      .filter(
+        ({ ticket }) => !ticket.isOwnerTicket && !isGuestAssigned(ticket)
+      )
+      .map(({ idx }) => idx);
+
+    if (unassignedIndexes.length === 1) {
+      const targetIndex = unassignedIndexes[0];
+      updatedTickets[targetIndex] = {
+        ...updatedTickets[targetIndex],
+        isOwnerTicket: true,
+        name: user?.name || "",
+        mobile: user?.mobile_number || "",
+        email: user?.email || "",
+        mobileCountryCode: getUserCountryCode(),
+      };
+    }
+
+    return updatedTickets;
+  };
+
+  const assignOwnerTicket = (targetIndex: number) => {
+    const targetTicket = tickets[targetIndex];
+    if (!targetTicket) return;
+
+    const currentOwnerIndex = tickets.findIndex((t) => t?.isOwnerTicket);
+
+    if (currentOwnerIndex === targetIndex) {
+      setShowOwnerLockDialog(true);
+      return;
+    }
+
+    const updated = [...tickets];
+
+    if (currentOwnerIndex === -1) {
+      updated[targetIndex] = {
+        ...updated[targetIndex],
+        isOwnerTicket: true,
+        name: user?.name || "",
+        mobile: user?.mobile_number || "",
+        email: user?.email || "",
+        mobileCountryCode: getUserCountryCode(),
+      };
+      setTickets(updated);
+      return;
+    }
+
+    const currentOwner = tickets[currentOwnerIndex];
+    if (
+      currentOwner &&
+      currentOwner.ticketType === targetTicket.ticketType
+    ) {
+      toast({
+        title: t("booking.validationError", "Validation Error"),
+        description:
+          t("booking.ownerSameCategorySwitch") ||
+          "You already have a ticket in this category. Choose another category to switch your ticket.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    updated[currentOwnerIndex] = {
+      ...updated[currentOwnerIndex],
+      isOwnerTicket: false,
+      name: "",
+      mobile: "",
+      email: "",
+      mobileCountryCode: "EG",
+    };
+
+    updated[targetIndex] = {
+      ...updated[targetIndex],
+      isOwnerTicket: true,
+      name: user?.name || "",
+      mobile: user?.mobile_number || "",
+      email: user?.email || "",
+      mobileCountryCode: getUserCountryCode(),
+    };
+
+    setTickets(updated);
+  };
+
   const updateTicket = (
     index: number,
     field: string,
-    value: string | boolean | number
+    value: string | boolean | number | null
   ) => {
-    const updated = [...tickets];
+    if (
+      field === "mobile" &&
+      typeof value === "string" &&
+      value &&
+      user?.mobile_number
+    ) {
+      const normalizedInput = normalizePhoneNumber(value);
+      const normalizedUser = normalizePhoneNumber(user.mobile_number);
+      if (
+        normalizedInput &&
+        normalizedUser &&
+        normalizedInput === normalizedUser
+      ) {
+        toast({
+          title: t("booking.validationError", "Validation Error"),
+          description:
+            t("booking.ownerPhoneConflict") ||
+            "You cannot assign another ticket to your own phone number.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    let updated = [...tickets];
     updated[index] = { ...updated[index], [field]: value };
+    updated = ensureOwnerTicket(updated, totalTickets);
     setTickets(updated);
   };
   useEffect(() => {
@@ -513,7 +780,6 @@ const Booking = () => {
       setTickets([]);
       return;
     }
-    // Assign all tickets including the first one
     setTickets((prev) => {
       const updated = [...prev];
       addOrder.forEach((ticketType, index) => {
@@ -522,16 +788,18 @@ const Booking = () => {
             name: "",
             mobile: "",
             socialMedia: "",
+              email: "",
             assignedTicketNumber: index + 1,
             ticketType,
             isOwnerTicket: false,
+              mobileCountryCode: "EG",
           };
         } else {
           updated[index].assignedTicketNumber = index + 1;
           updated[index].ticketType = ticketType;
         }
       });
-      return updated.slice(0, addOrder.length);
+      return ensureOwnerTicket(updated.slice(0, addOrder.length), addOrder.length);
     });
   }, [addOrder]);
 
@@ -545,36 +813,6 @@ const Booking = () => {
     hour12: true,
   }).format(timeDate);
 
-  const handlePayment = () => {
-    const newBooking = {
-      id,
-      title: eventData.title,
-      date: eventData.date,
-      time: eventData.time,
-      timestamp: new Date().toISOString(),
-    };
-
-    const stored = localStorage.getItem("bookedEvents");
-    const existing = stored ? JSON.parse(stored) : [];
-    localStorage.setItem(
-      "bookedEvents",
-      JSON.stringify([...existing, newBooking])
-    );
-
-    toast({
-      title: t("booking.paymentSuccessTitle"),
-      description: t("booking.paymentSuccessDescription"),
-    });
-
-    navigate("/payment-confirmation", {
-      state: {
-        eventTitle: eventData.title,
-        totalAmount,
-        transactionId: crypto.randomUUID(),
-      },
-    });
-  };
-
   const currency = t("currency.egp");
   const numberFormat = new Intl.NumberFormat(i18n.language);
 
@@ -582,24 +820,35 @@ const Booking = () => {
   const hasIncompleteTickets = tickets.some((t) => {
     if (!t) return false;
 
-    // If this is the owner's ticket, no validation needed
     if (t.isOwnerTicket) return false;
 
-    // For all tickets, name is always required (except owner's ticket)
-    if (!t.name.trim()) return true;
-
-    // Mobile is required (except owner's ticket)
-    if (!t.mobile.trim()) return true;
+    if (!t.name?.trim()) return true;
+    if (!t.mobile?.trim()) return true;
+    if (requiresEmailForTicket(t) && !t.email?.trim()) return true;
 
     return false;
   });
-
-  // Debug logging
-  console.log("Tickets:", tickets);
-  console.log("hasIncompleteTickets:", hasIncompleteTickets);
-
   return (
     <div className="min-h-screen bg-gradient-dark">
+      <Dialog open={showOwnerLockDialog} onOpenChange={setShowOwnerLockDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("booking.ownerTicketLockedTitle", "Ticket Locked to You")}</DialogTitle>
+          </DialogHeader>
+          <p>
+            {t(
+              "booking.ownerTicketLockedDescription",
+              "This ticket is automatically assigned to you so you can complete the booking. Add another ticket if you need to assign all tickets to other people."
+            )}
+          </p>
+          <DialogFooter>
+            <Button onClick={() => setShowOwnerLockDialog(false)}>
+              {t("common.ok", "OK")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showTerms} onOpenChange={setShowTerms}>
         <DialogContent>
           <DialogHeader>
@@ -695,18 +944,33 @@ const Booking = () => {
                   <CardTitle>{t("booking.ticketQuantities")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {ticketTiers.map((tier) => {
-                    const badge = getTicketTypeBadge(tier.key);
-                    const color = getTicketTypeColor(tier.key);
-                    return (
+                  {ticketTiers.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">
+                      {t("booking.noTicketCategories", "No ticket categories available for this event.")}
+                    </p>
+                  ) : (
+                    ticketTiers.map((tier) => {
+                      const badge = getTicketTypeBadge(tier.key);
+                      const colorClass = getTicketTypeColor(tier.key);
+                      const colorStyle = getTicketTypeColorStyle(tier.key);
+                      const ticketColorHex = getTicketColorHex(tier.key);
+                      return (
                     <div
                       key={tier.key}
-                      className={`p-4 rounded-lg ${color} transition-all duration-200 hover:shadow-md`}
+                      className={`p-4 rounded-lg transition-all duration-200 hover:shadow-md ${tier && (tier as any).color ? '' : (colorClass || '')}`}
+                      style={Object.keys(colorStyle).length > 0 ? colorStyle : undefined}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center gap-2">
-                            <Badge className={badge.color}>
+                            <Badge 
+                              className={tier && (tier as any).color ? undefined : (badge.color || undefined)}
+                              style={tier && (tier as any).color ? { 
+                                backgroundColor: ticketColorHex,
+                                color: '#ffffff',
+                                border: 'none'
+                              } : undefined}
+                            >
                               {badge.text}
                             </Badge>
                             <h3 className="font-semibold text-lg">
@@ -714,7 +978,10 @@ const Booking = () => {
                             </h3>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-2xl font-bold text-primary">
+                            <span 
+                              className="text-2xl font-bold"
+                              style={{ color: ticketColorHex }}
+                            >
                               {typeof tier.price === 'number' && !isNaN(tier.price) ? tier.price : 0}
                             </span>
                             <span className="text-sm text-muted-foreground">
@@ -766,14 +1033,17 @@ const Booking = () => {
                       </Accordion>
                     </div>
                     );
-                  })}
+                    })
+                  )}
 
-                  <div className="flex justify-between pt-2">
-                    <span className="font-medium">{t("booking.subtotal")}</span>
-                    <span>
-                      {numberFormat.format(totalTicketPrice)} {currency}
-                    </span>
-                  </div>
+                  {ticketTiers.length > 0 && (
+                    <div className="flex justify-between pt-2">
+                      <span className="font-medium">{t("booking.subtotal")}</span>
+                      <span>
+                        {numberFormat.format(totalTicketPrice)} {currency}
+                      </span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -798,20 +1068,30 @@ const Booking = () => {
                   <CardContent className="space-y-4">
                     {addOrder.map((ticketType, index) => {
                       const bgClass = getTicketTypeColor(ticketType);
+                      const colorStyle = getTicketTypeColorStyle(ticketType);
                       const ticketRaw = tickets[index] || {};
                       const ticket = {
-                        assigned: true,
                         email: "",
+                        mobileCountryCode: ticketRaw?.mobileCountryCode,
                         isOwnerTicket: false,
                         ...ticketRaw,
-                      };
+                      } as (typeof tickets)[number];
+
+                      const phoneInvalid =
+                        ticket.mobile &&
+                        !/^\+?[\d\s\-\(\)]{10,15}$/.test(ticket.mobile.trim());
+
+                      const requiresInternationalEmail = requiresEmailForTicket(
+                        ticket
+                      );
 
                       const ticketNumber = index + 1;
 
                       return (
                         <div
                           key={index}
-                          className={`border border-border rounded-lg p-4 space-y-3 ${bgClass}`}
+                          className={`border border-border rounded-lg p-4 space-y-3 ${bgClass || ''}`}
+                          style={Object.keys(colorStyle).length > 0 ? colorStyle : undefined}
                         >
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
@@ -822,42 +1102,28 @@ const Booking = () => {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    // Check if trying to enable owner ticket when another one is already selected
-                                    if (!ticket.isOwnerTicket) {
-                                      const hasOtherOwnerTicket = tickets.some(
-                                        (t, idx) => idx !== index && t.isOwnerTicket
-                                      );
-                                      if (hasOtherOwnerTicket) {
-                                        toast({
-                                          title: t("booking.oneOwnerTicketOnlyTitle"),
-                                          description: t("booking.oneOwnerTicketOnlyMessage"),
-                                          variant: "destructive",
-                                        });
-                                        return;
-                                      }
+                                    if (ticket.isOwnerTicket) {
+                                      setShowOwnerLockDialog(true);
+                                      return;
                                     }
-                                    updateTicket(
-                                      index,
-                                      "isOwnerTicket",
-                                      !ticket.isOwnerTicket
-                                    );
+                                    assignOwnerTicket(index);
                                   }}
-                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 ${
+                                  className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 ${
                                     ticket.isOwnerTicket
                                       ? "bg-primary"
                                       : "bg-gray-200 dark:bg-gray-700"
                                   }`}
                                 >
                                   <span
-                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
                                       ticket.isOwnerTicket
-                                        ? "translate-x-6"
+                                        ? "translate-x-8"
                                         : "translate-x-1"
                                     }`}
                                   />
                                 </button>
                                 <span
-                                  className={`text-sm font-medium transition-colors ${
+                                  className={`text-base font-semibold transition-colors ${
                                     ticket.isOwnerTicket
                                       ? "text-primary"
                                       : "text-muted-foreground"
@@ -912,26 +1178,70 @@ const Booking = () => {
                                     />
                                   </div>
                                   <div className="space-y-2">
-                                    <Label>{t("booking.mobile")}</Label>
+                                    <PhoneNumberInput
+                                      id={`ticket-${index}-mobile`}
+                                      label={t("booking.mobile")}
+                                      value={ticket.mobile || ""}
+                                      onChange={(val) =>
+                                        updateTicket(index, "mobile", val)
+                                      }
+                                      onDialCodeChange={(_, country) =>
+                                        updateTicket(
+                                          index,
+                                          "mobileCountryCode",
+                                          country?.code || null
+                                        )
+                                      }
+                                      required
+                                      error={
+                                        phoneInvalid
+                                          ? t(
+                                              "booking.invalidPhoneNumbers",
+                                              "Please enter valid phone numbers for all tickets"
+                                            )
+                                          : undefined
+                                      }
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>
+                                      {requiresInternationalEmail
+                                        ? t(
+                                            "booking.emailInternationalLabel",
+                                            "Email (required for international numbers)"
+                                          )
+                                        : t(
+                                            "booking.emailOptionalLabel",
+                                            "Email (optional)"
+                                          )}
+                                    </Label>
                                     <Input
-                                      type="tel"
-                                      value={ticket.mobile}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        // Only allow numbers, +, spaces, dashes, and parentheses
-                                        if (/^[\d\s\+\-\(\)]*$/.test(value) || value === "") {
-                                          updateTicket(index, "mobile", value);
-                                        }
-                                      }}
-                                        placeholder="+1234567890"
-                                      />
-                                      {ticket.mobile && !/^\+?[\d\s\-\(\)]{10,15}$/.test(ticket.mobile.trim()) && (
-                                        <p className="text-sm text-red-500">
-                                          Please enter a valid phone number (10-15 digits)
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
+                                      type="email"
+                                      required={requiresInternationalEmail}
+                                      value={ticket.email || ""}
+                                      onChange={(e) =>
+                                        updateTicket(
+                                          index,
+                                          "email",
+                                          e.target.value
+                                        )
+                                      }
+                                      placeholder={
+                                        t(
+                                          "booking.emailPlaceholder",
+                                          "Enter email address"
+                                        ) || "email@example.com"
+                                      }
+                                    />
+                                    {requiresInternationalEmail && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {t(
+                                          "booking.emailInternationalDescription",
+                                          "We'll send this ticket via email because SMS may not be available for this number."
+                                        )}
+                                      </p>
+                                    )}
+                                  </div>
                                 </>
                               ) : (
                                 <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">

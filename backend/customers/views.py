@@ -5,6 +5,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from core.permissions import IsAdmin, HasPermission
 from .models import Customer
 from .serializers import CustomerSerializer
@@ -17,6 +18,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filterset_class = CustomerFilter
     search_fields = ['name', 'email', 'phone']
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_serializer_context(self):
         """Add request to serializer context for building absolute URLs."""

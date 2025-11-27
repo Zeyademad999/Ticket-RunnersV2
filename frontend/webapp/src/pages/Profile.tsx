@@ -19,7 +19,7 @@ const ProfileContent = () => {
   // ① read the URL hash (#nfc, #bookings …)
   const { hash } = useLocation();
   const { t } = useTranslation();
-  const { user, getCurrentUser, isLoading, logout } = useAuth();
+  const { user, getCurrentUser, isLoading, logout, openLogin } = useAuth();
 
   // Get data from ProfileContext
   const {
@@ -213,7 +213,7 @@ const ProfileContent = () => {
     navigate(`#${activeTab}`, { replace: true });
   }, [activeTab, navigate]);
 
-  const handleViewDetails = (ticketID: number) => {
+  const handleViewDetails = (ticketID: number | string) => {
     navigate(`/ticket/${ticketID}`);
   };
   const handleAddCalendar = (b: (typeof profileData.bookings)[number]) => {
@@ -351,7 +351,7 @@ const ProfileContent = () => {
   };
 
   // Transform fetched favorites data to match the expected format
-  const favoriteEvents = profileData.favoriteEvents.map((favorite) => ({
+  const favoriteEvents = (profileData.favoriteEvents || []).map((favorite) => ({
     id: favorite.event_id?.toString() || favorite.id?.toString(),
     title: favorite.event_title,
     date: favorite.event_date,
@@ -375,7 +375,7 @@ const ProfileContent = () => {
   }
 
   // Show error state if there's a critical data error
-  if (dataError && !profileData.bookings.length && !profileData.cardDetails) {
+  if (dataError && !(profileData.bookings?.length) && !profileData.cardDetails) {
     return (
       <div className="min-h-screen bg-gradient-dark flex items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
@@ -453,10 +453,16 @@ const ProfileContent = () => {
           </p>
           <div className="space-y-2">
             <Button
-              onClick={() => getCurrentUser()}
+              onClick={() => {
+                // Store current URL for redirect after login
+                const currentPath = window.location.pathname + window.location.hash;
+                sessionStorage.setItem('authRedirectUrl', currentPath);
+                // Open login modal
+                openLogin();
+              }}
               className="bg-blue-500 hover:bg-blue-600 text-white"
             >
-              {t("profilepage.retry")}
+              {t("auth.sign_in", "Sign In")}
             </Button>
             <Button
               onClick={() => navigate("/")}

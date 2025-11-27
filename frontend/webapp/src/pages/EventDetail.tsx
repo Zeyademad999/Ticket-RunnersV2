@@ -44,6 +44,18 @@ import { SignInPromptModal } from "@/components/SignInPromptModal";
 
 // Using types from API
 
+// Helper function to convert hex color to RGB
+const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+};
+
 const EventDetail: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -265,19 +277,26 @@ const EventDetail: React.FC = () => {
   const minTicketPrice = useMemo(() => {
     const prices: number[] = [];
     
-    // Add prices from ticket categories
+    // Get prices from ticket categories only
     if (event.ticketCategories && event.ticketCategories.length > 0) {
-      prices.push(...event.ticketCategories.map((cat) => cat.price));
+      event.ticketCategories.forEach((cat) => {
+        const price = typeof cat.price === 'number' ? cat.price : parseFloat(String(cat.price || 0));
+        if (price > 0) {
+          prices.push(price);
+        }
+      });
     }
     
-    // Add regular/starting price if available
-    if (event.startingPrice) {
+    // Fallback to startingPrice only if no ticket categories exist
+    if (prices.length === 0 && event.startingPrice) {
       prices.push(event.startingPrice);
-    } else if (event.price) {
+    }
+    
+    // Final fallback to price only if no ticket categories and no startingPrice
+    if (prices.length === 0 && event.price) {
       prices.push(event.price);
     }
     
-    // Return minimum price, or 0 if no prices found
     return prices.length > 0 ? Math.min(...prices) : 0;
   }, [event.ticketCategories, event.startingPrice, event.price]);
 
@@ -291,7 +310,8 @@ const EventDetail: React.FC = () => {
     );
     
     // If regular doesn't exist in ticketCategories but we have startingPrice or price, add it
-    if (!hasRegular && (event.startingPrice || event.price)) {
+    // Only use startingPrice/price as fallback if no ticket categories exist
+    if (!hasRegular && event.ticketCategories.length === 0 && (event.startingPrice || event.price)) {
       const regularPrice = event.startingPrice || event.price;
       categories.unshift({
         name: "Regular",
@@ -821,24 +841,42 @@ const EventDetail: React.FC = () => {
                     {t("eventDetail.ticketCategories")}
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {allTicketCategories.map((ticket, index) => (
-                      <div
-                        key={index}
-                        className="bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20 rounded-lg p-4 hover:shadow-lg transition-all duration-300"
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <h3 className="font-semibold text-foreground text-lg">
-                            {ticket.name}
-                          </h3>
-                          <Badge
-                            variant="outline"
-                            className="border-primary/30 text-primary"
-                          >
-                            {ticket.price} {t("currency.egp")}
-                          </Badge>
+                    {allTicketCategories.map((ticket, index) => {
+                      const ticketColor = ticket.color || '#10B981'; // Default to green if no color
+                      const rgbColor = hexToRgb(ticketColor);
+                      const bgColor = rgbColor 
+                        ? `rgba(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b}, 0.1)`
+                        : 'rgba(16, 185, 129, 0.1)'; // Fallback
+                      const borderColor = rgbColor
+                        ? `rgba(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b}, 0.3)`
+                        : 'rgba(16, 185, 129, 0.3)'; // Fallback
+                      
+                      return (
+                        <div
+                          key={index}
+                          className="rounded-lg p-4 hover:shadow-lg transition-all duration-300"
+                          style={{
+                            background: `linear-gradient(to bottom right, ${bgColor}, ${bgColor})`,
+                            border: `1px solid ${borderColor}`
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="font-semibold text-foreground text-lg">
+                              {ticket.name}
+                            </h3>
+                            <Badge
+                              variant="outline"
+                              style={{
+                                borderColor: ticketColor,
+                                color: ticketColor
+                              }}
+                            >
+                              {ticket.price} {t("currency.egp")}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -107,6 +107,23 @@ export class BookingsService {
   /**
    * Get customer's previous bookings (paginated list grouped by order and event)
    */
+  /**
+   * Get tickets bought for others (dependants tickets)
+   */
+  static async getDependantsTickets(
+    page: number = 1,
+    limit: number = 10
+  ): Promise<CustomerBookingsResponse> {
+    return retryRequest(async () => {
+      const params = { page, limit };
+      const queryString = buildQueryParams(params);
+      const response = await apiClient.get<CustomerBookingsResponse>(
+        `/users/dependants-tickets/?${queryString}`
+      );
+      return handleApiResponse(response);
+    });
+  }
+
   static async getCustomerBookings(
     page: number = 1,
     limit: number = 10

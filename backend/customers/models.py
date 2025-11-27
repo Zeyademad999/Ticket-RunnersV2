@@ -16,6 +16,11 @@ class Customer(models.Model):
         ('inactive', 'Inactive'),
         ('banned', 'Banned'),
     ]
+    GENDER_CHOICES = [
+        ('male', 'Male'),
+        ('female', 'Female'),
+        ('other', 'Other'),
+    ]
     
     user = models.OneToOneField(
         'authentication.AdminUser',
@@ -32,7 +37,10 @@ class Customer(models.Model):
     )
     phone = models.CharField(max_length=20, db_index=True)
     mobile_number = models.CharField(max_length=20, blank=True, null=True, db_index=True, help_text="Mobile number for webapp authentication")
-    national_id = models.CharField(max_length=50, unique=True, null=True, blank=True, db_index=True, help_text="National ID number (required for registration)")
+    national_id = models.CharField(max_length=50, unique=True, null=True, blank=True, db_index=True, help_text="National ID number (optional for registration)")
+    nationality = models.CharField(max_length=100, blank=True, null=True, help_text="Customer nationality")
+    gender = models.CharField(max_length=20, choices=GENDER_CHOICES, blank=True, null=True, help_text="Gender identity")
+    date_of_birth = models.DateField(blank=True, null=True, help_text="Date of birth")
     password = models.CharField(max_length=128, blank=True, null=True, help_text="Hashed password for webapp authentication")
     status = models.CharField(
         max_length=20,

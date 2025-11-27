@@ -210,6 +210,7 @@ export class EventsService {
             ticketsSold: cat.sold_tickets || 0,
             ticketsAvailable: cat.tickets_available || 0,
             description: cat.description || "",
+            color: cat.color || '#10B981', // Include color field, default to green
           };
         }) || [],
       gallery:

@@ -1327,7 +1327,7 @@ const OrganizerDashboard: React.FC = () => {
                           {t("dashboard.filters.allLocations")}
                         </SelectItem>
                         {uniqueLocations.map((location) => (
-                          <SelectItem key={location} value={location}>
+                          <SelectItem key={location} value=' '>
                             {location}
                           </SelectItem>
                         ))}
@@ -1345,7 +1345,7 @@ const OrganizerDashboard: React.FC = () => {
                           {t("dashboard.filters.allDates")}
                         </SelectItem>
                         {uniqueDates.map((date) => (
-                          <SelectItem key={date} value={date}>
+                          <SelectItem key={date} value=' '>
                             {format(parseISO(date + "-01"), "MMMM yyyy")}
                           </SelectItem>
                         ))}

@@ -8,6 +8,7 @@ import { EventsService } from "@/lib/api/services/events";
 import { TrendingUp, Calendar, Mail, Info, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
+import { normalizeImageUrl } from "@/lib/utils";
 import "keen-slider/keen-slider.min.css";
 
 // Remove mock data - will use API instead
@@ -113,24 +114,12 @@ const Index = () => {
           const mappedEvents = featuredSection.events.map((event) => {
             const eventId = typeof event.id === 'string' ? event.id : (event.id?.toString() || "");
             
-            // Build image URL
+            // Build image URL - normalize to relative URL
             let imageUrl = "/event-placeholder.jpg";
             if (event.thumbnail_path) {
-              if (event.thumbnail_path.startsWith("http")) {
-                imageUrl = event.thumbnail_path;
-              } else if (event.thumbnail_path.startsWith("/")) {
-                imageUrl = event.thumbnail_path;
-              } else {
-                imageUrl = `/media/${event.thumbnail_path}`;
-              }
+              imageUrl = normalizeImageUrl(event.thumbnail_path) || "/event-placeholder.jpg";
             } else if (event.image_url) {
-              if (event.image_url.startsWith("http")) {
-                imageUrl = event.image_url;
-              } else if (event.image_url.startsWith("/")) {
-                imageUrl = event.image_url;
-              } else {
-                imageUrl = `/media/${event.image_url}`;
-              }
+              imageUrl = normalizeImageUrl(event.image_url) || "/event-placeholder.jpg";
             }
             
             // Format date
@@ -185,7 +174,7 @@ const Index = () => {
             thumbnail_id: 0,
             category_id: 0,
             featured: true,
-            thumbnail_path: featured.thumbnail_path || featured.image_url || "/event-placeholder.jpg",
+            thumbnail_path: normalizeImageUrl(featured.thumbnail_path || featured.image_url) || "/event-placeholder.jpg",
             category_name: featured.category_name || featured.category || "General",
             starting_price: featured.starting_price ? (typeof featured.starting_price === 'string' ? featured.starting_price : featured.starting_price.toString()) : (featured.price?.toString() || "0"),
           });
@@ -199,21 +188,9 @@ const Index = () => {
                 
                 let imageUrl = "/event-placeholder.jpg";
                 if (event.thumbnail_path) {
-                  if (event.thumbnail_path.startsWith("http")) {
-                    imageUrl = event.thumbnail_path;
-                  } else if (event.thumbnail_path.startsWith("/")) {
-                    imageUrl = event.thumbnail_path;
-                  } else {
-                    imageUrl = `/media/${event.thumbnail_path}`;
-                  }
+                  imageUrl = normalizeImageUrl(event.thumbnail_path) || "/event-placeholder.jpg";
                 } else if (event.image_url) {
-                  if (event.image_url.startsWith("http")) {
-                    imageUrl = event.image_url;
-                  } else if (event.image_url.startsWith("/")) {
-                    imageUrl = event.image_url;
-                  } else {
-                    imageUrl = `/media/${event.image_url}`;
-                  }
+                  imageUrl = normalizeImageUrl(event.image_url) || "/event-placeholder.jpg";
                 }
                 
                 let formattedDate = event.date || "";
@@ -276,23 +253,15 @@ const Index = () => {
   // Convert section events to component format
   const convertEventsToComponentFormat = (events: any[]) => {
     return events.map((event) => {
-      // Get image URL - backend now returns full URLs in thumbnail_path
+      // Get image URL - normalize to relative URL
       let imageUrl = "/event-placeholder.jpg";
       
       if (event.thumbnail_path) {
-        // Backend returns full URL (http://localhost:8000/media/...)
-        imageUrl = event.thumbnail_path;
+        imageUrl = normalizeImageUrl(event.thumbnail_path) || "/event-placeholder.jpg";
       } else if (event.image_url) {
-        imageUrl = event.image_url;
+        imageUrl = normalizeImageUrl(event.image_url) || "/event-placeholder.jpg";
       } else if (event.image) {
-        // If it's a relative path, make it absolute
-        if (event.image.startsWith("http")) {
-          imageUrl = event.image;
-        } else if (event.image.startsWith("/")) {
-          imageUrl = event.image;
-        } else {
-          imageUrl = `/media/${event.image}`;
-        }
+        imageUrl = normalizeImageUrl(event.image) || "/event-placeholder.jpg";
       }
       
       return {
@@ -341,7 +310,7 @@ const Index = () => {
                   title: featuredEvent.title,
                   date: featuredEvent.event_date,
                   venue: featuredEvent.event_location,
-                  image: featuredEvent.thumbnail_path,
+                  image: normalizeImageUrl(featuredEvent.thumbnail_path) || "/event-placeholder.jpg",
                 }
               : null
           }

@@ -386,7 +386,11 @@ export const customersApi = {
    * Create customer
    */
   createCustomer: async (data: any) => {
-    const response = await adminApi.post('/customers/', data);
+    const isFormData =
+      typeof FormData !== "undefined" && data instanceof FormData;
+    const response = await adminApi.post("/customers/", data, {
+      headers: isFormData ? {} : undefined,
+    });
     return response.data;
   },
 
@@ -1177,7 +1181,8 @@ export const homePageSectionsApi = {
     is_active?: boolean;
     max_events?: number;
   }) => {
-    const response = await adminApi.put(`/core/home-page-sections/${id}/`, data);
+    // Use PATCH for partial updates instead of PUT
+    const response = await adminApi.patch(`/core/home-page-sections/${id}/`, data);
     return response.data;
   },
 

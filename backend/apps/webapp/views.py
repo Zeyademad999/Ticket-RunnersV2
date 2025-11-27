@@ -9,7 +9,8 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.db.models import Q, Sum, Count
-from datetime import timedelta
+from django.db import IntegrityError
+from datetime import timedelta, datetime, date
 from decimal import Decimal
 import uuid
 import json
@@ -34,6 +35,25 @@ from .serializers import (
 )
 
 
+def parse_date_value(value):
+    """Convert various date representations to a date object."""
+    if not value:
+        return None
+    if isinstance(value, date):
+        return value
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value).date()
+        except ValueError:
+            try:
+                return datetime.strptime(value, '%Y-%m-%d').date()
+            except ValueError:
+                return None
+    return None
+
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 @rate_limit_otp_request(limit=1, window=60)  # 1 request per 60 seconds
@@ -53,6 +73,10 @@ def user_register(request):
     name = serializer.validated_data.get('name', '')
     email = serializer.validated_data.get('email', '')
     national_id = serializer.validated_data.get('national_id', '')
+    nationality = serializer.validated_data.get('nationality', '')
+    gender = serializer.validated_data.get('gender', '')
+    date_of_birth = serializer.validated_data.get('date_of_birth')
+    otp_delivery_method = serializer.validated_data.get('otp_delivery_method', 'sms')
     
     # Check if user already exists
     if Customer.objects.filter(mobile_number=mobile_number).exists():
@@ -62,8 +86,19 @@ def user_register(request):
     if national_id and Customer.objects.filter(national_id=national_id).exists():
         raise ValidationError("User with this National ID already exists")
     
+    # Determine OTP delivery channel
+    otp_delivery_method = otp_delivery_method or 'sms'
+    if otp_delivery_method == 'email':
+        if not email:
+            raise ValidationError("Email is required to send OTP via email")
+        otp_target = email
+        otp_purpose = 'email_verification'
+    else:
+        otp_target = mobile_number
+        otp_purpose = 'registration'
+    
     # Create and send OTP
-    otp, success = create_and_send_otp(mobile_number, 'registration', app_name="TicketRunners")
+    otp, success = create_and_send_otp(otp_target, otp_purpose, app_name="TicketRunners")
     
     if not success:
         return Response({
@@ -78,6 +113,10 @@ def user_register(request):
         'email': email,
         'mobile_number': mobile_number,
         'national_id': national_id,
+        'nationality': nationality,
+        'gender': gender,
+        'date_of_birth': date_of_birth.isoformat() if date_of_birth else None,
+        'otp_delivery_method': otp_delivery_method,
     }, timeout=600)  # 10 minutes
     
     # Return mobile_number as signup_id for frontend compatibility
@@ -105,8 +144,6 @@ def user_verify_otp(request):
     mobile_number = serializer.validated_data['mobile_number']
     otp_code = serializer.validated_data['otp_code']
     
-    if not verify_otp(mobile_number, otp_code, 'registration'):
-        raise ValidationError("Invalid or expired OTP")
     
     # Check if user already exists (account was already created)
     if Customer.objects.filter(mobile_number=mobile_number).exists():
@@ -128,7 +165,18 @@ def user_verify_otp(request):
         logger.warning(f"No registration data found in cache for mobile_number: {mobile_number} (cache_key: {cache_key})")
         raise ValidationError("Registration session expired. Please start again.")
     
-    # Mark mobile as verified in cache
+    otp_method = registration_data.get('otp_delivery_method', 'sms')
+    if otp_method == 'email':
+        email = registration_data.get('email')
+        if not email:
+            raise ValidationError("Email address missing for email-based verification")
+        if not verify_otp(email, otp_code, 'email_verification'):
+            raise ValidationError("Invalid or expired OTP")
+    else:
+        if not verify_otp(mobile_number, otp_code, 'registration'):
+            raise ValidationError("Invalid or expired OTP")
+    
+    # Mark verification as complete in cache
     registration_data['mobile_verified'] = True
     
     # Store optional info if provided
@@ -198,7 +246,8 @@ def user_send_email_otp(request):
         
         logger.info(f"Found registration data: mobile_verified={registration_data.get('mobile_verified')}, email={registration_data.get('email')}")
         
-        if not registration_data.get('mobile_verified'):
+        otp_method = registration_data.get('otp_delivery_method', 'sms')
+        if otp_method != 'email' and not registration_data.get('mobile_verified'):
             raise ValidationError("Mobile number must be verified first")
         
         # Verify email matches
@@ -514,33 +563,56 @@ def user_complete_registration(request):
     emergency_contact_name = request.data.get('emergency_contact_name') or registration_data.get('emergency_contact_name')
     emergency_contact_mobile = request.data.get('emergency_contact_mobile') or registration_data.get('emergency_contact_mobile')
     blood_type = request.data.get('blood_type') or registration_data.get('blood_type')
-    national_id = request.data.get('national_id') or registration_data.get('national_id')
+    national_id = (request.data.get('national_id') or registration_data.get('national_id') or '').strip()
+    if national_id:
+        # Check if national_id already exists (exclude current mobile_number in case of update)
+        if Customer.objects.filter(national_id=national_id).exclude(mobile_number=mobile_number).exists():
+            raise ValidationError("User with this National ID already exists")
+    else:
+        national_id = None
     
-    # Validate national_id is provided (required for new registrations)
-    if not national_id or not national_id.strip():
-        raise ValidationError("National ID is required")
-    
-    # Check if national_id already exists (exclude current mobile_number in case of update)
-    if Customer.objects.filter(national_id=national_id).exclude(mobile_number=mobile_number).exists():
-        raise ValidationError("User with this National ID already exists")
+    # Check if email already exists (exclude current mobile_number in case of update)
+    email = registration_data.get('email')
+    if email:
+        existing_customer_with_email = Customer.objects.filter(email=email).exclude(mobile_number=mobile_number).first()
+        if existing_customer_with_email:
+            raise ValidationError("User with this email already exists")
     
     # Get profile image if it was uploaded
     profile_image_path = registration_data.get('profile_image_path')
     
+    nationality = (request.data.get('nationality') or registration_data.get('nationality') or '').strip()
+    gender = (request.data.get('gender') or registration_data.get('gender') or '').strip()
+    dob_input = request.data.get('date_of_birth') or registration_data.get('date_of_birth')
+    date_of_birth = parse_date_value(dob_input)
+    
     # Create customer
     customer_data = {
         'name': registration_data['name'],
-        'email': registration_data['email'],
+        'email': email,
         'mobile_number': mobile_number,
         'phone': mobile_number,
         'national_id': national_id,
+        'nationality': nationality or None,
+        'gender': gender or None,
         'status': 'active',
         'emergency_contact_name': emergency_contact_name,
         'emergency_contact_mobile': emergency_contact_mobile,
         'blood_type': blood_type,
     }
+    if date_of_birth:
+        customer_data['date_of_birth'] = date_of_birth
     
-    customer = Customer.objects.create(**customer_data)
+    try:
+        customer = Customer.objects.create(**customer_data)
+    except IntegrityError as e:
+        # Handle case where email or other unique constraint fails
+        if 'email' in str(e):
+            raise ValidationError("User with this email already exists")
+        elif 'national_id' in str(e):
+            raise ValidationError("User with this National ID already exists")
+        else:
+            raise ValidationError("A user with these details already exists")
     
     # Set password - if it's already hashed (from cache), use it directly, otherwise hash it
     from django.contrib.auth.hashers import is_password_usable, make_password
@@ -668,42 +740,274 @@ def validate_registration_token(request):
     Validate registration token and return ticket information.
     GET /api/v1/users/validate-registration-token/?token={token}
     """
-    token = request.query_params.get('token')
-    
-    if not token:
-        return Response({
-            'error': {'code': 'MISSING_TOKEN', 'message': 'Token parameter is required'}
-        }, status=status.HTTP_400_BAD_REQUEST)
+    import logging
+    import traceback
+    logger = logging.getLogger(__name__)
     
     try:
-        registration_token = TicketRegistrationToken.objects.select_related('ticket', 'ticket__event', 'ticket__buyer').get(token=token)
-    except TicketRegistrationToken.DoesNotExist:
+        token = request.query_params.get('token')
+        
+        if not token:
+            print("=" * 80)
+            print("❌ TOKEN VALIDATION: Missing token parameter")
+            print("=" * 80)
+            logger.warning("Token validation: Missing token parameter")
+            return Response({
+                'error': {'code': 'MISSING_TOKEN', 'message': 'Token parameter is required'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Clean token
+        original_token = token.strip()
+        token = original_token
+        
+        # Django's query_params automatically URL-decodes, but let's try both encoded and decoded versions
+        import urllib.parse
+        
+        print("=" * 80)
+        print("🔍 TOKEN VALIDATION REQUEST")
+        print(f"   Received token length: {len(token)}")
+        print(f"   First 20 chars: {token[:20]}...")
+        print(f"   Full token: {token}")
+        print("=" * 80)
+        logger.info(f"Token validation: Received token (length: {len(token)}, first 20 chars: {token[:20]}...)")
+        
+        # Try to find the token - try exact match first (Django should have already decoded it)
+        registration_token = None
+        try:
+            registration_token = TicketRegistrationToken.objects.select_related('ticket', 'ticket__event', 'ticket__buyer').get(token=token)
+            print(f"✅ TOKEN FOUND: Exact match! Token ID: {registration_token.id}")
+            logger.info(f"Token validation: Found token with exact match (ID: {registration_token.id})")
+        except TicketRegistrationToken.DoesNotExist:
+            print(f"⚠️  TOKEN NOT FOUND: Trying other methods...")
+            # Try URL-decoded version (in case it wasn't decoded)
+            try:
+                decoded_token = urllib.parse.unquote(original_token)
+                if decoded_token != original_token:
+                    print(f"   Trying URL-decoded version: {decoded_token[:20]}...")
+                    logger.info(f"Token validation: Trying URL-decoded version (decoded from {len(original_token)} to {len(decoded_token)} chars)")
+                    registration_token = TicketRegistrationToken.objects.select_related('ticket', 'ticket__event', 'ticket__buyer').get(token=decoded_token)
+                    print(f"✅ TOKEN FOUND: With decoded version! Token ID: {registration_token.id}")
+                    logger.info(f"Token validation: Found token with decoded version (ID: {registration_token.id})")
+                    token = decoded_token
+            except (TicketRegistrationToken.DoesNotExist, Exception) as e:
+                print(f"   Decoded version failed: {str(e)}")
+                # Try URL-encoded version (in case it needs encoding)
+                try:
+                    encoded_token = urllib.parse.quote(original_token, safe='')
+                    if encoded_token != original_token:
+                        print(f"   Trying URL-encoded version: {encoded_token[:20]}...")
+                        logger.info(f"Token validation: Trying URL-encoded version")
+                        registration_token = TicketRegistrationToken.objects.select_related('ticket', 'ticket__event', 'ticket__buyer').get(token=encoded_token)
+                        print(f"✅ TOKEN FOUND: With encoded version! Token ID: {registration_token.id}")
+                        logger.info(f"Token validation: Found token with encoded version (ID: {registration_token.id})")
+                        token = encoded_token
+                except (TicketRegistrationToken.DoesNotExist, Exception) as e2:
+                    # Check if received token is a prefix of any stored token (handle truncation)
+                    print(f"   Trying prefix match for truncation...")
+                    # Get recent unused tokens and check if received token is a prefix
+                    recent_tokens = TicketRegistrationToken.objects.filter(
+                        used=False,
+                        expires_at__gt=timezone.now()
+                    ).order_by('-created_at')[:20]
+                    
+                    for t in recent_tokens:
+                        if t.token.startswith(original_token):
+                            print(f"   ✅ FOUND TOKEN BY PREFIX MATCH! Token ID: {t.id}")
+                            print(f"      Stored token: {t.token}")
+                            print(f"      Received (prefix): {original_token}")
+                            registration_token = t
+                            token = t.token  # Use full token
+                            break
+                    
+                    if not registration_token:
+                        # Log all recent tokens for debugging (last 10)
+                        all_recent_tokens = TicketRegistrationToken.objects.order_by('-created_at')[:10]
+                        print("=" * 80)
+                        print("❌ TOKEN NOT FOUND: After trying all variations including prefix match")
+                        print(f"   Original token received: {original_token}")
+                        print(f"   Received token length: {len(original_token)}")
+                        print(f"   Total tokens in DB: {TicketRegistrationToken.objects.count()}")
+                        print(f"   Recent tokens (last 10):")
+                        for t in all_recent_tokens:
+                            print(f"      - ID: {t.id}, Token: {t.token}, Token length: {len(t.token)}, Phone: {t.phone_number}, Created: {t.created_at}, Used: {t.used}")
+                            # Check if received token is a prefix of stored token
+                            if t.token.startswith(original_token):
+                                print(f"         ⚠️  RECEIVED TOKEN IS A PREFIX OF THIS TOKEN! (Truncation detected)")
+                        print("=" * 80)
+                        logger.warning(f"Token validation: Token not found after trying all variations. Original: {original_token[:30]}..., Recent tokens: {[(t.id, t.token[:20] + '...', t.phone_number, t.created_at) for t in all_recent_tokens]}")
+                        return Response({
+                            'valid': False,
+                            'error': {'code': 'INVALID_TOKEN', 'message': 'Invalid or expired token'}
+                        }, status=status.HTTP_200_OK)
+        
+        if not registration_token:
+            print("=" * 80)
+            print("❌ TOKEN VALIDATION FAILED: No token found")
+            print("=" * 80)
+            return Response({
+                'valid': False,
+                'error': {'code': 'INVALID_TOKEN', 'message': 'Invalid or expired token'}
+            }, status=status.HTTP_200_OK)
+        
+        print(f"   Token ID: {registration_token.id}")
+        print(f"   Phone: {registration_token.phone_number}")
+        print(f"   Used: {registration_token.used}")
+        print(f"   Expires: {registration_token.expires_at}")
+        print(f"   Is Valid: {registration_token.is_valid()}")
+        logger.info(f"Token validation: Found token in database (ID: {registration_token.id}, used: {registration_token.used}, expires_at: {registration_token.expires_at})")
+        
+        # Check if token is valid (not expired and not used)
+        if not registration_token.is_valid():
+            print("=" * 80)
+            print("❌ TOKEN INVALID:")
+            print(f"   Used: {registration_token.used}")
+            print(f"   Expired: {timezone.now() >= registration_token.expires_at}")
+            print(f"   Current time: {timezone.now()}")
+            print(f"   Expires at: {registration_token.expires_at}")
+            print("=" * 80)
+            logger.warning(f"Token validation: Token is invalid (used: {registration_token.used}, expired: {timezone.now() >= registration_token.expires_at})")
+            return Response({
+                'valid': False,
+                'error': {'code': 'INVALID_TOKEN', 'message': 'Token has expired or has already been used'}
+            }, status=status.HTTP_200_OK)
+        
+        print("=" * 80)
+        print("✅ TOKEN VALIDATION SUCCESS!")
+        print(f"   Event: {registration_token.ticket.event.title}")
+        print(f"   Phone: {registration_token.phone_number}")
+        print("=" * 80)
+        
+        ticket = registration_token.ticket
+        purchaser_name = ticket.buyer.name if ticket.buyer and ticket.buyer.name else (
+            f"{ticket.buyer.first_name} {ticket.buyer.last_name}".strip() if ticket.buyer else "Someone"
+        )
+        
+        # Check if user is already registered
+        user_already_registered = Customer.objects.filter(
+            mobile_number=registration_token.phone_number,
+            status='active'
+        ).exists()
+        
+        if user_already_registered:
+            print("=" * 80)
+            print("⚠️  USER ALREADY REGISTERED!")
+            print(f"   Phone: {registration_token.phone_number}")
+            print("   Auto-logging in user...")
+            print("=" * 80)
+            logger.info(f"Token validation: User with phone {registration_token.phone_number} is already registered - auto-logging in")
+            
+            # Get the customer and generate JWT tokens for auto-login
+            customer = Customer.objects.get(mobile_number=registration_token.phone_number, status='active')
+            
+            # Update last login
+            customer.last_login = timezone.now()
+            customer.save(update_fields=['last_login'])
+            
+            # Link any tickets assigned to this mobile number that aren't already linked
+            assigned_tickets = Ticket.objects.filter(
+                assigned_mobile=registration_token.phone_number,
+                status='valid'
+            ).exclude(customer=customer)
+            
+            # Also check for tickets with registration tokens for this phone number
+            registration_tokens_for_user = TicketRegistrationToken.objects.filter(
+                phone_number=registration_token.phone_number,
+                used=False
+            ).select_related('ticket')
+            
+            # Mark registration tokens as used and add their tickets to the list
+            token_tickets = []
+            for reg_token in registration_tokens_for_user:
+                if reg_token.is_valid():
+                    token_tickets.append(reg_token.ticket)
+                    reg_token.mark_as_used()
+            
+            # Combine both sets of tickets
+            all_assigned_tickets = list(assigned_tickets) + token_tickets
+            
+            if all_assigned_tickets:
+                # Update customer but keep buyer as original purchaser
+                from tickets.models import TicketTransfer
+                for ticket in all_assigned_tickets:
+                    # Store the original buyer before updating customer
+                    original_buyer = ticket.buyer if ticket.buyer else ticket.customer
+                    ticket.customer = customer
+                    # Only set buyer if it's null, otherwise preserve it
+                    if not ticket.buyer:
+                        ticket.buyer = original_buyer
+                    # Clear assigned fields since ticket is now owned by customer, not just assigned
+                    ticket.assigned_name = None
+                    ticket.assigned_mobile = None
+                    ticket.assigned_email = None
+                    ticket.save(update_fields=['customer', 'buyer', 'assigned_name', 'assigned_mobile', 'assigned_email'])
+                    
+                    # Update any pending TicketTransfer records for this ticket
+                    TicketTransfer.objects.filter(
+                        ticket=ticket,
+                        to_customer__isnull=True,
+                        status='completed'
+                    ).update(to_customer=customer)
+                
+                logger.info(f"Linked {len(all_assigned_tickets)} tickets to customer {customer.id} via registration token")
+            
+            # Generate JWT tokens
+            from rest_framework_simplejwt.tokens import RefreshToken
+            refresh = RefreshToken()
+            refresh['customer_id'] = str(customer.id)
+            refresh['mobile'] = registration_token.phone_number
+            refresh['user_id'] = str(customer.id)
+            refresh.access_token['customer_id'] = str(customer.id)
+            refresh.access_token['mobile'] = registration_token.phone_number
+            refresh.access_token['user_id'] = str(customer.id)
+            
+            # Serialize user data
+            user_serializer = UserProfileSerializer(customer, context={'request': request})
+            user_data = user_serializer.data
+            
+            return Response({
+                'valid': True,
+                'user_already_registered': True,
+                'auto_login': True,
+                'access': str(refresh.access_token),
+                'refresh': str(refresh),
+                'user': user_data,
+                'phone_number': registration_token.phone_number,
+                'ticket_id': str(ticket.id),
+                'event_name': ticket.event.title,
+                'purchaser_name': purchaser_name,
+                'ticket_number': ticket.ticket_number,
+                'category': ticket.category,
+                'message': 'You are already registered. You have been automatically logged in.'
+            }, status=status.HTTP_200_OK)
+        
+        logger.info(f"Token validation: Token is valid for ticket {ticket.id}, phone: {registration_token.phone_number}")
+        
+        return Response({
+            'valid': True,
+            'user_already_registered': False,
+            'phone_number': registration_token.phone_number,
+            'ticket_id': str(ticket.id),
+            'event_name': ticket.event.title,
+            'purchaser_name': purchaser_name,
+            'ticket_number': ticket.ticket_number,
+            'category': ticket.category
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print("=" * 80)
+        print("❌ TOKEN VALIDATION ERROR:")
+        print(f"   Error: {str(e)}")
+        print(f"   Type: {type(e).__name__}")
+        print("   Traceback:")
+        print(error_traceback)
+        print("=" * 80)
+        logger.error(f"Token validation error: {str(e)}\n{error_traceback}")
         return Response({
             'valid': False,
-            'error': {'code': 'INVALID_TOKEN', 'message': 'Invalid or expired token'}
-        }, status=status.HTTP_200_OK)
-    
-    # Check if token is valid (not expired and not used)
-    if not registration_token.is_valid():
-        return Response({
-            'valid': False,
-            'error': {'code': 'INVALID_TOKEN', 'message': 'Token has expired or has already been used'}
-        }, status=status.HTTP_200_OK)
-    
-    ticket = registration_token.ticket
-    purchaser_name = ticket.buyer.name if ticket.buyer and ticket.buyer.name else (
-        f"{ticket.buyer.first_name} {ticket.buyer.last_name}".strip() if ticket.buyer else "Someone"
-    )
-    
-    return Response({
-        'valid': True,
-        'phone_number': registration_token.phone_number,
-        'ticket_id': str(ticket.id),
-        'event_name': ticket.event.title,
-        'purchaser_name': purchaser_name,
-        'ticket_number': ticket.ticket_number,
-        'category': ticket.category
-    }, status=status.HTTP_200_OK)
+            'error': {'code': 'SERVER_ERROR', 'message': 'An error occurred while validating the token. Please try again.'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -801,18 +1105,33 @@ def user_verify_login_otp(request):
     customer.save(update_fields=['last_login'])
     
     # Link any tickets assigned to this mobile number that aren't already linked
-    from tickets.models import Ticket
     assigned_tickets = Ticket.objects.filter(
         assigned_mobile=mobile_number,
         status='valid'
     ).exclude(customer=customer)
     
-    if assigned_tickets.exists():
+    # Also check for tickets with registration tokens for this phone number
+    registration_tokens = TicketRegistrationToken.objects.filter(
+        phone_number=mobile_number,
+        used=False
+    ).select_related('ticket')
+    
+    # Mark registration tokens as used and add their tickets to the list
+    token_tickets = []
+    for reg_token in registration_tokens:
+        if reg_token.is_valid():
+            token_tickets.append(reg_token.ticket)
+            reg_token.mark_as_used()
+    
+    # Combine both sets of tickets
+    all_assigned_tickets = list(assigned_tickets) + token_tickets
+    
+    if all_assigned_tickets:
         # Update customer but keep buyer as original purchaser
         # NEVER overwrite buyer field - it should always be the original purchaser
         # Only set buyer if it's null (for tickets created before buyer field was added)
         from tickets.models import TicketTransfer
-        for ticket in assigned_tickets:
+        for ticket in all_assigned_tickets:
             # Store the original buyer before updating customer
             original_buyer = ticket.buyer if ticket.buyer else ticket.customer
             ticket.customer = customer
@@ -835,7 +1154,7 @@ def user_verify_login_otp(request):
         
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Linked {assigned_tickets.count()} tickets to customer {customer.id} on login")
+        logger.info(f"Linked {len(all_assigned_tickets)} tickets to customer {customer.id} on login")
     
     refresh = RefreshToken()
     refresh['customer_id'] = str(customer.id)
@@ -1116,7 +1435,7 @@ def ticket_book(request):
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         # Check per-customer ticket limit
-        if quantity > event.ticket_limit:
+        if (not event.is_ticket_limit_unlimited) and quantity > event.ticket_limit:
             return Response({
                 'error': {'code': 'TICKET_LIMIT_EXCEEDED', 'message': f'Maximum {event.ticket_limit} tickets per booking allowed.'}
             }, status=status.HTTP_400_BAD_REQUEST)
@@ -1208,8 +1527,11 @@ def ticket_book(request):
             
             # Handle notifications for assigned tickets
             if ticket.assigned_mobile and ticket.assigned_mobile != customer.mobile_number:
-                from tickets.models import TicketRegistrationToken
-                from core.notification_service import send_ticket_assignment_sms, send_ticket_assignment_email
+                from core.notification_service import (
+                    send_ticket_assignment_sms,
+                    send_ticket_assignment_email,
+                    is_egyptian_number,
+                )
                 import logging
                 logger = logging.getLogger(__name__)
                 
@@ -1224,18 +1546,37 @@ def ticket_book(request):
                 # Check if assigned customer exists
                 assigned_customer = Customer.objects.filter(mobile_number=assigned_mobile, status='active').first()
                 
+                is_egypt = is_egyptian_number(assigned_mobile)
+
                 if assigned_customer:
                     # Option 1: Existing user - send notifications immediately
                     logger.info(f"Sending notifications to existing user {assigned_customer.id} for ticket {ticket.id}, phone: {assigned_mobile}")
-                    sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None)
-                    logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    if is_egypt:
+                        sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None)
+                        logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    else:
+                        logger.info(f"Skipping SMS for ticket {ticket.id} (international number)")
                     send_ticket_assignment_email(ticket, purchaser_name, registration_token=None)
                 else:
                     # Option 2: New user - generate token and send SMS with registration link
+                    print("=" * 80)
+                    print("🆕 NEW USER DETECTED (SYNC BOOKING) - Creating registration token")
+                    print(f"   Ticket ID: {ticket.id}")
+                    print(f"   Assigned Mobile: {assigned_mobile}")
+                    print(f"   Event: {ticket.event.title}")
+                    print("=" * 80)
                     logger.info(f"Creating registration token for new user {assigned_mobile} for ticket {ticket.id}")
                     registration_token = TicketRegistrationToken.create_for_ticket(ticket, assigned_mobile)
-                    sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=registration_token)
-                    logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    # Refresh from database to ensure it's saved
+                    registration_token.refresh_from_db()
+                    print(f"✅ Token saved to database. Token ID: {registration_token.id}")
+                    logger.info(f"Registration token created and saved: ID={registration_token.id}, token (first 20): {registration_token.token[:20]}..., phone: {registration_token.phone_number}")
+                    if is_egypt:
+                        sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=registration_token)
+                        print(f"📱 SMS Send Result: {sms_result}")
+                        logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                    else:
+                        logger.info(f"Skipping SMS for ticket {ticket.id} (international number)")
                     # Email will be sent immediately for synchronous bookings
                     send_ticket_assignment_email(ticket, purchaser_name, registration_token=registration_token)
         
@@ -1287,8 +1628,8 @@ def user_tickets_list(request):
     
     # Get tickets where:
     # 1. Customer owns the ticket (customer = customer), OR
-    # 2. Ticket is assigned to this customer (assigned_mobile matches), OR
-    # 3. Customer bought ticket for someone else (buyer = customer AND assigned_mobile is set)
+    # 2. Ticket is assigned to this customer (assigned_mobile matches)
+    # EXCLUDE tickets bought for others (these go to dependants endpoint)
     # BUT exclude tickets that were transferred away by this customer
     from tickets.models import TicketTransfer
     
@@ -1305,12 +1646,17 @@ def user_tickets_list(request):
     
     logger.info(f"[TICKETS_LIST] Customer {customer.id} - Found {len(transferred_ticket_ids)} transferred tickets: {transferred_ticket_ids}")
     
-    # Build the base query
-    tickets_query = Ticket.objects.filter(
-        Q(customer=customer) | 
-        Q(assigned_mobile=customer.mobile_number) |
-        (Q(buyer=customer) & Q(assigned_mobile__isnull=False))
-    )
+    # Build the base query - only tickets assigned to me (my own tickets)
+    # Only include assigned_mobile filter if customer has a mobile number
+    if customer.mobile_number:
+        tickets_query = Ticket.objects.filter(
+            Q(customer=customer) | 
+            Q(assigned_mobile=customer.mobile_number)
+        )
+    else:
+        tickets_query = Ticket.objects.filter(
+            Q(customer=customer)
+        )
     
     logger.info(f"[TICKETS_LIST] Found {tickets_query.count()} tickets before exclusion")
     
@@ -1319,14 +1665,25 @@ def user_tickets_list(request):
         tickets_query = tickets_query.exclude(id__in=transferred_ticket_ids)
         logger.info(f"[TICKETS_LIST] After exclusion, found {tickets_query.count()} tickets")
     
-    # Also exclude tickets that match the fallback condition
-    tickets = tickets_query.exclude(
-        # Fallback: exclude if buyer is customer but customer is not customer and assigned_mobile is null
-        # (this catches old transfers that might not have TicketTransfer records)
-        Q(buyer=customer) & ~Q(customer=customer) & Q(assigned_mobile__isnull=True)
-    ).select_related('event', 'buyer').order_by('-purchase_date')
-    serializer = TicketSerializer(tickets, many=True, context={'request': request})
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    # Exclude tickets bought for others (these go to dependants endpoint)
+    # Tickets where buyer is customer but assigned_mobile is set and different from customer's mobile
+    try:
+        tickets = tickets_query.exclude(
+            Q(buyer=customer) & 
+            Q(assigned_mobile__isnull=False) & 
+            ~Q(assigned_mobile=customer.mobile_number)
+        ).select_related('event', 'buyer', 'customer').order_by('-purchase_date')
+        
+        serializer = TicketSerializer(tickets, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        logger.error(f"[TICKETS_LIST] Error fetching tickets for customer {customer.id}: {str(e)}", exc_info=True)
+        print(f"❌ [TICKETS_LIST] Error: {str(e)}")
+        print(f"❌ [TICKETS_LIST] Traceback: {traceback.format_exc()}")
+        return Response({
+            'error': {'code': 'SERVER_ERROR', 'message': f'Failed to fetch tickets: {str(e)}'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -1378,11 +1735,14 @@ def user_me_bookings(request):
     # Debug logging
     logger.info(f"[BOOKINGS] Customer {customer.id} ({customer.mobile_number}) - Found {len(transferred_ticket_ids)} transferred tickets: {transferred_ticket_ids}")
     
-    # Get all tickets that could belong to this customer
+    # Get tickets that belong to this customer (My Bookings)
+    # Only include:
+    # 1. Tickets owned by customer (customer = customer) AND not assigned to someone else
+    # 2. Tickets assigned to customer (assigned_mobile matches customer's mobile)
+    # EXCLUDE tickets bought for others (buyer=customer but assigned_mobile != customer.mobile_number)
     all_possible_tickets = Ticket.objects.filter(
         Q(customer=customer) | 
-        Q(assigned_mobile=customer.mobile_number) |
-        (Q(buyer=customer) & Q(assigned_mobile__isnull=False))
+        Q(assigned_mobile=customer.mobile_number)
     )
     
     logger.info(f"[BOOKINGS] Customer {customer.id} - Found {all_possible_tickets.count()} possible tickets before exclusion")
@@ -1394,11 +1754,12 @@ def user_me_bookings(request):
     if transferred_ticket_ids:
         tickets_query = tickets_query.exclude(id__in=transferred_ticket_ids)
     
-    # Also exclude tickets that match the fallback condition
+    # Exclude tickets bought for others (these go to dependants tab)
+    # Tickets where buyer is customer but assigned_mobile is set and different from customer's mobile
     tickets = tickets_query.exclude(
-        # Fallback: exclude if buyer is customer but customer is not customer and assigned_mobile is null
-        # (this catches old transfers that might not have TicketTransfer records)
-        Q(buyer=customer) & ~Q(customer=customer) & Q(assigned_mobile__isnull=True)
+        Q(buyer=customer) & 
+        Q(assigned_mobile__isnull=False) & 
+        ~Q(assigned_mobile=customer.mobile_number)
     ).select_related('event', 'event__venue').order_by('-purchase_date')
     
     logger.info(f"[BOOKINGS] Customer {customer.id} - Found {tickets.count()} tickets after exclusion")
@@ -1531,6 +1892,178 @@ def user_me_bookings(request):
         'limit': str(limit),
         'count': str(total_count),
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_dependants_tickets(request):
+    """
+    Get tickets bought for others (dependants tickets).
+    GET /api/v1/users/dependants-tickets/
+    """
+    # Get customer from request (set by CustomerJWTAuthentication)
+    customer = getattr(request, 'customer', None)
+    if not customer:
+        # Fallback: try to get from user.id (for compatibility)
+        customer_id = request.user.id if hasattr(request.user, 'id') else None
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                pass
+    
+    if not customer:
+        return Response({
+            'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required'}
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Get pagination parameters
+    page = int(request.query_params.get('page', 1))
+    limit = int(request.query_params.get('limit', 10))
+    offset = (page - 1) * limit
+    
+    # Get tickets bought for others (buyer is customer but assigned_mobile is different from customer's mobile)
+    from tickets.models import TicketTransfer
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    # Get IDs of tickets that were transferred away by this customer
+    transferred_ticket_ids = list(TicketTransfer.objects.filter(
+        from_customer=customer,
+        status='completed'
+    ).values_list('ticket_id', flat=True))
+    
+    # Get tickets bought for others
+    # Tickets where buyer is customer but assigned_mobile is set and different from customer's mobile
+    # EXCLUDE tickets that have been claimed (where customer is set and customer != buyer)
+    if customer.mobile_number:
+        dependants_tickets = Ticket.objects.filter(
+            Q(buyer=customer) & 
+            Q(assigned_mobile__isnull=False) & 
+            ~Q(assigned_mobile=customer.mobile_number)
+        )
+    else:
+        # If customer has no mobile number, only filter by buyer
+        dependants_tickets = Ticket.objects.filter(
+            Q(buyer=customer) & 
+            Q(assigned_mobile__isnull=False)
+        )
+    
+    # Exclude transferred tickets
+    if transferred_ticket_ids:
+        dependants_tickets = dependants_tickets.exclude(id__in=transferred_ticket_ids)
+    
+    # Exclude claimed tickets (where customer is set and different from buyer - ticket was claimed by assigned person)
+    # When a ticket is claimed, customer is set to the recipient, so we exclude those
+    # We only want tickets where customer is null (not claimed) OR customer is the buyer (still owned by buyer)
+    dependants_tickets = dependants_tickets.exclude(
+        Q(customer__isnull=False) & ~Q(customer=customer)
+    )
+    
+    try:
+        dependants_tickets = dependants_tickets.select_related('event', 'event__venue', 'customer', 'buyer').order_by('-purchase_date')
+        
+        total_count = dependants_tickets.count()
+        logger.info(f"[DEPENDANTS_TICKETS] Customer {customer.id} - Found {total_count} dependants tickets")
+        
+        # Apply pagination to individual tickets (not grouped)
+        paginated_tickets = list(dependants_tickets[offset:offset + limit])
+        logger.info(f"[DEPENDANTS_TICKETS] Paginated to {len(paginated_tickets)} tickets (offset={offset}, limit={limit})")
+        
+        # Serialize individual tickets
+        try:
+            serializer = TicketSerializer(paginated_tickets, many=True, context={'request': request})
+            tickets_data = serializer.data
+            logger.info(f"[DEPENDANTS_TICKETS] Successfully serialized {len(tickets_data)} tickets")
+        except Exception as serialization_error:
+            logger.error(f"[DEPENDANTS_TICKETS] Serialization error: {str(serialization_error)}", exc_info=True)
+            print(f"❌ [DEPENDANTS_TICKETS] Serialization error: {str(serialization_error)}")
+            import traceback
+            print(f"❌ [DEPENDANTS_TICKETS] Traceback: {traceback.format_exc()}")
+            raise
+        
+        # Transform to include dependent info and claim status
+        items = []
+        for idx, ticket_data in enumerate(tickets_data):
+            try:
+                ticket_obj = paginated_tickets[idx] if idx < len(paginated_tickets) else None
+                
+                # Skip tickets without events
+                if not ticket_obj or not ticket_obj.event:
+                    logger.warning(f"[DEPENDANTS_TICKETS] Skipping ticket {ticket_obj.id if ticket_obj else 'unknown'} - no event")
+                    continue
+                
+                # Get dependent info from the ticket
+                dependent_name = ticket_data.get('assigned_name') or ''
+                dependent_mobile = ticket_data.get('assigned_mobile') or ''
+                
+                # Check if ticket is claimed
+                is_claimed = False
+                if ticket_obj:
+                    if ticket_obj.customer and ticket_obj.customer != customer:
+                        is_claimed = True
+                        # If claimed, get customer info instead of assigned info
+                        if ticket_obj.customer:
+                            dependent_name = ticket_obj.customer.name or f"{ticket_obj.customer.first_name} {ticket_obj.customer.last_name}".strip() or ticket_data.get('assigned_name', '')
+                            dependent_mobile = ticket_obj.customer.mobile_number or ticket_data.get('assigned_mobile', '')
+                
+                # Determine claim status
+                claim_status = 'claimed' if is_claimed else 'pending'
+                
+                # Get event location from ticket object
+                event_location = ''
+                if ticket_obj and ticket_obj.event and ticket_obj.event.venue:
+                    event_location = ticket_obj.event.venue.address or ''
+                
+                # Build the item dictionary explicitly to avoid any serialization issues
+                item = {
+                    'id': ticket_data.get('id'),
+                    'ticket_id': ticket_data.get('id'),  # Add ticket_id for reference
+                    'event_id': ticket_data.get('event_id'),
+                    'event_title': ticket_data.get('event_title'),
+                    'event_date': str(ticket_data.get('event_date')) if ticket_data.get('event_date') else None,
+                    'event_time': str(ticket_data.get('event_time')) if ticket_data.get('event_time') else None,
+                    'event_location': event_location,
+                    'category': ticket_data.get('category'),
+                    'price': float(ticket_data.get('price', 0)) if ticket_data.get('price') else 0,
+                    'status': ticket_data.get('status'),
+                    'purchase_date': ticket_data.get('purchase_date'),
+                    'ticket_number': ticket_data.get('ticket_number'),
+                    'check_in_time': ticket_data.get('check_in_time'),
+                    'assigned_name': ticket_data.get('assigned_name'),
+                    'assigned_mobile': ticket_data.get('assigned_mobile'),
+                    'assigned_email': ticket_data.get('assigned_email'),
+                    'buyer_name': ticket_data.get('buyer_name'),
+                    'buyer_mobile': ticket_data.get('buyer_mobile'),
+                    'buyer_email': ticket_data.get('buyer_email'),
+                    'is_assigned_to_me': ticket_data.get('is_assigned_to_me'),
+                    'is_assigned_to_other': ticket_data.get('is_assigned_to_other'),
+                    'needs_claiming': ticket_data.get('needs_claiming'),
+                    'dependent_name': dependent_name,
+                    'dependent_mobile': dependent_mobile,
+                    'is_claimed': is_claimed,
+                    'status': claim_status,  # Override with our computed claim status
+                }
+                items.append(item)
+            except Exception as item_error:
+                logger.error(f"[DEPENDANTS_TICKETS] Error processing ticket at index {idx}: {str(item_error)}", exc_info=True)
+                print(f"❌ [DEPENDANTS_TICKETS] Error processing ticket at index {idx}: {str(item_error)}")
+                continue  # Skip this ticket and continue with the next one
+        
+        return Response({
+            'items': items,
+            'page': str(page),
+            'limit': str(limit),
+            'count': str(total_count),
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        logger.error(f"[DEPENDANTS_TICKETS] Error fetching dependants tickets for customer {customer.id}: {str(e)}", exc_info=True)
+        print(f"❌ [DEPENDANTS_TICKETS] Error: {str(e)}")
+        print(f"❌ [DEPENDANTS_TICKETS] Traceback: {traceback.format_exc()}")
+        return Response({
+            'error': {'code': 'SERVER_ERROR', 'message': f'Failed to fetch dependants tickets: {str(e)}'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -1943,12 +2476,8 @@ def user_save_optional_info(request):
     """
     Save optional information during signup (before account creation).
     POST /api/v1/users/save-optional-info/
-    Body: {
-        "signup_id": "mobile_number",
-        "blood_type": "A+",
-        "emergency_contact_name": "John Doe",
-        "emergency_contact_mobile": "01234567890"
-    }
+    Body can include optional fields like blood_type, emergency contact info,
+    nationality, gender, and date_of_birth.
     """
     signup_id = request.data.get('signup_id')  # This is mobile_number
     if not signup_id:
@@ -1972,6 +2501,16 @@ def user_save_optional_info(request):
         if request.data.get('emergency_contact_mobile'):
             customer.emergency_contact_mobile = request.data.get('emergency_contact_mobile')
             update_fields.append('emergency_contact_mobile')
+        if request.data.get('nationality'):
+            customer.nationality = request.data.get('nationality')
+            update_fields.append('nationality')
+        if request.data.get('gender'):
+            customer.gender = request.data.get('gender')
+            update_fields.append('gender')
+        dob_value = parse_date_value(request.data.get('date_of_birth'))
+        if dob_value:
+            customer.date_of_birth = dob_value
+            update_fields.append('date_of_birth')
         
         if update_fields:
             customer.save(update_fields=update_fields)
@@ -2003,6 +2542,16 @@ def user_save_optional_info(request):
             if request.data.get('emergency_contact_mobile'):
                 customer.emergency_contact_mobile = request.data.get('emergency_contact_mobile')
                 update_fields.append('emergency_contact_mobile')
+            if request.data.get('nationality'):
+                customer.nationality = request.data.get('nationality')
+                update_fields.append('nationality')
+            if request.data.get('gender'):
+                customer.gender = request.data.get('gender')
+                update_fields.append('gender')
+            dob_value = parse_date_value(request.data.get('date_of_birth'))
+            if dob_value:
+                customer.date_of_birth = dob_value
+                update_fields.append('date_of_birth')
             
             if update_fields:
                 customer.save(update_fields=update_fields)
@@ -2026,6 +2575,13 @@ def user_save_optional_info(request):
         registration_data['emergency_contact_name'] = request.data.get('emergency_contact_name')
     if request.data.get('emergency_contact_mobile'):
         registration_data['emergency_contact_mobile'] = request.data.get('emergency_contact_mobile')
+    if request.data.get('nationality'):
+        registration_data['nationality'] = request.data.get('nationality')
+    if request.data.get('gender'):
+        registration_data['gender'] = request.data.get('gender')
+    dob_value = parse_date_value(request.data.get('date_of_birth'))
+    if dob_value:
+        registration_data['date_of_birth'] = dob_value.isoformat()
     
     cache.set(cache_key, registration_data, timeout=600)  # Reset timeout
     
@@ -2427,11 +2983,24 @@ def user_ticket_detail(request, ticket_id):
             status='completed'
         ).exists()
         
-        if is_transferred_away:
+        # Check if ticket was claimed by someone else (buyer is customer but customer is not)
+        # This happens when a ticket is claimed via registration token
+        ticket_check = Ticket.objects.select_related('event', 'customer', 'buyer').filter(id=ticket_id).first()
+        is_claimed = False
+        ticket_name = None
+        if ticket_check:
+            ticket_name = ticket_check.event.title if ticket_check.event else "Ticket"
+            # If buyer is the current customer but customer is not, it means the ticket was claimed
+            if ticket_check.buyer == customer and ticket_check.customer != customer:
+                is_claimed = True
+        
+        if is_transferred_away or is_claimed:
+            error_message = f'{ticket_name} was transferred' if ticket_name else 'This ticket has been transferred and is no longer available in your account'
             return Response({
                 'error': {
                     'code': 'TICKET_TRANSFERRED', 
-                    'message': 'This ticket has been transferred and is no longer available in your account'
+                    'message': error_message,
+                    'ticket_name': ticket_name
                 }
             }, status=status.HTTP_404_NOT_FOUND)
         
@@ -2508,6 +3077,95 @@ def user_ticket_detail(request, ticket_id):
         'related_tickets': serializer.data,
         'total_tickets': all_booking_tickets.count()
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def user_ticket_claim(request, ticket_id):
+    """
+    Claim an assigned ticket (for already registered users).
+    POST /api/v1/users/tickets/:id/claim/
+    """
+    # Get customer from request (set by CustomerJWTAuthentication)
+    customer = getattr(request, 'customer', None)
+    if not customer:
+        # Fallback: try to get from user.id (for compatibility)
+        customer_id = request.user.id if hasattr(request.user, 'id') else None
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                pass
+    
+    if not customer:
+        return Response({
+            'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required'}
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        # Get the ticket
+        ticket = Ticket.objects.select_related('event', 'customer', 'buyer').filter(id=ticket_id).first()
+        
+        if not ticket:
+            return Response({
+                'error': {'code': 'NOT_FOUND', 'message': 'Ticket not found'}
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if ticket is assigned to this user
+        if not ticket.assigned_mobile or ticket.assigned_mobile != customer.mobile_number:
+            return Response({
+                'error': {'code': 'NOT_ASSIGNED', 'message': 'This ticket is not assigned to you'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if ticket is already claimed
+        if ticket.customer and ticket.customer == customer:
+            return Response({
+                'error': {'code': 'ALREADY_CLAIMED', 'message': 'This ticket is already claimed'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Claim the ticket by setting customer to current user
+        original_buyer = ticket.buyer if ticket.buyer else ticket.customer
+        ticket.customer = customer
+        # Keep buyer as original purchaser (for tracking who paid)
+        if not ticket.buyer:
+            ticket.buyer = original_buyer
+        # Clear assigned fields since ticket is now owned by customer, not just assigned
+        # IMPORTANT: Don't clear assigned_mobile immediately - it's needed for grouping
+        # We'll clear it after a short delay or let it be cleared on next update
+        ticket.assigned_name = None
+        ticket.assigned_mobile = None
+        ticket.assigned_email = None
+        ticket.save(update_fields=['customer', 'buyer', 'assigned_name', 'assigned_mobile', 'assigned_email'])
+        
+        # Refresh from DB to ensure we have the latest data
+        ticket.refresh_from_db()
+        
+        # Update any pending TicketTransfer records for this ticket
+        from tickets.models import TicketTransfer
+        TicketTransfer.objects.filter(
+            ticket=ticket,
+            to_customer__isnull=True,
+            status='completed'
+        ).update(to_customer=customer)
+        
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Ticket {ticket.id} claimed by customer {customer.id}")
+        
+        # Return updated ticket data
+        serializer = TicketSerializer(ticket, context={'request': request})
+        return Response({
+            'message': 'Ticket claimed successfully',
+            'ticket': serializer.data
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error claiming ticket: {str(e)}", exc_info=True)
+        return Response({
+            'error': {'code': 'CLAIM_ERROR', 'message': f'Failed to claim ticket: {str(e)}'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])

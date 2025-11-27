@@ -48,6 +48,7 @@ export default function TicketDetails() {
     []
   );
   const [showTransferDisabledModal, setShowTransferDisabledModal] = useState(false);
+  const [claimingTicketId, setClaimingTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchTicketData = async () => {
@@ -67,20 +68,67 @@ export default function TicketDetails() {
         setRelatedTickets(response.related_tickets || []);
       } catch (error: any) {
         console.error("Error fetching ticket details:", error);
-        toast({
-          title: t("ticketDetails.error.title", "Error"),
-          description:
-            error?.message ||
-            t("ticketDetails.error.description", "Failed to load ticket details"),
-          variant: "destructive",
-        });
+        
+        // Check if ticket was transferred/claimed
+        if (error?.response?.data?.error?.code === 'TICKET_TRANSFERRED') {
+          const ticketName = error?.response?.data?.error?.ticket_name || '';
+          const message = ticketName 
+            ? t("ticketDetails.transferred", { ticketName }, `${ticketName} was transferred`)
+            : error?.response?.data?.error?.message || t("ticketDetails.transferredGeneric", "This ticket was transferred");
+          
+          toast({
+            title: t("ticketDetails.transferredTitle", "Ticket Transferred"),
+            description: message,
+            variant: "default",
+          });
+          // Navigate back after a short delay
+          setTimeout(() => navigate("/profile#bookings"), 2000);
+        } else {
+          toast({
+            title: t("ticketDetails.error.title", "Error"),
+            description:
+              error?.message ||
+              t("ticketDetails.error.description", "Failed to load ticket details"),
+            variant: "destructive",
+          });
+        }
       } finally {
         setLoading(false);
       }
     };
 
     fetchTicketData();
-  }, [id, toast, t]);
+  }, [id, toast, t, navigate]);
+
+  const handleClaimTicket = async (ticketId: string) => {
+    try {
+      setClaimingTicketId(ticketId);
+      await TicketsService.claimTicket(ticketId);
+      
+      toast({
+        title: t("ticketDetails.claim.success.title", "Ticket Claimed"),
+        description: t("ticketDetails.claim.success.description", "Ticket has been successfully claimed and activated."),
+        variant: "default",
+      });
+      
+      // Refresh ticket data
+      if (id) {
+        const response = await TicketsService.getTicketDetail(id);
+        setTicket(response.ticket);
+        setRelatedTickets(response.related_tickets || []);
+      }
+    } catch (error: any) {
+      console.error("Error claiming ticket:", error);
+      toast({
+        title: t("ticketDetails.claim.error.title", "Error"),
+        description: error?.response?.data?.error?.message || 
+          t("ticketDetails.claim.error.description", "Failed to claim ticket. Please try again."),
+        variant: "destructive",
+      });
+    } finally {
+      setClaimingTicketId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -93,7 +141,14 @@ export default function TicketDetails() {
   if (!ticket) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-dark text-foreground">
-        {t("ticketDetails.notFound")}
+        <div className="text-center">
+          <p className="text-muted-foreground mb-4">
+            {t("ticketDetails.notFound")}
+          </p>
+          <Button onClick={() => navigate("/profile#bookings")}>
+            {t("common.goBack", "Go Back to Bookings")}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -338,8 +393,43 @@ export default function TicketDetails() {
                       </div>
                     )}
                     
+                    {/* Show claim message and button if ticket needs claiming */}
+                    {ticketItem.needs_claiming && (
+                      <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                        <div className="flex items-start gap-2 mb-2">
+                          <Clock className="h-5 w-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                              {t("ticketDetails.claim.needToClaim.title", "Ticket Needs to be Claimed")}
+                            </p>
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                              {t("ticketDetails.claim.needToClaim.description", "You need to claim this ticket to activate it and make it available for use.")}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => handleClaimTicket(ticketItem.id)}
+                          disabled={claimingTicketId === ticketItem.id}
+                          className="w-full sm:w-auto bg-yellow-600 hover:bg-yellow-700 text-white"
+                          size="sm"
+                        >
+                          {claimingTicketId === ticketItem.id ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              {t("ticketDetails.claim.claiming", "Claiming...")}
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              {t("ticketDetails.claim.button", "Claim Ticket")}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    
                     {/* Show assigned info if ticket was assigned to me (fully functional) */}
-                    {ticketItem.is_assigned_to_me && ticketItem.assigned_name && (
+                    {ticketItem.is_assigned_to_me && ticketItem.assigned_name && !ticketItem.needs_claiming && (
                       <div className="flex items-center gap-2 text-sm mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
                         <User className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                         <div className="flex-1">

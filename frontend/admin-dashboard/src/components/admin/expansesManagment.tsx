@@ -626,25 +626,38 @@ const ExpensesManagement: React.FC = () => {
                         <Label htmlFor="category" className="rtl:text-right">
                           {t("expenses.form.category")}
                         </Label>
-                        <Select
-                          value={expenseForm.category}
-                          onValueChange={(value) =>
-                            handleExpenseFormChange("category", value)
-                          }
-                        >
-                          <SelectTrigger className="rtl:text-right">
-                            <SelectValue
-                              placeholder={t("expenses.form.selectCategory")}
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {EXPENSE_CATEGORIES.map((category) => (
-                              <SelectItem key={category.value} value={category.value}>
-                                {category.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <div className="flex gap-2">
+                          <Input
+                            id="category"
+                            type="text"
+                            value={expenseForm.category}
+                            onChange={(e) =>
+                              handleExpenseFormChange("category", e.target.value)
+                            }
+                            placeholder={t("expenses.form.selectCategory")}
+                            className="flex-1 rtl:text-right"
+                          />
+                          <Select
+                            value={expenseForm.category}
+                            onValueChange={(value) =>
+                              handleExpenseFormChange("category", value)
+                            }
+                          >
+                            <SelectTrigger className="w-[100px] rtl:text-right">
+                              <SelectValue placeholder="Select..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {EXPENSE_CATEGORIES.map((category) => (
+                                <SelectItem key={category.value} value={category.value}>
+                                  {category.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <p className="text-xs text-muted-foreground rtl:text-right">
+                          {t("expenses.form.categoryHint", "Type a new category or select from existing ones")}
+                        </p>
                       </div>
                     </div>
                     <div className="space-y-2">
@@ -1027,25 +1040,38 @@ const ExpensesManagement: React.FC = () => {
                 <Label htmlFor="editCategory" className="rtl:text-right">
                   {t("expenses.form.category")}
                 </Label>
-                <Select
-                  value={expenseForm.category}
-                  onValueChange={(value) =>
-                    handleExpenseFormChange("category", value)
-                  }
-                >
-                  <SelectTrigger className="rtl:text-right">
-                    <SelectValue
-                      placeholder={t("expenses.form.selectCategory")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXPENSE_CATEGORIES.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        {category.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Input
+                    id="editCategory"
+                    type="text"
+                    value={expenseForm.category}
+                    onChange={(e) =>
+                      handleExpenseFormChange("category", e.target.value)
+                    }
+                    placeholder={t("expenses.form.selectCategory")}
+                    className="flex-1 rtl:text-right"
+                  />
+                  <Select
+                    value={expenseForm.category}
+                    onValueChange={(value) =>
+                      handleExpenseFormChange("category", value)
+                    }
+                  >
+                    <SelectTrigger className="w-[100px] rtl:text-right">
+                      <SelectValue placeholder="Select..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EXPENSE_CATEGORIES.map((category) => (
+                        <SelectItem key={category.value} value={category.value}>
+                          {category.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground rtl:text-right">
+                  {t("expenses.form.categoryHint", "Type a new category or select from existing ones")}
+                </p>
               </div>
             </div>
             <div className="space-y-2">

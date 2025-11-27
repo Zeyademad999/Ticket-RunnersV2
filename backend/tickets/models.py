@@ -194,9 +194,10 @@ class TicketRegistrationToken(models.Model):
     def generate_token(cls):
         """
         Generate a unique token for registration.
+        Using 32 bytes (24 chars base64) to keep URL shorter for SMS compatibility.
         """
         while True:
-            token = secrets.token_urlsafe(48)  # 64 characters when base64 encoded
+            token = secrets.token_urlsafe(32)  # ~43 characters when base64 encoded (shorter for SMS)
             if not cls.objects.filter(token=token).exists():
                 return token
     
@@ -213,15 +214,31 @@ class TicketRegistrationToken(models.Model):
         Returns:
             TicketRegistrationToken instance
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         token = cls.generate_token()
         expires_at = timezone.now() + timedelta(days=expires_in_days)
         
-        return cls.objects.create(
+        token_obj = cls.objects.create(
             token=token,
             ticket=ticket,
             phone_number=phone_number,
             expires_at=expires_at
         )
+        
+        print("=" * 80)
+        print("🎫 REGISTRATION TOKEN CREATED")
+        print(f"   Token ID: {token_obj.id}")
+        print(f"   Ticket ID: {ticket.id}")
+        print(f"   Phone: {phone_number}")
+        print(f"   Token (first 30 chars): {token[:30]}...")
+        print(f"   Full token: {token}")
+        print(f"   Expires at: {expires_at}")
+        print("=" * 80)
+        logger.info(f"Created registration token for ticket {ticket.id}, phone: {phone_number}, token (first 20 chars): {token[:20]}..., expires_at: {expires_at}")
+        
+        return token_obj
     
     def is_valid(self):
         """
