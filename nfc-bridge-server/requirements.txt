@@ -1,0 +1,21 @@
+# NFC Bridge Server Requirements
+# Install one of these NFC libraries based on your reader:
+
+# Option 1: nfcpy (recommended for most USB NFC readers)
+# nfcpy>=0.13.5
+
+# Option 2: python-nfc (requires libnfc)
+# python-nfc>=0.13.4
+
+# Note: You may need to install system dependencies first:
+# - For nfcpy: pip install nfcpy
+# - For python-nfc: Install libnfc first, then pip install python-nfc
+
+# For Windows with ACR122U readers, you might need:
+# pip install pyscard
+
+# For testing without hardware, you can use a mock mode
+# (see nfc_server_simple.py for a version that works without NFC hardware)
+
+
+

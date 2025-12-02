@@ -1,0 +1,1000 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Ticket Runners Brand Colors */
+    --background: 0 0% 6%;
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 18%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 82 39% 35%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 85%;
+
+    --accent: 82 39% 35%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 15%;
+    --input: 0 0% 12%;
+    --ring: 82 39% 35%;
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(82 39% 35%), hsl(90 40% 30%));
+    --gradient-dark: linear-gradient(135deg, hsl(0 0% 6%), hsl(0 0% 10%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 8%), hsl(0 0% 22%));
+
+    /* Shadows */
+    --shadow-primary: 0 10px 30px -10px hsl(82 39% 35% / 0.3);
+    --shadow-card: 0 8px 32px -8px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 0 40px hsl(82 39% 35% / 0.4);
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --search-text: white;
+    --search-placeholder: #bbb;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 6%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 6%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 6%;
+
+    --primary: 82 39% 30%;
+    --primary-foreground: 0 0% 98%;
+    ;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 6%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 82 39% 30%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 50%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 96%;
+    --ring: 82 39% 30%;
+    /* Light mode gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(82 39% 30%), hsl(90 40% 25%));
+    --gradient-dark: linear-gradient(135deg, hsl(0 0% 98%), hsl(0 0% 95%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(0 0% 98%));
+
+    --shadow-primary: 0 10px 30px -10px hsl(82 39% 30% / 0.3);
+    --shadow-card: 0 8px 32px -8px hsl(0 0% 0% / 0.1);
+    --shadow-glow: 0 0 40px hsl(82 39% 30% / 0.3);
+    --search-text: black;
+    --search-placeholder: #333;
+  }
+}
+
+@layer base {
+
+  /* RTL Support */
+  [dir="rtl"] .event-image-container {
+    flex-direction: row-reverse !important;
+    direction: rtl !important;
+  }
+
+  [dir="rtl"] .event-image-container .event-image {
+    order: 2 !important;
+    margin-left: 3rem !important;
+    margin-right: 0 !important;
+  }
+
+  [dir="ltr"] .event-image-container .event-image {
+    margin-right: 0.75rem !important;
+    margin-left: 0 !important;
+  }
+
+  [dir="rtl"] .event-image-container .event-text {
+    order: 1 !important;
+    text-align: right !important;
+    direction: rtl !important;
+    margin-right: 0 !important;
+    margin-left: 0 !important;
+  }
+
+  [dir="rtl"] .event-image-container .event-text p {
+    text-align: right !important;
+    direction: rtl !important;
+  }
+
+  /* Force RTL layout for Arabic */
+  [dir="rtl"] .event-image-container {
+    display: flex !important;
+    flex-direction: row-reverse !important;
+    align-items: center !important;
+    gap: 3rem !important;
+  }
+
+  [dir="rtl"] .event-image-container>*:first-child {
+    order: 2 !important;
+  }
+
+  [dir="rtl"] .event-image-container>*:last-child {
+    order: 1 !important;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background: var(--gradient-dark);
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300;
+    background: var(--gradient-primary);
+    box-shadow: var(--shadow-primary);
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .card-elevated {
+    @apply bg-card border border-border rounded-xl;
+    background: var(--gradient-card);
+    box-shadow: var(--shadow-card);
+    transition: var(--transition-smooth);
+  }
+
+  .card-elevated:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card), var(--shadow-primary);
+  }
+
+  .text-glow {
+    text-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite alternate;
+  }
+
+  .hover-scale {
+    transition: var(--transition-bounce);
+  }
+
+  .hover-scale:hover {
+    transform: scale(1.05);
+  }
+
+  .nav-link {
+    @apply relative inline-block text-foreground/80 hover:text-foreground transition-all duration-300;
+  }
+
+  .nav-link::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 2px;
+    bottom: -4px;
+    left: 0;
+    background: var(--gradient-primary);
+    transform: scaleX(0);
+    transform-origin: bottom right;
+    transition: transform 0.3s ease-out;
+  }
+
+  .nav-link:hover::after {
+    transform: scaleX(1);
+    transform-origin: bottom left;
+  }
+}
+
+@layer utilities {
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .bg-gradient-dark {
+    background: var(--gradient-dark);
+  }
+
+  .bg-gradient-card {
+    background: var(--gradient-card);
+  }
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
+  }
+
+  100% {
+    box-shadow: 0 0 40px hsl(var(--primary) / 0.6);
+  }
+}
+
+/* Tailwind utility */
+.scrollbar-hide {
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE 10+ */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  /* Safari and Chrome */
+}
+
+/* Tailwind layer, add to global.css or your component's scoped style block */
+.perspective {
+  perspective: 1000px;
+}
+
+.card-3d {
+  transition: transform 0.4s ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.card-3d:hover {
+  transform: rotateY(10deg) rotateX(5deg) skewY(1deg) skewX(1deg);
+}
+
+.swiper-button-prev,
+.swiper-button-next {
+  color: hsl(82 39% 35%);
+  /* or use your theme green */
+}
+
+.swiper-pagination-bullet {
+  background-color: #ccc;
+  /* default state */
+  opacity: 1;
+}
+
+.swiper-pagination-bullet-active {
+  background-color: hsl(82 39% 35%);
+  ;
+  /* your green color */
+}
+
+.swiper-button-prev {
+  left: -2rem;
+}
+
+.swiper-button-next {
+  right: -2rem;
+}
+
+@media (max-width: 768px) {
+  .swiper-button-prev {
+    left: -1rem;
+  }
+
+  .swiper-button-next {
+    right: -1rem;
+  }
+}
+
+/* Comprehensive RTL Support */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+/* RTL Text Alignment */
+[dir="rtl"] .rtl\:text-right {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl\:text-left {
+  text-align: left !important;
+}
+
+[dir="rtl"] .rtl\:text-center {
+  text-align: center !important;
+}
+
+[dir="rtl"] .rtl\:text-justify {
+  text-align: justify !important;
+}
+
+/* RTL Flex Direction */
+[dir="rtl"] .rtl\:flex-row-reverse {
+  flex-direction: row-reverse !important;
+}
+
+[dir="rtl"] .rtl\:flex-row {
+  flex-direction: row !important;
+}
+
+/* RTL Spacing */
+[dir="rtl"] .rtl\:space-x-reverse> :not([hidden])~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+}
+
+[dir="rtl"] .rtl\:space-y-reverse> :not([hidden])~ :not([hidden]) {
+  --tw-space-y-reverse: 1;
+}
+
+/* RTL Margins */
+[dir="rtl"] .rtl\:mr-auto {
+  margin-right: auto !important;
+  margin-left: 0 !important;
+}
+
+[dir="rtl"] .rtl\:ml-auto {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+
+[dir="rtl"] .rtl\:mr-0 {
+  margin-right: 0 !important;
+}
+
+[dir="rtl"] .rtl\:ml-0 {
+  margin-left: 0 !important;
+}
+
+/* RTL Padding */
+[dir="rtl"] .rtl\:pr-0 {
+  padding-right: 0 !important;
+}
+
+[dir="rtl"] .rtl\:pl-0 {
+  padding-left: 0 !important;
+}
+
+/* RTL Borders */
+[dir="rtl"] .rtl\:border-r {
+  border-right-width: 1px !important;
+  border-left-width: 0 !important;
+}
+
+[dir="rtl"] .rtl\:border-l {
+  border-left-width: 1px !important;
+  border-right-width: 0 !important;
+}
+
+/* RTL Position */
+[dir="rtl"] .rtl\:right-0 {
+  right: 0 !important;
+  left: auto !important;
+}
+
+[dir="rtl"] .rtl\:left-0 {
+  left: 0 !important;
+  right: auto !important;
+}
+
+/* RTL Transform */
+[dir="rtl"] .rtl\:scale-x-[-1] {
+  transform: scaleX(-1) !important;
+}
+
+/* Number formatting for Arabic */
+[dir="rtl"] .number-container {
+  direction: ltr !important;
+  text-align: right !important;
+  font-family: 'Arial', 'Segoe UI', sans-serif !important;
+  unicode-bidi: bidi-override !important;
+}
+
+[dir="rtl"] .currency-container {
+  direction: ltr !important;
+  text-align: right !important;
+  font-family: 'Arial', 'Segoe UI', sans-serif !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* Percentage formatting for Arabic */
+[dir="rtl"] .percentage-container {
+  direction: ltr !important;
+  text-align: right !important;
+  font-family: 'Arial', 'Segoe UI', sans-serif !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* Enhanced RTL number support */
+[dir="rtl"] .rtl-number {
+  direction: ltr !important;
+  text-align: right !important;
+  font-family: 'Arial', 'Segoe UI', sans-serif !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* RTL number formatting for tables */
+[dir="rtl"] .rtl-table .number-container,
+[dir="rtl"] .rtl-table .currency-container,
+[dir="rtl"] .rtl-table .percentage-container {
+  direction: ltr !important;
+  text-align: right !important;
+  font-family: 'Arial', 'Segoe UI', sans-serif !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* RTL number formatting for cards */
+[dir="rtl"] .card .number-container,
+[dir="rtl"] .card .currency-container,
+[dir="rtl"] .card .percentage-container {
+  direction: ltr !important;
+  text-align: right !important;
+  font-family: 'Arial', 'Segoe UI', sans-serif !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* Table RTL support */
+[dir="rtl"] .rtl-table {
+  direction: rtl !important;
+}
+
+[dir="rtl"] .rtl-table th {
+  text-align: right !important;
+  padding-right: 1rem !important;
+  padding-left: 1rem !important;
+}
+
+[dir="rtl"] .rtl-table td {
+  text-align: right !important;
+  padding-right: 1rem !important;
+  padding-left: 1rem !important;
+}
+
+/* RTL Table Header Component */
+[dir="rtl"] .rtl-table-header {
+  text-align: right !important;
+  padding-right: 1rem !important;
+  padding-left: 1rem !important;
+}
+
+/* RTL Table Cell Component */
+[dir="rtl"] .rtl-table-cell {
+  text-align: right !important;
+  padding-right: 1rem !important;
+  padding-left: 1rem !important;
+}
+
+/* Ensure proper table structure in RTL */
+[dir="rtl"] table {
+  direction: rtl !important;
+}
+
+[dir="rtl"] table th,
+[dir="rtl"] table td {
+  text-align: right !important;
+}
+
+/* Dialog RTL support */
+[dir="rtl"] .rtl\:dialog-content {
+  text-align: right !important;
+}
+
+/* Form RTL support */
+[dir="rtl"] .rtl\:form-input {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl\:form-label {
+  text-align: right !important;
+}
+
+/* Button RTL support */
+[dir="rtl"] .rtl\:button-icon {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+/* Card RTL support */
+[dir="rtl"] .rtl\:card-header {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl\:card-content {
+  text-align: right !important;
+}
+
+/* Badge RTL support */
+[dir="rtl"] .rtl\:badge {
+  text-align: right !important;
+}
+
+/* Dropdown RTL support */
+[dir="rtl"] .rtl\:dropdown-content {
+  text-align: right !important;
+}
+
+/* Pagination RTL support */
+[dir="rtl"] .rtl\:pagination {
+  flex-direction: row-reverse !important;
+}
+
+/* Statistics cards RTL support */
+[dir="rtl"] .rtl\:stats-card {
+  text-align: right !important;
+}
+
+/* Filter section RTL support */
+[dir="rtl"] .rtl\:filter-section {
+  text-align: right !important;
+}
+
+/* Loading states RTL support */
+[dir="rtl"] .rtl\:loading-text {
+  text-align: right !important;
+}
+
+/* Action buttons RTL support */
+[dir="rtl"] .rtl\:action-button {
+  flex-direction: row-reverse !important;
+}
+
+/* Table actions RTL support */
+[dir="rtl"] .rtl\:table-actions {
+  text-align: right !important;
+}
+
+/* Dialog footer RTL support */
+[dir="rtl"] .rtl\:dialog-footer {
+  flex-direction: row-reverse !important;
+}
+
+/* Form field RTL support */
+[dir="rtl"] .rtl\:form-field {
+  text-align: right !important;
+}
+
+/* Select dropdown RTL support */
+[dir="rtl"] .rtl\:select-content {
+  text-align: right !important;
+}
+
+/* Toast RTL support */
+[dir="rtl"] .rtl\:toast {
+  text-align: right !important;
+}
+
+/* Progress bar RTL support */
+[dir="rtl"] .rtl\:progress-bar {
+  direction: rtl !important;
+}
+
+/* Icon alignment for RTL */
+[dir="rtl"] .rtl\:icon-left {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+[dir="rtl"] .rtl\:icon-right {
+  margin-right: 0 !important;
+  margin-left: 0.5rem !important;
+}
+
+/* Text alignment utilities for RTL */
+[dir="rtl"] .rtl\:text-start {
+  text-align: start !important;
+}
+
+[dir="rtl"] .rtl\:text-end {
+  text-align: end !important;
+}
+
+/* Flex utilities for RTL */
+[dir="rtl"] .rtl\:flex-start {
+  justify-content: flex-start !important;
+}
+
+[dir="rtl"] .rtl\:flex-end {
+  justify-content: flex-end !important;
+}
+
+/* Grid utilities for RTL */
+[dir="rtl"] .rtl\:grid-flow-row {
+  grid-auto-flow: row !important;
+}
+
+[dir="rtl"] .rtl\:grid-flow-col {
+  grid-auto-flow: column !important;
+}
+
+/* Animation utilities for RTL */
+[dir="rtl"] .rtl\:animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out !important;
+}
+
+[dir="rtl"] .rtl\:animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out !important;
+}
+
+/* Custom animations for RTL */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Admin Components RTL Support */
+[dir="rtl"] .admin-table th,
+[dir="rtl"] .admin-table td {
+  text-align: right !important;
+}
+
+[dir="rtl"] .admin-dialog .dialog-content {
+  text-align: right !important;
+}
+
+[dir="rtl"] .admin-form label {
+  text-align: right !important;
+}
+
+[dir="rtl"] .admin-dropdown {
+  text-align: right !important;
+}
+
+[dir="rtl"] .admin-badge {
+  direction: ltr !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* RTL support for admin icons */
+[dir="rtl"] .admin-icon {
+  margin-left: 0.5rem !important;
+  margin-right: 0 !important;
+}
+
+/* RTL support for admin buttons */
+[dir="rtl"] .admin-button {
+  flex-direction: row-reverse !important;
+}
+
+/* RTL support for admin cards */
+[dir="rtl"] .admin-card-header {
+  text-align: right !important;
+}
+
+/* RTL support for admin filters */
+[dir="rtl"] .admin-filter-input {
+  text-align: right !important;
+}
+
+/* RTL support for admin search */
+[dir="rtl"] .admin-search-icon {
+  left: auto !important;
+  right: 0.75rem !important;
+}
+
+/* RTL support for admin dropdown menus */
+[dir="rtl"] .admin-dropdown-menu {
+  text-align: right !important;
+}
+
+/* RTL support for admin form fields */
+[dir="rtl"] .admin-form-field {
+  text-align: right !important;
+}
+
+/* RTL support for admin status badges */
+[dir="rtl"] .admin-status-badge {
+  direction: ltr !important;
+  unicode-bidi: bidi-override !important;
+}
+
+/* Additional RTL table styling */
+[dir="rtl"] .rtl-table th,
+[dir="rtl"] .rtl-table td {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl-table .rtl-table-header {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl-table .rtl-table-cell {
+  text-align: right !important;
+}
+
+/* Ensure proper table structure in RTL */
+[dir="rtl"] .rtl-table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+[dir="rtl"] .rtl-table thead th {
+  text-align: right !important;
+  padding: 1rem !important;
+}
+
+[dir="rtl"] .rtl-table tbody td {
+  text-align: right !important;
+  padding: 1rem !important;
+}
+
+/* Ensure proper table alignment in RTL */
+[dir="rtl"] table {
+  direction: rtl !important;
+}
+
+[dir="rtl"] table th,
+[dir="rtl"] table td {
+  text-align: right !important;
+}
+
+/* Dialog RTL support */
+[dir="rtl"] .rtl\:dialog-content {
+  text-align: right !important;
+}
+
+/* Form RTL support */
+[dir="rtl"] .rtl\:form-input {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl\:form-label {
+  text-align: right !important;
+}
+
+/* Button RTL support */
+[dir="rtl"] .rtl\:button-icon {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+/* Card RTL support */
+[dir="rtl"] .rtl\:card-header {
+  text-align: right !important;
+}
+
+[dir="rtl"] .rtl\:card-content {
+  text-align: right !important;
+}
+
+/* Badge RTL support */
+[dir="rtl"] .rtl\:badge {
+  text-align: right !important;
+}
+
+/* Dropdown RTL support */
+[dir="rtl"] .rtl\:dropdown-content {
+  text-align: right !important;
+}
+
+/* Pagination RTL support */
+[dir="rtl"] .rtl\:pagination {
+  flex-direction: row-reverse !important;
+}
+
+/* Statistics cards RTL support */
+[dir="rtl"] .rtl\:stats-card {
+  text-align: right !important;
+}
+
+/* Filter section RTL support */
+[dir="rtl"] .rtl\:filter-section {
+  text-align: right !important;
+}
+
+/* Loading states RTL support */
+[dir="rtl"] .rtl\:loading-text {
+  text-align: right !important;
+}
+
+/* Action buttons RTL support */
+[dir="rtl"] .rtl\:action-button {
+  flex-direction: row-reverse !important;
+}
+
+/* Table actions RTL support */
+[dir="rtl"] .rtl\:table-actions {
+  text-align: right !important;
+}
+
+/* Dialog footer RTL support */
+[dir="rtl"] .rtl\:dialog-footer {
+  flex-direction: row-reverse !important;
+}
+
+/* Form field RTL support */
+[dir="rtl"] .rtl\:form-field {
+  text-align: right !important;
+}
+
+/* Select dropdown RTL support */
+[dir="rtl"] .rtl\:select-content {
+  text-align: right !important;
+}
+
+/* Toast RTL support */
+[dir="rtl"] .rtl\:toast {
+  text-align: right !important;
+}
+
+/* Progress bar RTL support */
+[dir="rtl"] .rtl\:progress-bar {
+  direction: rtl !important;
+}
+
+/* Icon alignment for RTL */
+[dir="rtl"] .rtl\:icon-left {
+  margin-left: 0 !important;
+  margin-right: 0.5rem !important;
+}
+
+[dir="rtl"] .rtl\:icon-right {
+  margin-right: 0 !important;
+  margin-left: 0.5rem !important;
+}
+
+/* Text alignment utilities for RTL */
+[dir="rtl"] .rtl\:text-start {
+  text-align: start !important;
+}
+
+[dir="rtl"] .rtl\:text-end {
+  text-align: end !important;
+}
+
+/* Flex utilities for RTL */
+[dir="rtl"] .rtl\:flex-start {
+  justify-content: flex-start !important;
+}
+
+[dir="rtl"] .rtl\:flex-end {
+  justify-content: flex-end !important;
+}
+
+/* Grid utilities for RTL */
+[dir="rtl"] .rtl\:grid-flow-row {
+  grid-auto-flow: row !important;
+}
+
+[dir="rtl"] .rtl\:grid-flow-col {
+  grid-auto-flow: column !important;
+}
+
+/* Spacing utilities for RTL */
+[dir="rtl"] .rtl\:space-y-reverse> :not([hidden])~ :not([hidden]) {
+  --tw-space-y-reverse: 1;
+}
+
+[dir="rtl"] .rtl\:space-x-reverse> :not([hidden])~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+}
+
+/* Border utilities for RTL */
+[dir="rtl"] .rtl\:border-r {
+  border-right-width: 0px;
+  border-left-width: 1px;
+}
+
+[dir="rtl"] .rtl\:border-l {
+  border-left-width: 0px;
+  border-right-width: 1px;
+}
+
+/* Margin utilities for RTL */
+[dir="rtl"] .rtl\:mr-auto {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+[dir="rtl"] .rtl\:ml-auto {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+/* Padding utilities for RTL */
+[dir="rtl"] .rtl\:pr-0 {
+  padding-right: 0;
+}
+
+[dir="rtl"] .rtl\:pl-0 {
+  padding-left: 0;
+}
+
+/* Position utilities for RTL */
+[dir="rtl"] .rtl\:right-0 {
+  right: 0;
+  left: auto;
+}
+
+[dir="rtl"] .rtl\:left-0 {
+  left: 0;
+  right: auto;
+}
+
+/* Transform utilities for RTL */
+[dir="rtl"] .rtl\:scale-x-[-1] {
+  transform: scaleX(-1);
+}
+
+/* Animation utilities for RTL */
+[dir="rtl"] .rtl\:animate-slide-in-right {
+  animation: slideInRight 0.3s ease-out;
+}
+
+[dir="rtl"] .rtl\:animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out;
+}
+
+/* Custom animations for RTL */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}

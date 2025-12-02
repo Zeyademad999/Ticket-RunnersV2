@@ -1,0 +1,1458 @@
+{
+  "english": "الإنجليزية",
+  "arabic": "العربية",
+  "searchEvents": "ابحث عن الفعاليات...",
+  "searchResults": "نتائج البحث",
+  "home": "الرئيسية",
+  "bookings": "الحجوزات",
+  "events": "الفعاليات",
+  "register": "تسجيل",
+  "login": "تسجيل الدخول",
+  "logout": "تسجيل الخروج",
+  "profile": "الملف الشخصي",
+  "light": "الفاتح",
+  "dark": "الداكن",
+  "themeSwitched": "تم التبديل إلى الوضع {{theme}}",
+  "themeChangedSuccess": "تم تغيير الوضع بنجاح!",
+  "languageChanged": "تم تغيير اللغة إلى {{lang}}",
+  "interfaceLanguageUpdated": "تم تحديث لغة الواجهة!",
+
+  "hero": {
+    "badge": "مرحبًا بكم في تيكت رانرز",
+    "badge_sub": "قريبًا في مصر",
+    "headline_discover": "اكتشف",
+    "headline_amazing": " فعاليات",
+    "headline_events": "رائعة",
+    "subtitle": "احجز تذاكر لأفضل الحفلات والمهرجانات والفعاليات في مصر. تجربة حجز تذاكر آمنة وسريعة وموثوقة.",
+    "cta_explore": "استكشاف الفعاليات",
+    "cta_trending": "الأكثر رواجًا",
+    "featured_title": "فعاليات اليوم المميزة",
+    "featured_button": "عرض الفعالية",
+    "book_now": "احجز الآن",
+    "organized_by": "منظم بواسطة"
+  },
+  "footer": {
+    "tagline": "سوقك الموثوق لتذاكر الفعاليات في مصر. اكتشف، احجز، واستمتع بأهم الفعاليات مع تجربة حجز آمنة وسريعة.",
+    "quickLinks": "روابط سريعة",
+    "aboutUs": "من نحن",
+    "contactUs": "اتصل بنا",
+    "howItWorks": "كيف يعمل",
+    "nearbyMerchants": "تجار قريبون",
+    "legal": "قانوني",
+    "faqs": "الأسئلة الشائعة",
+    "terms": "الشروط والأحكام",
+    "privacy": "سياسة الخصوصية",
+    "refund": "سياسة الاسترجاع",
+    "contact": "تواصل معنا",
+    "location": "القاهرة، مصر",
+    "trustTagline": "سوق التذاكر الموثوق به",
+    "technicalSupport": "الدعم الفني",
+    "logoAlt": "شعار تيكيت رانرز",
+    "phoneLabel": "+20 122 652 1747",
+    "emailLabel": "support@ticketrunners.com",
+    "copyright": "تيكيت رانرز",
+    "poweredBy": "مدعوم بواسطة",
+    "floki": "Floki Systems"
+  },
+  "eventCard": {
+    "featured": "مميز",
+    "bookNow": "احجز الآن",
+    "addedToFavorites": "تمت الإضافة إلى المفضلة",
+    "removedFromFavorites": "تمت الإزالة من المفضلة",
+    "favoriteDescription": "{{title}} تم {{action}} المفضلة الخاصة بك!",
+    "added": "إضافته إلى",
+    "removed": "إزالته من",
+    "sharePrefix": "شاهد هذا الحدث",
+    "linkCopied": "تم نسخ الرابط!",
+    "linkCopiedDescription": "تم نسخ رابط الحدث إلى الحافظة",
+    "location": "الموقع",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "price": "ابتداء من",
+    "currency": "ج.م"
+  },
+  "eventPreview": {
+    "date": "التاريخ",
+    "time": "الوقت",
+    "location": "الموقع"
+  },
+
+  "trendingEvents": "الفعاليات الرائجة",
+  "checkOutMostPopular": "اطّلع على أكثر الفعاليات شهرة في مصر.",
+  "upcomingEvents": "الفعاليات القادمة",
+  "dontMissUpcoming": "لا تفوت هذه الفعاليات القادمة الرائعة.",
+  "recommendedEvents": "فعاليات قد تهمك",
+  "personalizedRecommendations": "توصيات مخصصة لك.",
+  "ctaTitle": "هل أنت مستعد لاكتشاف فعاليات مذهلة؟",
+  "ctaDescription": "انضم إلى آلاف المشاركين في الفعاليات ولا تفوّت أفضل التجارب في مصر.",
+  "contactUs": "اتصل بنا",
+  "aboutUs": "من نحن",
+  "viewAll": "عرض الكل",
+  "event": {
+    "ticketsLeft": "التذاكر المتبقية",
+    "sold": "المباعة",
+    "giftable": "قابلة للإهداء",
+    "giftTicket": "إهداء تذكرة",
+    "viewMetrics": "عرض إحصائيات الحدث",
+    "hideMetrics": "إخفاء إحصائيات الحدث",
+    "completionRate": "معدل الاكتمال",
+    "netEarnings": "صافي الأرباح",
+    "receivedPayouts": "المدفوعات المستلمة",
+    "pendingPayouts": "المدفوعات المعلقة"
+  },
+  "filters": {
+    "title": "تصفية الأحداث",
+    "clearAll": "مسح الكل",
+    "category": "الفئة",
+    "date": "التاريخ",
+    "location": "الموقع",
+    "tags": "الاهتمامات",
+    "interests": "الاهتمامات",
+    "allDates": "كل التواريخ",
+    "today": "اليوم",
+    "tomorrow": "غداً",
+    "thisWeek": "هذا الأسبوع",
+    "thisMonth": "هذا الشهر",
+    "startDate": "تاريخ البدء",
+    "endDate": "تاريخ الانتهاء"
+  },
+  "categories": {
+    "All": "الكل",
+    "Music": "موسيقى",
+    "Comedy": "كوميديا",
+    "Sports": "رياضة",
+    "Theater": "مسرح",
+    "Art": "فن",
+    "Food": "طعام",
+    "Cultural": "ثقافي",
+    "EDM": "EDM",
+    "Classical": "كلاسيكي",
+    "Jazz": "جاز",
+    "Workshop": "ورشة"
+  },
+  "locations": {
+    "All": "الكل",
+    "Cairo Opera House": "دار أوبرا القاهرة",
+    "Al-Azhar Park": "حديقة الأزهر",
+    "Museum of Modern Art": "متحف الفن الحديث",
+    "Sayed Darwish Theatre": "مسرح سيد درويش",
+    "New Capital": "العاصمة الجديدة",
+    "Zamalek District": "حي الزمالك",
+    "Downtown Cairo": "وسط القاهرة",
+    "Nile Corniche": "كورنيش النيل"
+  },
+  "tags": {
+    "Music": "موسيقى",
+    "Comedy": "كوميديا",
+    "Sports": "رياضة",
+    "Theater": "مسرح",
+    "Art": "فن",
+    "Food": "طعام",
+    "Technology": "تكنولوجيا",
+    "Fashion": "موضة",
+    "Photography": "تصوير",
+    "Dance": "رقص",
+    "Literature": "أدب",
+    "Film": "سينما",
+    "Business": "أعمال",
+    "All": "الكل",
+    "Cultural": "ثقافي",
+    "EDM": "EDM",
+    "Classical": "كلاسيكي",
+    "Jazz": "جاز",
+    "Workshop": "ورشة",
+    "Other": "أخرى"
+  },
+  "booking": {
+    "title": "احجز تذاكرك",
+    "description": "أكمل حجزك لـ {{event}}",
+    "ageRestrictionNotice": "يجب أن يكون عمرك {{age}} سنة على الأقل لحجز التذاكر لهذا الحدث",
+    "eventDetails": "تفاصيل الحدث",
+    "ticketQuantities": "عدد التذاكر",
+    "subtotal": "الإجمالي الفرعي",
+    "customerInfo": "معلومات العميل",
+    "fullName": "الاسم الكامل",
+    "mobile": "رقم الجوال",
+    "allTicketsInfo": "معلومات جميع التذاكر",
+    "ticket": "التذكرة",
+    "thisIsMyTicket": "هذه تذكرتي",
+    "ownersTicket": "تذكرة المالك",
+    "ownersTicketDescription": "ستستخدم هذه التذكرة معلومات حسابك.",
+    "oneOwnerTicketOnlyTitle": "تم الوصول للحد الأقصى",
+    "oneOwnerTicketOnlyMessage": "يمكنك تعيين نفسك لتذكرة واحدة فقط.",
+    "childAge": "عمر الطفل",
+    "childAgePlaceholder": "أدخل عمر الطفل",
+    "freeChildMessage": "الأطفال تحت سن {{age}} يحضرون مجاناً!",
+    "freeChildrenDiscount": "خصم الأطفال المجاني",
+    "vipDiscount": "البطاقة السوداء VIP (تذكرتين مجانيتين)",
+    "childrenWelcome": "الأطفال تحت سن {{age}} مرحب بهم (دخول مجاني)",
+    "name": "الاسم",
+    "assigned": "مُعَيَّن",
+    "child": "طفل",
+    "mobilePlaceholder": "رقم الجوال",
+    "socialMedia": "وسائل التواصل الاجتماعي",
+    "optionalUsername": "@اسم_المستخدم (اختياري)",
+    "priceBreakdown": "تفصيل السعر",
+    "ticketPrice": "سعر التذكرة (x{{count}})",
+    "vat": "ضريبة القيمة المضافة (14٪)",
+    "cardCost": "تكلفة بطاقة NFC (أول عملية شراء)",
+    "renewalCost": "تكلفة تجديد البطاقة",
+    "totalAmount": "المبلغ الإجمالي",
+    "completePayment": "إتمام الدفع",
+    "paymentNoticeTitle": "تنويه بخصوص أول عملية شراء",
+    "paymentNoticeBody": "بعد الدفع، يرجى زيارة أقرب فرع لنا لاستلام بطاقة NFC الخاصة بك لتسهيل دخول الفعالية.",
+    "paymentMethods": "طرق الدفع",
+    "creditDebit": "بطاقة ائتمان/خصم",
+    "paymentSuccessTitle": "تم الدفع بنجاح",
+    "paymentSuccessDescription": "شكرًا لك! تم إكمال الحجز بنجاح.",
+    "fullNamePlaceholder": "أدخل اسمك الكامل",
+    "email": "البريد الإلكتروني للمُعال",
+    "EmailPlaceholder": "أدخل البريد الإلكتروني",
+    "perTicket": "لكل تذكرة",
+    "firstPurchaseNotice": "تنويه بخصوص أول عملية شراء",
+    "nfcInstruction": "ستحتاج إلى الحصول على بطاقة NFC من أحد وكلائنا",
+    "ticketsOptional": "املأ تفاصيل كل حامل تذكرة",
+    "ticketDisclaimer": "يجب أن تحتوي كل تذكرة على معلومات كاملة للمتابعة.",
+    "namePlaceholder": "أدخل الاسم",
+    "ticketType": "فئة التذكرة",
+    "mainUserInfo": "تذكرتك",
+    "unassignedTransferFeeWarning": "سيتم فرض رسوم تحويل عند نقل التذاكر غير المخصصة لاحقًا.",
+    "transferFeeWarning": "سيتم فرض رسوم تحويل عند نقل هذه التذكرة لاحقًا.",
+    "ownerPhoneConflict": "لا يمكنك تخصيص تذكرة أخرى برقم هاتفك. استخدم خيار \"هذه تذكرتي\" بدلاً من ذلك.",
+    "ownerTicketLockedTitle": "تم حجز هذه التذكرة لك",
+    "ownerTicketLockedDescription": "تم تعيين هذه التذكرة لك تلقائياً لإكمال الحجز. أضف تذكرة أخرى إذا كنت تريد تخصيص جميع التذاكر لأشخاص آخرين.",
+    "ownerSameCategorySwitch": "لديك بالفعل تذكرة من نفس الفئة. اختر فئة مختلفة إذا أردت تبديل التذكرة الخاصة بك.",
+    "emailInternationalLabel": "البريد الإلكتروني (مطلوب للأرقام الدولية)",
+    "emailInternationalDescription": "سنرسل التذكرة عبر البريد الإلكتروني لأن الرسائل النصية قد لا تكون متاحة لهذا الرقم.",
+    "emailOptionalLabel": "البريد الإلكتروني (اختياري)",
+    "internationalEmailMissing": "الرجاء إدخال بريد إلكتروني لأي تذكرة رقمها ليس مصرياً.",
+    "ownerSameCategorySwitch": "لديك بالفعل تذكرة من نفس الفئة. اختر فئة مختلفة إذا أردت تبديل التذكرة الخاصة بك.",
+
+    "tiers": {
+      "gold": "ذهبي",
+      "regular": "عادي",
+      "platinum": "بلاتيني"
+    },
+    "tierDescriptions": {
+      "regular": "وصول قياسي مع مقاعد عامة ومرافق أساسية",
+      "gold": "وصول مميز مع مقاعد محجوزة ومشروبات مجانية ودخول ذو أولوية",
+      "platinum": "وصول VIP مع مقاعد في الصف الأمامي ووصول حصري للounge وفرص اللقاء والتعارف ومرافق مميزة"
+    },
+    "signInRequired": "تسجيل الدخول مطلوب",
+    "signInPrompt": "يرجى تسجيل الدخول أو إنشاء حساب لحجز التذاكر لهذا الحدث.",
+    "signIn": "تسجيل الدخول",
+    "signUp": "إنشاء حساب"
+  },
+  "paymentConfirmation": {
+    "title": "تم الدفع بنجاح",
+    "thankYou": "شكرًا لحجزك مع Ticket Runners!",
+    "detailsTitle": "تفاصيل الدفع",
+    "event": "الفعالية",
+    "transactionId": "رقم العملية",
+    "totalPaid": "إجمالي المبلغ المدفوع",
+    "browseEvents": "تصفح المزيد من الفعاليات",
+    "goToMyTickets": "الذهاب إلى تذاكري"
+  },
+  "profilepage": {
+    "loading": "جاري تحميل الملف الشخصي...",
+    "noUserData": "تعذر تحميل بيانات المستخدم. يرجى المحاولة مرة أخرى.",
+    "retry": "إعادة المحاولة",
+    "refresh": "تحديث",
+    "refreshing": "جاري التحديث...",
+    "profileTabs": {
+      "bookings": "حجوزاتي",
+      "visits": "زياراتي",
+      "billing": "الفواتير",
+      "nfc": "بطاقة NFC",
+      "settings": "الإعدادات",
+      "favorites": "المفضلة",
+      "dependants": "المعتمدون",
+      "title": "ملفي الشخصي",
+      "description": "إدارة الحساب، الحجوزات، والتفضيلات"
+    },
+    "favorites": {
+      "title": "الفعاليات المفضلة",
+      "description": "الفعاليات التي قمت بوضعها في المفضلة.",
+      "empty": "لا توجد فعاليات مفضلة بعد.",
+      "remove": "إزالة من المفضلة",
+      "upcomingEvents": "الفعاليات القادمة",
+      "pastEvents": "الفعاليات السابقة",
+      "bookNow": "احجز الآن",
+      "viewEvent": "عرض الفعالية"
+    },
+    "dependentBookings": {
+      "title": "حجوزات المعتمدين",
+      "description": "عرض وإدارة الحجوزات للمعتمدين عليك",
+      "dependent": "المعتمد",
+      "status": {
+        "pending": "قيد الانتظار",
+        "claimed": "مطالب به"
+      }
+    },
+    "nfc": {
+      "title": "بطاقتي الذكية",
+      "description": "إدارة بطاقة NFC الخاصة بك للدخول السلس إلى الفعاليات",
+      "cardStatus": "حالة البطاقة",
+      "walletStatus": "حالة المحفظة",
+      "walletExpiryDate": "تاريخ انتهاء صلاحية المحفظة",
+      "loading": "جاري تحميل تفاصيل البطاقة...",
+      "retry": "إعادة المحاولة",
+      "noCardData": "لا توجد بيانات بطاقة متاحة",
+      "status": {
+        "Active": "نشطة",
+        "Inactive": "غير نشطة",
+        "Blocked": "محجوبة",
+        "active": "نشطة",
+        "inactive": "غير نشطة"
+      },
+      "walletStatusOptions": {
+        "active": "نشطة",
+        "inactive": "غير نشطة"
+      },
+      "cardNumber": "رقم البطاقة:",
+      "issueDate": "تاريخ الإصدار:",
+      "expiryDate": "تاريخ الانتهاء:",
+      "walletexpiryDate": "تاريخ انتهاء صلاحية المحفظة",
+      "deactivateCard": "تعطيل البطاقة",
+      "activateCard": "تفعيل البطاقة",
+      "buyNewCard": "شراء بطاقة جديدة",
+      "cardFeaturesTitle": "مميزات البطاقة",
+      "feature1": "دخول بدون تلامس إلى الفعاليات",
+      "feature2": "عملية تسجيل أسرع",
+      "feature3": "تعمل في جميع الأماكن المدعومة",
+      "feature4": "رمز QR احتياطي متاح دائمًا",
+      "cardTitle": "بطاقة الدخول NFC",
+      "issued": "تاريخ الإصدار",
+      "expires": "تاريخ الانتهاء",
+      "addToWallet": "أضف إلى المحفظة",
+      "notice": "يرجى استلام بطاقتك من أقرب تاجر",
+      "deactivatedDisclaimer": "بطاقتك غير مفعلة. يرجى شراء بطاقة جديدة من أقرب تاجر."
+    },
+    "myBookings": {
+      "title": "حجوزاتي",
+      "description": "عرض وإدارة حجوزات التذاكر الخاصة بك",
+      "status": {
+        "Card": "بطاقة",
+        "Wallet": "محفظة",
+        "Both": "كلاهما",
+        "confirmed": "مؤكد",
+        "cancelled": "ملغي",
+        "refunded": "مسترد"
+      },
+      "loading": "جاري تحميل الحجوزات...",
+      "loadingMore": "جاري تحميل المزيد...",
+      "loadMore": "تحميل المزيد",
+      "retry": "إعادة المحاولة",
+      "noBookings": "لا توجد حجوزات",
+      "quantity": "الكمية:",
+      "total": "الإجمالي:",
+      "category": "الفئة:",
+      "dependents": "المرافقون",
+      "qr": "رمز QR",
+      "addToCalendar": "أضف إلى التقويم",
+      "viewDetails": "عرض التفاصيل",
+      "date": "التاريخ",
+      "time": "الوقت",
+      "location": "الموقع",
+      "assignedTickets": "التذاكر المخصصة",
+      "myBookings": "حجوزاتي",
+      "pendingClaim": "في انتظار المطالبة",
+      "claimed": "تم المطالبة",
+      "active": "نشط",
+      "price": "السعر:"
+    },
+    "visits": {
+      "title": "زياراتي",
+      "description": "تاريخ الأحداث التي حضرتها",
+      "date": "التاريخ",
+      "enteredAt": "وقت الدخول",
+      "location": "الموقع",
+      "dependents": "المرافقون",
+      "feedback": {
+        "title": "إرسال ملاحظات",
+        "placeholder": "اكتب ملاحظاتك هنا...",
+        "submit": "إرسال الملاحظات",
+        "button": "إرسال ملاحظات"
+      }
+    },
+    "billing": {
+      "title": "سجل الفواتير",
+      "description": "عرض سجل الدفع وتنزيل الفواتير",
+      "invoice": "رقم الفاتورة",
+      "download": "تنزيل",
+      "status": {
+        "paid": "مدفوع",
+        "pending": "قيد الانتظار",
+        "failed": "فشل"
+      }
+    },
+
+    "settingsTab": {
+      "tab": "الإعدادات",
+      "ID": "معرف المستخدم الخاص بك: ",
+      "description": "قم بتحديث معلومات حسابك وتفضيلاتك.",
+      "fullName": "الاسم الكامل",
+      "phone": "رقم الهاتف",
+      "email": "البريد الإلكتروني",
+      "changePassword": "تغيير كلمة المرور",
+      "oldPassword": "كلمة المرور الحالية",
+      "oldPasswordPlaceholder": "أدخل كلمة المرور الحالية",
+      "newPassword": "كلمة المرور الجديدة",
+      "newPasswordPlaceholder": "أدخل كلمة مرور جديدة",
+      "notificationPreferences": "تفضيلات الإشعارات",
+      "notifyEmail": "استلام الإشعارات عبر البريد الإلكتروني",
+      "notifySMS": "استلام الإشعارات عبر الرسائل النصية",
+      "notifyMarketing": "استلام العروض التسويقية",
+      "saveChanges": "حفظ التغييرات",
+      "update": "تحديث",
+      "profileImage": "صورة الملف الشخصي",
+      "profileImageDisabled": "يمكن تغيير صورة الملف الشخصي فقط أثناء تجديد البطاقة أو استبدالها. اتصل بالدعم للمساعدة.",
+      "bloodType": "فصيلة الدم",
+      "emergencyContact": "رقم الطوارئ",
+      "emergencyContactName": "اسم جهة اتصال الطوارئ",
+      "emergencyContactNamePlaceholder": "اسم جهة الاتصال",
+      "emergencyContactPlaceholder": "رقم جهة الاتصال",
+      "selectOption": "اختر خيارًا",
+      "changesSaved": "تم حفظ التغييرات بنجاح",
+      "browse": "تحميل صورة جديدة",
+      "atLeastOneNotification": "يجب اختيار طريقة إشعار واحدة على الأقل."
+    }
+  },
+
+  "ticketDetails": {
+    "title": "تفاصيل التذكرة",
+    "reference": "رقم الحجز #{{id}}",
+    "notFound": "لم يتم العثور على الحجز.",
+    "eventInfo": {
+      "title": "معلومات الفعالية",
+      "category": "الفئة",
+      "purchaseDate": "تاريخ الشراء"
+    },
+    "tickets": {
+      "title": "تذاكرك",
+      "description": "انقل التذاكر بشكل فردي أو اختر عدة تذاكر لنقلها معًا",
+      "ticketNumber": "تذكرة #{{index}}",
+      "transferred": "تم النقل (الرمز: {{code}})",
+      "transfer": "نقل",
+      "transferSelected": "نقل التذاكر المحددة",
+      "category": "الفئة",
+      "price": "السعر",
+      "checkedIn": "تم تسجيل الدخول",
+      "assignedTo": "مخصصة لـ",
+      "purchasedBy": "تم الشراء بواسطة",
+      "myTicket": "تذكرتي",
+      "thisIsMyTicket": "هذه تذكرتك",
+      "readOnly": "للقراءة فقط"
+    },
+    "summary": {
+      "title": "ملخص الطلب",
+      "subtotal": "الإجمالي",
+      "vat": "ضريبة القيمة المضافة (14%)",
+      "total": "الإجمالي الكلي"
+    },
+    "status": {
+      "valid": "صالحة",
+      "used": "مستخدمة",
+      "refunded": "مستردة",
+      "banned": "محظورة"
+    },
+    "error": {
+      "title": "خطأ",
+      "description": "فشل تحميل تفاصيل التذكرة"
+    },
+    "transferredTitle": "تم نقل التذكرة",
+    "transferred": "تم نقل {{ticketName}}",
+    "transferredGeneric": "تم نقل هذه التذكرة",
+    "claim": {
+      "needToClaim": {
+        "title": "يجب المطالبة بالتذكرة",
+        "description": "تحتاج إلى المطالبة بهذه التذكرة لتفعيلها وجعلها متاحة للاستخدام."
+      },
+      "button": "المطالبة بالتذكرة",
+      "claiming": "جاري المطالبة...",
+      "success": {
+        "title": "تم المطالبة بالتذكرة",
+        "description": "تم المطالبة بالتذكرة وتفعيلها بنجاح."
+      },
+      "error": {
+        "title": "خطأ",
+        "description": "فشل المطالبة بالتذكرة. يرجى المحاولة مرة أخرى."
+      }
+    }
+  },
+  "subscriptions": {
+    "title": "اشتراكاتي",
+    "description": "إدارة الاشتراكات الحالية والسابقة",
+    "plan": "الخطة",
+    "price": "السعر",
+    "duration": "المدة",
+    "status": {
+      "active": "نشط",
+      "expired": "منتهي",
+      "cancelled": "ملغي"
+    },
+    "renew": "تجديد",
+    "cancel": "إلغاء",
+    "viewDetails": "عرض التفاصيل"
+  },
+  "wishlist": {
+    "title": "المفضلة",
+    "description": "الفعاليات التي قمت بحفظها لاحقًا",
+    "empty": "قائمة المفضلة فارغة.",
+    "remove": "إزالة",
+    "viewEvent": "عرض الفعالية"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "description": "تحديث معلوماتك الشخصية",
+    "name": "الاسم",
+    "email": "البريد الإلكتروني",
+    "language": "اللغة المفضلة",
+    "update": "تحديث",
+    "success": "تم تحديث الإعدادات بنجاح"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "description": "إدارة طرق تلقي الإشعارات",
+    "email": "إشعارات البريد الإلكتروني",
+    "sms": "إشعارات الرسائل النصية",
+    "push": "إشعارات التطبيق",
+    "on": "تشغيل",
+    "off": "إيقاف",
+    "save": "حفظ التفضيلات"
+  },
+  "transferTicket": {
+    "title": "نقل التذكرة رقم #{{ticketIndex}}",
+    "emailLabel": "البريد الإلكتروني للمستلم",
+    "emailPlaceholder": "example@email.com",
+    "policyLabel": "أوافق على سياسة نقل التذاكر ورسوم الخدمة.",
+    "feeNotice": "سيتم تطبيق رسوم خدمة قدرها {{amount}} على هذه العملية.",
+    "confirmButton": "تأكيد والدفع",
+    "toast": {
+      "errorTitle": "خطأ",
+      "errorDescription": "يرجى إدخال البريد الإلكتروني والموافقة على سياسة النقل.",
+      "successTitle": "تم النقل",
+      "successDescription": "تم نقل التذكرة رقم #{{ticketIndex}} للحجز رقم {{bookingId}} إلى {{email}}."
+    }
+  },
+  "transferTickets": {
+    "title": "نقل {{count}} تذكرة",
+    "title_plural": "نقل {{count}} تذاكر",
+    "emailLabel": "البريد الإلكتروني للمستلم",
+    "emailPlaceholder": "friend@example.com",
+    "recipientEmail": "البريد الإلكتروني للمستلم",
+    "checkboxLabel": "أوافق على سياسة النقل ورسوم ٥٠ جنيهًا.",
+    "confirmButton": "تأكيد والدفع",
+    "toast": {
+      "incompleteTitle": "بيانات غير مكتملة",
+      "incompleteDescription": "يرجى إدخال البريد الإلكتروني والموافقة على السياسة.",
+      "successTitle": "تم بدء النقل",
+      "successDescription": "سيتم إرسال التذاكر {{tickets}} للحجز رقم {{bookingId}} إلى {{email}}."
+    },
+    "missingData": "بيانات النقل غير متوفرة."
+  },
+
+  "eventDetail": {
+    "title": "حفل أحمد شيبة مباشر",
+    "date": "15 مارس 2025",
+    "time": "8:00 مساءً",
+    "gateOpen": "يفتح البوابة:",
+    "gateClose": "تغلق البوابة:",
+    "location": "دار الأوبرا المصرية",
+    "category": "موسيقى",
+    "description": "انضم إلينا في أمسية لا تُنسى مع أحمد شيبة، أحد أشهر الموسيقيين المحبوبين في مصر. استمتع بأعظم أغانيه في جو حميمي في دار الأوبرا المصرية المرموقة.",
+    "venueInfoTitle": "حول المكان",
+    "venueInfo": "تعد دار الأوبرا المصرية معلمًا ثقافيًا يتمتع بأعلى مستويات الصوتيات والمقاعد المريحة والتاريخ الغني.",
+    "organizer": {
+      "name": "شركة شيبة للفعاليات"
+    },
+    "attendees": "{{count}} يحضرون",
+    "aboutEvent": "حول هذا الحدث",
+    "perTicket": "لكل تذكرة",
+    "vipFreeAccess": "الوصول المجاني VIP",
+    "vipBlackCardBenefit": "بطاقتك السوداء تمنحك تذكرتين مجانيتين لهذا الحدث غير المقعد",
+    "organizers": "المنظمون",
+    "showLayout": "عرض المخطط",
+    "facilitiesTitle": "مرافق المكان",
+    "facilities": {
+      "Parking": "موقف سيارات",
+      "Wheelchair Access": "إمكانية الوصول للكراسي المتحركة",
+      "Wi-Fi": "واي فاي",
+      "Food": "طعام",
+      "Baby": "خدمات للأطفال",
+      "Green Area": "مساحة خضراء",
+      "Showers": "دُش",
+      "Music": "موسيقى",
+      "Outdoor": "منطقة خارجية"
+    },
+    "termsTitle": "الشروط والأحكام",
+    "eventTermsTitle": "شروط وأحكام الفعالية",
+    "termsContent": "بشراء تذكرة، فإنك توافق على الالتزام بقواعد مكان الفعالية وسياساتها. التذاكر غير قابلة للاسترداد أو التنازل إلا في حال إلغاء الفعالية أو إعادة جدولتها",
+    "shareToast": {
+      "title": "تم نسخ الرابط!",
+      "description": "تم نسخ رابط الحدث إلى الحافظة"
+    },
+    "calendarToast": "تم تنزيل ملف التقويم",
+    "noMediaAvailable": "الوسائط قريباً",
+    "noMediaDescription": "صور ومقاطع الفيديو الخاصة بهذا الحدث ستكون متاحة قريباً. تابعنا للحصول على التحديثات!",
+    "stayTuned": "✨ تابعنا للحصول على التحديثات",
+    "venueDetailsTitle": "تفاصيل المكان",
+    "capacity": "السعة",
+    "phone": "الهاتف",
+    "email": "البريد الإلكتروني",
+    "website": "الموقع الإلكتروني",
+    "gatesTitle": "بوابات الحدث",
+    "occupancy": "الإشغال الحالي",
+    "hours": "ساعات العمل",
+    "requirements": "المتطلبات",
+    "accessRequirementsTitle": "متطلبات الوصول",
+    "cardRequirements": "متطلبات البطاقة",
+    "walletRequirements": "متطلبات المحفظة",
+    "required": "مطلوب",
+    "optional": "اختياري",
+    "supportedCards": "أنواع البطاقات المدعومة",
+    "supportedWallets": "المحافظ المدعومة",
+    "minimumBalance": "الحد الأدنى للرصيد",
+    "ticketCategories": "فئات التذاكر",
+    "totalTickets": "إجمالي التذاكر",
+    "available": "متاح",
+    "ticketOptions": "خيارات التذاكر",
+    "moreOptions": "خيارات أخرى",
+    "organizer": "منظم الفعالية",
+    "termsBullets": [
+      "لا يوجد استرداد إلا إذا تم إلغاء الفعالية.",
+      "الدخول يتطلب تذكرة رقمية أو مطبوعة صالحة.",
+      "يحتفظ منظمو الفعالية بالحق في رفض الدخول."
+    ]
+  },
+  "badges": {
+    "featured": "مميز",
+    "vipEligible": "مؤهل VIP"
+  },
+
+  "ariaLabels": {
+    "share": "مشاركة",
+    "addToCalendar": "إضافة إلى التقويم",
+    "addToFavorites": "إضافة إلى المفضلة"
+  },
+  "currency": {
+    "egp": "ج.م"
+  },
+
+  "eventspage": {
+    "all": "جميع الفعاليات",
+    "trending": "الفعاليات الرائجة",
+    "upcoming": "الفعاليات القادمة",
+    "recommended": "فعاليات قد تهمك",
+    "subtitle": "اكتشف فعاليات رائعة تحدث بالقرب منك",
+    "no_matches": "لا توجد فعاليات تطابق معاييرك."
+  },
+
+  "contact": {
+    "title": "اتصل بنا",
+    "get_in_touch": "تواصل معنا",
+    "send_message": "أرسل رسالة",
+    "email": "البريد الإلكتروني",
+    "phone": "رقم الهاتف",
+    "address": "العنوان",
+    "form": {
+      "name": "اسمك",
+      "email": "بريدك الإلكتروني",
+      "message": "رسالتك",
+      "submit": "أرسل الرسالة"
+    }
+  },
+
+  "about": {
+    "title": "من نحن",
+    "mission": {
+      "title": "مهمتنا",
+      "text": "في تيكيت رنرز، نحن شغوفون بربط الناس بالفعاليات الرائعة. منصتنا تسهّل عليك اكتشاف الفعاليات وحجزها وحضورها بسهولة."
+    },
+    "what_we_do": {
+      "title": "ماذا نقدم",
+      "text": "نقدم منصة شاملة لحجز الفعاليات تساعد منظمي الفعاليات على الوصول إلى جمهورهم وتساعد الحضور على العثور على الفعاليات المناسبة لهم. من الحفلات الموسيقية إلى المؤتمرات والمهرجانات وورش العمل، نحن نغطي كل ذلك."
+    },
+    "values": {
+      "title": "قيمنا",
+      "innovation": {
+        "title": "الابتكار",
+        "text": "نطوّر منصتنا باستمرار باستخدام أحدث التقنيات"
+      },
+      "community": {
+        "title": "المجتمع",
+        "text": "نبني جسور التواصل بين منظمي الفعاليات والحضور"
+      },
+      "excellence": {
+        "title": "التميّز",
+        "text": "نقدم تجارب استثنائية لجميع مستخدمينا"
+      }
+    }
+  },
+
+  "organizers": {
+    "title": "منظمو الفعاليات",
+    "Utitle": "الفعاليات القادمة",
+    "Ftitle": "الفعاليات السابقة",
+    "description": "تصفح جميع المنظمين واستعرض فعالياتهم.",
+    "attendees": "{{count}} من الحضور",
+    "rating": "تقييم",
+    "fetchErrorTitle": "فشل تحميل المنظمين",
+    "fetchErrorMessage": "حدث خطأ أثناء جلب بيانات المنظمين. الرجاء المحاولة لاحقًا.",
+    "date": "التاريخ",
+    "time": "الوقت",
+    "location": "الموقع",
+    "organizerDescription": "تركز شركة شيبا إيفنتس على تقديم تجارب موسيقية مصرية أصيلة للجماهير حول العالم. من الجلسات الحميمة غير المرفقة إلى العروض الكبرى في المدرجات، نقوم بتنسيق وتشجيع وإدارة العروض الحية بشغف ودقة.",
+    "eventCategories": {
+      "music": "موسيقى",
+      "festival": "مهرجان"
+    },
+    "mockData": {
+      "organizerName": "شركة شيبا إيفنتس",
+      "events": {
+        "concert1": {
+          "title": "حفل أحمد شيبا المباشر",
+          "date": "15 مارس 2025",
+          "time": "8:00 مساءً",
+          "location": "دار الأوبرا المصرية"
+        },
+        "concert2": {
+          "title": "ليلة الموسيقى الشرقية",
+          "date": "10 أبريل 2025",
+          "time": "7:30 مساءً",
+          "location": "المسرح المفتوح بمكتبة الإسكندرية"
+        },
+        "festival1": {
+          "title": "مهرجان رمضان القاهرة",
+          "date": "5 مايو 2025",
+          "time": "9:00 مساءً",
+          "location": "حديقة الأزهر"
+        }
+      }
+    }
+  },
+
+  "invoice": {
+    "view_template": "عرض النموذج",
+    "preview_title": "معاينة نموذج الفاتورة",
+    "number": "رقم الفاتورة",
+    "date": "التاريخ",
+    "customer": "العميل",
+    "description": "الوصف",
+    "quantity": "الكمية",
+    "price": "السعر",
+    "total": "الإجمالي",
+    "note": "هذه فاتورة تجريبية. قد تختلف الرسوم الفعلية.",
+    "item_1": "دخول مميز للفعالية",
+    "item_2": "رسوم الخدمة"
+  },
+  "organizer": {
+    "overviewTitle": "نظرة عامة على المنظم",
+    "overviewDescription": "اعرض فعالياتك، وتتبع مبيعات التذاكر، وقم بإدارة العروض الترويجية."
+  },
+
+  "dashboard": {
+    "title": "لوحة تحكم المنظم",
+    "subtitle": "مراقبة فعالياتك، تتبع المبيعات، وعرض التحليلات",
+    "stats": {
+      "totalEvents": "إجمالي الفعاليات",
+      "runningEvents": "الفعاليات الجارية",
+      "completedEvents": "الفعاليات المكتملة",
+      "availableTickets": "التذاكر المتاحة",
+      "totalTicketsSold": "التذاكر المباعة",
+      "totalAttendees": "إجمالي الحضور",
+      "totalRevenues": "إجمالي الإيرادات",
+      "netRevenues": "صافي الإيرادات",
+      "totalProcessedPayouts": "المدفوعات المعالجة",
+      "totalPendingPayouts": "المدفوعات المعلقة"
+    },
+    "tabs": {
+      "events": "الفعاليات",
+      "analytics": "التحليلات",
+      "payouts": "المدفوعات",
+      "profile": "الملف الشخصي"
+    },
+    "filters": {
+      "title": "المرشحات",
+      "searchPlaceholder": "البحث في الفعاليات...",
+      "status": "الحالة",
+      "location": "الموقع",
+      "date": "التاريخ",
+      "allStatus": "جميع الحالات",
+      "upcoming": "قادمة",
+      "ongoing": "جارية",
+      "completed": "مكتملة",
+      "cancelled": "ملغية",
+      "allLocations": "جميع المواقع",
+      "allDates": "جميع التواريخ"
+    },
+    "event": {
+      "ticketsSold": "التذاكر المباعة",
+      "ticketsAvailable": "المتاحة",
+      "peopleAdmitted": "المدخلون",
+      "peopleRemaining": "المتبقون",
+      "salesProgress": "تقدم المبيعات",
+      "pendingPayout": "الدفع المعلق",
+      "paidPayout": "الدفع المدفوع",
+      "viewDetails": "عرض التفاصيل"
+    },
+    "analytics": {
+      "ticketCategories": "فئات التذاكر",
+      "overallStats": "الإحصائيات العامة",
+      "payoutInfo": "معلومات الدفع",
+      "salesProgress": "تقدم المبيعات",
+      "sold": "مباع",
+      "available": "متاح",
+      "totalSold": "إجمالي المباع",
+      "totalAvailable": "إجمالي المتاح",
+      "totalAdmitted": "إجمالي المدخلين",
+      "totalRemaining": "إجمالي المتبقين",
+      "pendingPayout": "الدفع المعلق",
+      "paidPayout": "الدفع المدفوع",
+      "soldPercentage": "نسبة المباع",
+      "remainingPercentage": "نسبة المتبقي",
+      "selectEvent": "اختر فعالية لعرض التحليلات التفصيلية",
+      "backToEvents": "العودة إلى الفعاليات"
+    },
+    "status": {
+      "upcoming": "قادمة",
+      "ongoing": "جارية",
+      "completed": "مكتملة",
+      "cancelled": "ملغية"
+    },
+    "noEvents": "لا توجد فعاليات تطابق معاييرك",
+    "profile": {
+      "title": "الملف الشخصي للعمل",
+      "subtitle": "عرض وإدارة معلومات عملك",
+      "editButton": "تعديل الملف الشخصي",
+      "taxId": "الرقم الضريبي",
+      "commercialRegistration": "السجل التجاري",
+      "legalBusinessName": "الاسم القانوني للعمل",
+      "tradeName": "الاسم التجاري",
+      "about": "حول",
+      "aboutPlaceholder": "أخبرنا عن عملك...",
+      "contactMobile": "رقم الجوال للتواصل",
+      "requestChanges": "طلب التغييرات",
+      "cancel": "إلغاء",
+      "changesRequested": "تم طلب التغييرات",
+      "changesRequestedDesc": "تم إرسال طلب التغيير للمراجعة. سنخطرك بمجرد معالجته."
+    },
+    "payout": {
+      "title": "سجل المدفوعات",
+      "subtitle": "تتبع جميع معاملات الدفع الخاصة بك وتحميل الفواتير",
+      "invoiceDownload": "تحميل الفاتورة",
+      "invoiceDownloadDesc": "جاري تحميل الفاتورة للمعاملة",
+      "status": {
+        "completed": "مكتمل",
+        "pending": "معلق",
+        "failed": "فشل"
+      },
+      "filters": {
+        "title": "مرشحات المدفوعات",
+        "searchPlaceholder": "البحث في المدفوعات...",
+        "status": "الحالة",
+        "date": "التاريخ",
+        "allStatus": "جميع الحالات",
+        "completed": "مكتمل",
+        "pending": "معلق",
+        "failed": "فشل",
+        "allDates": "جميع التواريخ"
+      },
+      "history": {
+        "title": "سجل المدفوعات",
+        "transactionId": "معرف المعاملة",
+        "event": "الفعالية",
+        "amount": "المبلغ",
+        "date": "التاريخ",
+        "status": "الحالة",
+        "invoice": "الفاتورة",
+        "download": "تحميل",
+        "noInvoice": "لا توجد فاتورة",
+        "noPayouts": "لا توجد مدفوعات تطابق معاييرك"
+      },
+      "summary": {
+        "title": "ملخص المدفوعات",
+        "totalCompleted": "إجمالي المكتمل",
+        "totalPending": "إجمالي المعلق",
+        "totalTransactions": "إجمالي المعاملات"
+      }
+    }
+  },
+
+  "organizer": {
+    "login": {
+      "title": "تسجيل دخول المنظم",
+      "mobilePlaceholder": "رقم الجوال",
+      "passwordPlaceholder": "كلمة المرور",
+      "loginButton": "تسجيل الدخول",
+      "otpTitle": "أدخل رمز التحقق المرسل إلى جوالك",
+      "otpPlaceholder": "أدخل رمز التحقق (جرب 123456)",
+      "verifyButton": "تحقق من الرمز",
+      "error": {
+        "invalidCredentials": "رقم الجوال أو كلمة المرور غير صحيحة.",
+        "missingFields": "يرجى إدخال رقم الجوال وكلمة المرور.",
+        "invalidOtp": "رمز التحقق غير صحيح. جرب 123456."
+      }
+    },
+    "overviewTitle": "نظرة عامة على المنظم",
+    "overviewDescription": "اعرض فعالياتك، وتتبع مبيعات التذاكر، وقم بإدارة العروض الترويجية."
+  },
+
+  "auth": {
+    "sign_in": "تسجيل الدخول",
+    "sign_up": "إنشاء حساب",
+    "login": "تسجيل الدخول",
+    "emailOrMobile": "البريد الإلكتروني أو الجوال",
+    "enterEmailOrMobile": "أدخل بريدك الإلكتروني أو رقم جوالك",
+    "enterPassword": "أدخل كلمة المرور",
+    "fillAllFields": "يرجى ملء جميع الحقول",
+    "loggingIn": "جاري تسجيل الدخول...",
+    "loginSuccess": "تم تسجيل الدخول بنجاح",
+    "loginError": "فشل تسجيل الدخول",
+    "loginErrorMessage": "بيانات الدخول غير صحيحة. يرجى المحاولة مرة أخرى.",
+    "apiError": "خطأ في API",
+    "apiErrorMessage": "حدثت مشكلة في استجابة API. يرجى المحاولة مرة أخرى.",
+    "serverError": "خطأ في الخادم",
+    "serverErrorMessage": "حدثت مشكلة في خوادمنا. يرجى المحاولة مرة أخرى لاحقاً.",
+    "dataSyncError": "خطأ في الخادم: مشكلة في مزامنة البيانات. يرجى المحاولة مرة أخرى خلال لحظات.",
+    "serverUnavailableError": "الخادم غير متاح مؤقتاً. يرجى المحاولة مرة أخرى لاحقاً.",
+    "genericServerError": "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى أو الاتصال بالدعم إذا استمرت المشكلة.",
+    "logoutConfirmationTitle": "تأكيد تسجيل الخروج",
+    "logoutConfirmationMessage": "هل أنت متأكد من أنك تريد تسجيل الخروج؟ ستحتاج إلى تسجيل الدخول مرة أخرى للوصول إلى حسابك.",
+    "loggingOut": "جاري تسجيل الخروج...",
+    "cancel": "إلغاء",
+    "logoutAll": "تسجيل الخروج من جميع الأجهزة",
+    "welcomeBack": "مرحباً بعودتك، {{name}}!",
+    "noAccount": "ليس لديك حساب؟",
+    "signUp": "إنشاء حساب",
+    "loginWithOtp": "تسجيل الدخول بالرمز",
+    "otpLoginDescription": "أدخل بريدك الإلكتروني أو رقم جوالك لتلقي رمز التحقق",
+    "sendOtp": "إرسال الرمز",
+    "sendingOtp": "جاري إرسال الرمز...",
+    "verifyOtp": "تحقق من الرمز",
+    "enterOtp": "أدخل الرمز",
+    "otpPlaceholder": "أدخل الرمز المكون من 6 أرقام",
+    "verifying": "جاري التحقق...",
+    "otpSent": "تم إرسال الرمز",
+    "otpSentDescription": "تم إرسال رمز التحقق إلى جهة الاتصال الخاصة بك",
+    "otpExpiresAt": "ينتهي الرمز في {{time}}",
+    "otpSentTo": "تم إرسال الرمز إلى {{contact}}",
+    "resendOtp": "إعادة إرسال الرمز",
+    "resendIn": "إعادة الإرسال خلال {{seconds}} ثانية",
+    "resendOtpMissingCredentials": "يرجى إعادة إدخال بريدك الإلكتروني أو رقم هاتفك وكلمة المرور لإعادة إرسال الرمز.",
+    "otpSendError": "فشل في إرسال الرمز",
+    "otpSendErrorMessage": "تعذر إرسال رمز التحقق. يرجى المحاولة مرة أخرى.",
+    "otpLoginError": "فشل التحقق من الرمز",
+    "otpLoginErrorMessage": "رمز التحقق غير صحيح. يرجى المحاولة مرة أخرى.",
+    "authenticationRequired": "مطلوب تسجيل الدخول",
+    "authenticationRequiredMessage": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى للمتابعة.",
+    "provideContactInfo": "يرجى تقديم البريد الإلكتروني أو رقم الجوال",
+    "invalidContactFormat": "يرجى إدخال بريد إلكتروني أو رقم جوال صحيح",
+    "tokenRefreshed": "تم تحديث الرمز",
+    "tokenRefreshSuccess": "تم تمديد جلستك بنجاح",
+    "tokenRefreshError": "انتهت الجلسة",
+    "tokenRefreshErrorMessage": "يرجى تسجيل الدخول مرة أخرى للمتابعة",
+    "logoutSuccess": "تم تسجيل الخروج",
+    "logoutSuccessMessage": "تم تسجيل خروجك بنجاح",
+    "logoutError": "خطأ في تسجيل الخروج",
+    "logoutErrorMessage": "حدث خطأ في تسجيل الخروج، ولكن تم مسح جلستك محلياً",
+    "logoutAllSuccess": "تم تسجيل الخروج من جميع الأجهزة",
+    "logoutAllSuccessMessage": "تم تسجيل خروجك من جميع الأجهزة بنجاح",
+    "logoutAllError": "خطأ في تسجيل الخروج من جميع الأجهزة",
+    "logoutAllErrorMessage": "حدث خطأ في تسجيل الخروج من جميع الأجهزة، ولكن تم مسح جلستك محلياً",
+    "getUserError": "فشل في الحصول على معلومات المستخدم",
+    "getUserErrorMessage": "حدث خطأ في جلب معلوماتك. يرجى المحاولة مرة أخرى.",
+    "unauthorized": "وصول غير مصرح به",
+    "unauthorizedMessage": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.",
+    "forbidden": "الوصول محظور",
+    "forbiddenMessage": "ليس لديك إذن للوصول إلى هذا المورد.",
+    "first_name": "الاسم الأول",
+    "last_name": "اسم العائلة",
+    "email": "البريد الإلكتروني",
+    "phone_number": "رقم الهاتف",
+    "password": "كلمة المرور",
+    "confirm_password": "تأكيد كلمة المرور",
+    "continue": "استمرار",
+    "select_interests": "اختر اهتماماتك",
+    "welcome": "مرحباً",
+    "all_set": "تم الإعداد بنجاح!",
+    "no_account": "ليس لديك حساب؟",
+    "already_account": "لديك حساب بالفعل؟",
+    "verify": "تحقق",
+    "verifyOtp": "تحقق من الرمز",
+    "verified": "تم التحقق",
+    "verifying": "جاري التحقق...",
+    "enter_otp": "أدخل رمز التحقق",
+    "cancel": "إلغاء",
+    "otp_sent": "تم إرسال رمز التحقق",
+    "otp_verified": "تم التحقق من رقم الهاتف",
+    "verify_otp": "تحقق من الرمز",
+    "placeholders": {
+      "email_or_phone": "البريد الإلكتروني أو رقم الجوال",
+      "firstName": "الاسم الأول",
+      "lastName": "اسم العائلة",
+      "password": "كلمة المرور",
+      "phone": "رقم الجوال",
+      "email": "البريد الإلكتروني",
+      "otp": "أدخل رمز التحقق",
+      "new_password": "كلمة المرور الجديدة",
+      "confirm_new_password": "تأكيد كلمة المرور الجديدة"
+    },
+    "errors": {
+      "email_required": "البريد الإلكتروني مطلوب.",
+      "email_invalid": "عنوان البريد الإلكتروني غير صالح.",
+      "email_or_phone_required": "البريد الإلكتروني أو رقم الهاتف مطلوب.",
+      "email_or_phone_invalid": "يرجى إدخال عنوان بريد إلكتروني أو رقم هاتف صحيح.",
+      "password_required": "كلمة المرور مطلوبة.",
+      "password_min": "يجب أن تكون كلمة المرور 6 أحرف على الأقل.",
+      "first_name_required": "الاسم الأول مطلوب.",
+      "first_name_min": "يجب أن يكون الاسم الأول 3 أحرف على الأقل.",
+      "last_name_required": "اسم العائلة مطلوب.",
+      "last_name_min": "يجب أن يكون اسم العائلة 3 أحرف على الأقل.",
+      "phone_required": "رقم الهاتف مطلوب.",
+      "phone_invalid": "رقم الهاتف غير صالح (يجب أن يتكون من 10 إلى 15 رقماً).",
+      "confirm_password_required": "يرجى تأكيد كلمة المرور.",
+      "confirm_password_mismatch": "كلمتا المرور غير متطابقتين.",
+      "otp_invalid": "رمز التحقق غير صحيح",
+      "phone_not_verified": "يجب التحقق من رقم الهاتف قبل إتمام التسجيل",
+      "captcha_required": "يجب أن يتم إدخال الكابتشا"
+    },
+    "forgot_password": "نسيت كلمة المرور",
+    "remember_password": "تذكرت كلمة المرور؟",
+    "back_to_signin": "العودة لتسجيل الدخول",
+    "send_otp": "إرسال رمز التحقق",
+    "reset_password": "إعادة تعيين كلمة المرور",
+    "password_reset_success": "تم إعادة تعيين كلمة المرور بنجاح",
+    "password_reset_description": "تم إعادة تعيين كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.",
+    "password_reset_error": "خطأ في إعادة تعيين كلمة المرور",
+    "password_reset_token_missing": "رمز إعادة تعيين كلمة المرور مفقود. يرجى المحاولة مرة أخرى.",
+    "passwordResetOtpSent": "تم إرسال رمز إعادة تعيين كلمة المرور",
+    "passwordResetOtpSentDescription": "إذا كان هناك حساب بهذا الرقم، تم إرسال رمز التحقق.",
+    "passwordResetOtpError": "فشل في إرسال رمز إعادة تعيين كلمة المرور",
+    "passwordResetOtpErrorMessage": "تعذر إرسال رمز إعادة تعيين كلمة المرور. يرجى المحاولة مرة أخرى.",
+    "passwordResetOtpVerified": "تم التحقق من رمز إعادة تعيين كلمة المرور",
+    "passwordResetOtpVerifiedDescription": "تم التحقق من الرمز بنجاح. يمكنك الآن تعيين كلمة المرور الجديدة. ينتهي الرمز خلال {{expiresIn}} دقيقة.",
+    "passwordResetOtpVerificationError": "فشل في التحقق من الرمز",
+    "passwordResetOtpVerificationErrorMessage": "رمز التحقق غير صحيح. يرجى المحاولة مرة أخرى.",
+    "passwordResetSuccess": "تم إعادة تعيين كلمة المرور بنجاح",
+    "passwordResetSuccessDescription": "تم إعادة تعيين كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول بكلمة المرور الجديدة.",
+    "passwordResetConfirmationError": "فشل في إعادة تعيين كلمة المرور",
+    "passwordResetConfirmationErrorMessage": "تعذر إعادة تعيين كلمة المرور. يرجى المحاولة مرة أخرى.",
+    "provideMobileNumber": "يرجى إدخال رقم الهاتف",
+    "provideMobileAndOtp": "يرجى إدخال رقم الهاتف ورمز التحقق",
+    "provideAllFields": "يرجى إدخال جميع الحقول المطلوبة",
+    "passwordsDoNotMatch": "كلمات المرور غير متطابقة",
+    "vip_welcome": "مرحباً بك عضو VIP!",
+    "vip_access_granted": "لديك حق الوصول إلى مزايا البطاقة السوداء VIP.",
+    "signup": {
+      "title": "إنشاء حساب",
+      "completingSignup": "جارٍ إكمال التسجيل",
+      "completingDescription": "يرجى الانتظار بينما ننهي حسابك...",
+      "verifyMobile": "التحقق من رقم الجوال",
+      "otpSentTo": "لقد أرسلنا رمز التحقق إلى {{mobile}}",
+      "enterOtpCode": "أدخل رمز التحقق",
+      "verifying": "جاري التحقق...",
+      "resendOtp": "إعادة إرسال الرمز",
+      "sending": "جاري الإرسال...",
+      "setPassword": "تعيين كلمة المرور",
+      "createPassword": "قم بإنشاء كلمة مرور آمنة لحسابك",
+      "passwordRequirements": "متطلبات كلمة المرور:",
+      "atLeast8Chars": "8 أحرف على الأقل",
+      "oneUppercase": "حرف كبير واحد",
+      "oneLowercase": "حرف صغير واحد",
+      "oneNumber": "رقم واحد",
+      "oneSpecialChar": "حرف خاص واحد",
+      "confirmPassword": "تأكيد كلمة المرور",
+      "enterPassword": "أدخل كلمة المرور",
+      "confirmYourPassword": "أكد كلمة المرور",
+      "passwordsDoNotMatch": "كلمات المرور غير متطابقة",
+      "settingPassword": "جاري تعيين كلمة المرور...",
+      "createAccount": "إنشاء حساب",
+      "uploadProfileImage": "تحميل الصورة الشخصية",
+      "addProfilePicture": "أضف صورة شخصية لتخصيص حسابك",
+      "imageShouldBeClear": "يجب أن تكون صورتك واضحة مثل هذا المثال:",
+      "exampleOfClearImage": "مثال على صورة شخصية واضحة",
+      "profileImage": "الصورة الشخصية",
+      "supportsAllFormats": "يدعم جميع صيغ الصور (JPEG, PNG, GIF, WebP, BMP, SVG, TIFF, ICO, إلخ) - الحد الأقصى 5 ميجابايت",
+      "profilePreview": "معاينة الصورة الشخصية",
+      "uploadingImage": "جاري تحميل الصورة...",
+      "continue": "متابعة",
+      "optionalInformation": "معلومات اختيارية",
+      "addMedicalInfo": "أضف معلومات طبية وجهة اتصال للطوارئ (اختياري)",
+      "bloodType": "فصيلة الدم",
+      "selectBloodType": "اختر فصيلة الدم",
+      "emergencyContactName": "اسم جهة اتصال الطوارئ",
+      "enterEmergencyContactName": "أدخل اسم جهة اتصال الطوارئ",
+      "emergencyContactMobile": "رقم جوال جهة اتصال الطوارئ",
+      "enterEmergencyContactMobile": "أدخل رقم جوال جهة اتصال الطوارئ",
+      "nationality": "الجنسية",
+      "enterNationality": "أدخل جنسيتك",
+      "gender": "النوع",
+      "selectGender": "اختر النوع",
+      "genderMale": "ذكر",
+      "genderFemale": "أنثى",
+      "genderOther": "أفضل عدم التحديد",
+      "dateOfBirth": "تاريخ الميلاد",
+      "enterDateOfBirth": "اختر تاريخ ميلادك",
+      "selectNationality": "اختر جنسيتك",
+      "verifyEmail": "تحقق من البريد الإلكتروني",
+      "otpDeliveryMethodLabel": "طريقة استلام رمز التحقق",
+      "otpDeliveryMethodDescription": "تسجل برقم دولي؟ يمكنك استلام رمز التحقق عبر البريد الإلكتروني بدلاً من الرسائل القصيرة.",
+      "otpMethodSms": "إرسال الرمز عبر الرسائل القصيرة",
+      "otpMethodEmail": "إرسال الرمز عبر البريد الإلكتروني",
+      "otpSentToEmail": "تم إرسال رمز التحقق إلى {{email}}",
+      "otpSentToEmailToast": "تم إرسال الرمز إلى بريدك الإلكتروني!",
+      "otpSendEmailError": "تعذر إرسال رمز التحقق عبر البريد الإلكتروني. يرجى المحاولة مرة أخرى.",
+      "saving": "جاري الحفظ...",
+      "saveAndCreateAccount": "حفظ وإنشاء الحساب",
+      "skipForNow": "تخطي الآن",
+      "backToLogin": "العودة لتسجيل الدخول",
+      "creatingAccount": "جاري إنشاء الحساب...",
+      "agreeToTerms": "أوافق على",
+      "termsAndConditions": "الشروط والأحكام",
+      "validPhoneNumber": "يرجى إدخال رقم هاتف صحيح (10-15 رقم)",
+      "accountCreatedSuccess": "تم إنشاء وتفعيل الحساب بنجاح!",
+      "failedToCompleteSignup": "فشل إكمال التسجيل. يرجى المحاولة مرة أخرى.",
+      "claimingTicket": "جارٍ التسجيل للمطالبة بتذكرتك لـ {{event}} من {{purchaser}}",
+      "validatingToken": "جارٍ التحقق من رابط التسجيل...",
+      "tokenValid": "جارٍ التسجيل للمطالبة بتذكرتك لـ {{event}} من {{purchaser}}",
+      "tokenInvalid": "رابط التسجيل غير صالح أو منتهي الصلاحية",
+      "tokenValidationError": "فشل التحقق من رابط التسجيل",
+      "userAlreadyRegistered": "أنت مسجل بالفعل. يرجى تسجيل الدخول للمطالبة بتذكرتك.",
+      "autoLoggedIn": "تم تسجيل الدخول تلقائياً. جاري التوجيه إلى تذاكرك...",
+      "autoLoginError": "فشل تسجيل الدخول التلقائي. يرجى محاولة تسجيل الدخول يدوياً.",
+      "validNationalId": "يرجى إدخال رقم قومي صحيح (5 أحرف على الأقل)"
+    },
+    "nationalId": "الرقم القومي",
+    "nationalIdPlaceholder": "أدخل الرقم القومي الخاص بك"
+  },
+  "interests": {
+    "music": "الموسيقى",
+    "sports": "الرياضة",
+    "technology": "التكنولوجيا",
+    "theatre": "المسرح"
+  },
+
+  "profileSetup": {
+    "complete_profile": "استكمل ملفك الشخصي",
+    "step1_title": "تحميل الصورة الشخصية",
+    "step2_title": "معلومات إضافية",
+    "image_disclaimer": "لضمان الأمان، يرجى تحميل صورة حديثة وواضحة. قد يتم منعك من دخول الفعاليات إذا لم تتطابق صورتك مع مظهرك الحقيقي.",
+    "image_warning": "⚠️ تحذير: لا يمكن تغيير الصورة الشخصية بعد التحميل. أي صورة غير صحيحة ستمنع الدخول إلى المكان. ⚠️",
+    "example_image": "مثال على صورة شخصية جيدة",
+    "upload_placeholder": "قم بتحميل صورة واضحة مثل هذا المثال",
+    "upload_image": "تحميل صورة",
+    "image_preview": "معاينة الصورة",
+    "next": "التالي",
+    "back": "السابق",
+    "select_blood_type": "اختر فصيلة الدم (اختياري)",
+    "emergency_contact": "جهة الاتصال للطوارئ (اختياري)",
+    "emergency_contact_name": "اسم جهة اتصال الطوارئ",
+    "emergency_contact_number": "رقم جهة اتصال الطوارئ",
+    "submit": "إرسال",
+    "errors": {
+      "image_required": "الصورة الشخصية مطلوبة"
+    },
+    "submitted": "تم استكمال الملف الشخصي بنجاح"
+  },
+  "terms": {
+    "title": "الشروط والأحكام",
+    "message": "يرجى مراجعة الشروط والأحكام والموافقة عليها قبل المتابعة."
+  },
+  "common": {
+    "textDirection": "rtl",
+    "accept": "قبول",
+    "ok": "حسناً",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "save": "حفظ",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "loading": "جاري التحميل...",
+    "error": "خطأ",
+    "success": "نجح",
+    "invalidDate": "تاريخ غير صحيح",
+    "backToDashboard": "العودة إلى لوحة التحكم"
+  },
+  "editEvent": {
+    "title": "طلب تعديل الفعالية",
+    "editEvent": "تعديل الفعالية",
+    "descriptionLabel": "وصف التعديل",
+    "descriptionPlaceholder": "يرجى وصف التغييرات التي تريد إجراءها على هذه الفعالية...",
+    "descriptionHelp": "قدم وصفًا مفصلاً للتغييرات التي تريد إجراءها. هذا سيساعدنا في معالجة طلبك بشكل أسرع.",
+    "descriptionRequired": "الوصف مطلوب",
+    "pleaseProvideDescription": "يرجى تقديم وصف للتغييرات التي تريد إجراءها.",
+    "attachmentsLabel": "المرفقات (اختياري)",
+    "dragDropOrClick": "اسحب وأفلت الملفات هنا، أو انقر للتصفح",
+    "supportedFormats": "الصيغ المدعومة: الصور (JPG, PNG, GIF) والفيديوهات (MP4, MOV, AVI)",
+    "chooseFiles": "اختر الملفات",
+    "attachments": "المرفقات",
+    "invalidFileType": "نوع ملف غير صحيح",
+    "onlyImagesAndVideos": "يتم دعم ملفات الصور والفيديو فقط.",
+    "submitRequest": "إرسال طلب التعديل",
+    "submitting": "جاري الإرسال...",
+    "submitted": "تم إرسال طلب التعديل",
+    "editRequestSubmitted": "تم إرسال طلب التعديل بنجاح. سنراجعه ونعالجه خلال 24-48 ساعة.",
+    "error": "خطأ في الإرسال",
+    "submissionFailed": "فشل في إرسال طلب التعديل. يرجى المحاولة مرة أخرى."
+  },
+  "buttons": {
+    "book_now": "احجز الآن",
+    "view_event": "عرض الحدث"
+  },
+  "wallet": {
+    "expiresOn": "ينتهي خلال",
+    "virtualExpired": "Your temporary virtual access has expired.",
+    "renewTemporaryAccess": "Renew Temporary Access",
+    "add": "أضف إلى المحفظة",
+    "added": "تمت الإضافة إلى المحفظة",
+    "renew": "تجديد المحفظة",
+    "timer": "{{days}}يوم {{hours}}:{{minutes}}:{{seconds}} متبقي"
+  },
+
+  "how_it_works": {
+    "title": "كيف يعمل",
+    "step1": {
+      "title": "اكتشف فعاليات مذهلة",
+      "text": "تصفح مجموعتنا المختارة من الفعاليات التي تقام في جميع أنحاء مصر. من الحفلات والمهرجانات إلى ورش العمل والفعاليات الثقافية، ابحث عن التجربة المثالية التي تناسب اهتماماتك. استخدم فلاترنا المتقدمة للبحث حسب الفئة أو الموقع أو التاريخ أو نطاق السعر."
+    },
+    "step2": {
+      "title": "احجز تذاكرك بأمان",
+      "text": "اختر فعاليتك المفضلة واختر من بين مستويات التذاكر المختلفة (عادي، ذهبي، بلاتيني). نظام الدفع الآمن لدينا يقبل جميع بطاقات الائتمان الرئيسية ويضمن حماية معلوماتك المالية. أكمل حجزك واحصل على تأكيد فوري مع تفاصيل تذكرتك."
+    },
+    "step3": {
+      "title": "احصل على بطاقة NFC",
+      "text": "لشرائك الأول، قم بزيارة أي من وكلائنا المعتمدين لاستلام بطاقة الدخول NFC. هذه البطاقة بدون تلامس توفر دخولًا أسرع للفعاليات وتعمل في جميع الأماكن المدعومة. لا تنس إحضار تأكيد الحجز وبطاقة هوية صالحة."
+    },
+    "step4": {
+      "title": "استمتع بالتجربة",
+      "text": "احضر فعاليتك مع بطاقة NFC أو رمز QR للتذكرة الرقمية. عملية الدخول المبسطة لدينا تجعلك تدخل بسرعة حتى تتمكن من التركيز على الاستمتاع بالتجربة. شارك ذكرياتك واكتشف مغامرتك التالية!"
+    }
+  },
+  "termspage": {
+    "title": "الشروط والأحكام",
+    "section1": {
+      "title": "قبول الشروط",
+      "text": "من خلال الوصول إلى منصة Ticket Runners واستخدامها، فإنك تقبل وتوافق على الالتزام بهذه الشروط والأحكام. إذا كنت لا توافق على هذه الشروط، يرجى عدم استخدام خدماتنا. تنطبق هذه الشروط على جميع مستخدمي المنصة، بما في ذلك منظمي الفعاليات والحضور والزوار."
+    },
+    "section2": {
+      "title": "حسابات المستخدمين والتسجيل",
+      "text": "يجب عليك إنشاء حساب لحجز التذاكر. أنت مسؤول عن الحفاظ على سرية بيانات اعتماد حسابك وعن جميع الأنشطة التي تحدث تحت حسابك. يجب عليك تقديم معلومات دقيقة وكاملة عند إنشاء حسابك. يجب أن تكون عمرك 18 عامًا على الأقل لإنشاء حساب، أو الحصول على موافقة الوالدين إذا كان عمرك أقل من 18 عامًا."
+    },
+    "section3": {
+      "title": "حجز التذاكر والدفع",
+      "text": "جميع مشتريات التذاكر نهائية وغير قابلة للاسترداد ما لم ينص على خلاف ذلك في سياسة الاسترجاع. الأسعار عرضة للتغيير دون إشعار مسبق. يجب دفع المبلغ بالكامل وقت الحجز. نقبل بطاقات الائتمان الرئيسية وطرق الدفع الأخرى كما هو موضح في منصتنا. جميع المعاملات تتم بشكل آمن من خلال شركاء الدفع لدينا."
+    },
+    "section4": {
+      "title": "حضور الفعالية والسلوك",
+      "text": "يجب عليك الامتثال لجميع قواعد وأنظمة المكان عند حضور الفعاليات. يحتفظ منظمي الفعاليات بالحق في رفض الدخول أو إزالة الحضور الذين ينتهكون سياسات المكان أو ينخرطون في سلوك مزعج. أنت مسؤول عن سلامتك وسلامة أي معتمدين يرافقونك."
+    },
+    "section5": {
+      "title": "استخدام بطاقة NFC",
+      "text": "بطاقات NFC صادرة للاستخدام الشخصي وغير قابلة للتحويل. أنت مسؤول عن أمان بطاقة NFC الخاصة بك ويجب الإبلاغ عن أي فقدان أو سرقة فورًا. قد تتكبد بطاقات الاستبدال رسومًا إضافية. تبقى بطاقة NFC ملكية Ticket Runners ويجب إعادتها عند الطلب."
+    },
+    "section6": {
+      "title": "الملكية الفكرية",
+      "text": "جميع المحتوى على منصتنا، بما في ذلك النصوص والرسومات والشعارات والبرامج، مملوك لـ Ticket Runners أو المرخصين لدينا ومحمي بموجب حقوق النشر وقوانين الملكية الفكرية الأخرى. لا يجوز لك نسخ أو توزيع أو إنشاء أعمال مشتقة دون موافقتنا الكتابية الصريحة."
+    },
+    "section7": {
+      "title": "حدود المسؤولية",
+      "text": "Ticket Runners غير مسؤولة عن أي أضرار غير مباشرة أو عرضية أو خاصة أو تبعية تنشأ عن استخدامك لمنصتنا أو حضور الفعاليات. إجمالي مسؤوليتنا محدودة بالمبلغ الذي دفعته للتذكرة المحددة التي أدت إلى المطالبة."
+    },
+    "section8": {
+      "title": "تعديلات الشروط",
+      "text": "نحتفظ بالحق في تعديل هذه الشروط في أي وقت. ستكون التغييرات سارية المفعول فورًا عند نشرها على منصتنا. استمرارك في استخدام خدماتنا بعد نشر التغييرات يشكل قبول الشروط المعدلة. سنخطر المستخدمين بالتغييرات المهمة عبر البريد الإلكتروني."
+    }
+  },
+  "privacy": {
+    "title": "سياسة الخصوصية",
+    "data_collection": {
+      "title": "المعلومات التي نجمعها",
+      "text": "نجمع المعلومات التي تقدمها لنا مباشرة، مثل عند إنشاء حساب أو حجز تذاكر أو التواصل مع فريق الدعم. يشمل ذلك اسمك وعنوان بريدك الإلكتروني ورقم هاتفك ومعلومات الدفع وتفضيلات الفعاليات. كما نجمع معلومات حول جهازك وكيفية استخدامك لمنصتنا لتحسين تجربتك."
+    },
+    "usage": {
+      "title": "كيفية استخدام معلوماتك",
+      "text": "نستخدم معلوماتك لمعالجة حجوزات التذاكر وإرسال التأكيدات والتحديثات حول الفعاليات وتقديم الدعم للعملاء وتحسين خدماتنا. قد نستخدم معلوماتك أيضًا لإرسال توصيات مخصصة للفعاليات التي تناسب اهتماماتك، بموافقتك."
+    },
+    "sharing": {
+      "title": "مشاركة المعلومات والكشف عنها",
+      "text": "نحن لا نبيع معلوماتك الشخصية. قد نشارك معلوماتك مع منظمي الفعاليات لتسهيل حضورك، ومع معالجات الدفع لإكمال المعاملات، ومع مزودي الخدمة الذين يساعدوننا في تشغيل منصتنا. قد نكشف عن المعلومات أيضًا عندما يقتضي القانون ذلك أو لحماية حقوقنا وسلامتنا."
+    },
+    "security": {
+      "title": "أمان البيانات",
+      "text": "نطبق إجراءات أمان قياسية في الصناعة لحماية معلوماتك الشخصية. يشمل ذلك تشفير البيانات الحساسة ومعالجة الدفع الآمنة ومراجعات الأمان المنتظمة. ومع ذلك، لا توجد طريقة إرسال عبر الإنترنت آمنة بنسبة 100٪، ولا يمكننا ضمان الأمان المطلق."
+    },
+    "cookies": {
+      "title": "ملفات تعريف الارتباط والتتبع",
+      "text": "نستخدم ملفات تعريف الارتباط والتقنيات المماثلة لتحسين تجربة التصفح وتذكر تفضيلاتك وتحليل كيفية استخدامك لمنصتنا. يمكنك التحكم في إعدادات ملفات تعريف الارتباط من خلال متصفحك، لكن تعطيلها قد يؤثر على بعض ميزات موقعنا."
+    },
+    "rights": {
+      "title": "حقوقك وخياراتك",
+      "text": "لديك الحق في الوصول إلى معلوماتك الشخصية أو تحديثها أو حذفها. يمكنك أيضًا إلغاء الاشتراك في الرسائل التسويقية في أي وقت. لممارسة هذه الحقوق، اتصل بنا على privacy@ticketrunners.com. سنرد على طلبك خلال 30 يومًا."
+    }
+  },
+  "refund": {
+    "title": "سياسة الاسترجاع",
+    "eligibility": {
+      "title": "أهلية الاسترجاع",
+      "text": "الاسترجاع متاح في الحالات التالية: إلغاء الفعالية من قبل المنظم، تأجيل الفعالية حيث لا يمكنك الحضور في التاريخ الجديد، تغييرات كبيرة في تفاصيل الفعالية تؤثر على قدرتك على الحضور، أو مشاكل تقنية في منصتنا تمنع الحجز الناجح. يتم تحديد أهلية الاسترجاع على أساس كل حالة على حدة."
+    },
+    "process": {
+      "title": "كيفية طلب الاسترجاع",
+      "text": "لطلب الاسترجاع، اتصل بفريق دعم العملاء على support@ticketrunners.com أو اتصل على +20 122 652 1747. قم بتضمين رقم مرجع الحجز وسبب طلب الاسترجاع وأي وثائق داعمة. سنراجع طلبك ونرد خلال 3-5 أيام عمل. سيتم معالجة الاسترجاعات المعتمدة خلال 5-7 أيام عمل إلى طريقة الدفع الأصلية."
+    },
+    "exceptions": {
+      "title": "الحالات غير القابلة للاسترجاع",
+      "text": "الاسترجاع غير متاح لـ: تغيير الرأي أو الظروف الشخصية، عدم الحضور للفعالية دون إشعار مسبق، تغييرات طفيفة في تفاصيل الفعالية (الوقت، المكان ضمن نفس المدينة)، أو إذا استمرت الفعالية كما هو مجدول. بالإضافة إلى ذلك، رسوم الخدمة وتكاليف بطاقة NFC غير قابلة للاسترداد بمجرد إصدار البطاقة."
+    },
+    "partial_refunds": {
+      "title": "الاسترجاعات الجزئية",
+      "text": "في بعض الحالات، قد يتم تقديم استرجاعات جزئية. قد يشمل ذلك المواقف التي يتم فيها إلغاء جزء فقط من فعالية متعددة الأيام، أو عند إجراء ترتيبات بديلة تقلل من قيمة الفعالية. سيتم تحديد مبلغ الاسترجاع الجزئي بناءً على الظروف المحددة."
+    },
+    "transfer_fees": {
+      "title": "رسوم النقل",
+      "text": "إذا قمت بنقل تذكرتك لشخص آخر، فإن رسوم النقل البالغة 50 جنيهًا غير قابلة للاسترداد. هذه الرسوم تغطي التكاليف الإدارية لمعالجة النقل وتحديث أنظمتنا."
+    },
+    "contact": {
+      "title": "اتصل بنا",
+      "text": "إذا كان لديك أسئلة حول سياسة الاسترجاع أو تحتاج لطلب استرجاع، يرجى الاتصال بفريق دعم العملاء. نحن هنا لمساعدتك في ضمان تجربة إيجابية مع Ticket Runners."
+    }
+  },
+  "faq": {
+    "title": "الأسئلة الشائعة",
+    "q1": {
+      "question": "كيف يمكنني حجز تذكرة؟",
+      "answer": "حجز التذكرة بسيط! تصفح فعالياتنا، اختر الفعالية المفضلة لديك، اختر نوع التذكرة والكمية، املأ بياناتك، وأكمل الدفع. ستتلقى بريدًا إلكترونيًا للتأكيد مع تفاصيل تذكرتك."
+    },
+    "q2": {
+      "question": "هل يمكنني استرداد قيمة التذكرة؟",
+      "answer": "تختلف سياسات الاسترداد حسب منظم الحدث. بشكل عام، التذاكر غير قابلة للاسترداد إلا إذا تم إلغاء الفعالية أو إعادة جدولتها. يرجى التحقق من سياسة الاسترداد المحددة لكل فعالية قبل الحجز."
+    },
+    "q3": {
+      "question": "هل الدفع آمن؟",
+      "answer": "بالتأكيد! نستخدم تشفير SSL قياسي في الصناعة وبوابات دفع آمنة لحماية معلوماتك المالية. جميع المعاملات تتم من خلال مزودي الدفع الموثوقين."
+    },
+    "q4": {
+      "question": "ما هي بطاقة NFC ولماذا أحتاجها؟",
+      "answer": "بطاقة NFC (الاتصال قريب المدى) هي بطاقة دخول بدون تلامس تتيح لك الدخول إلى الفعاليات بسرعة وأمان. مطلوبة لشرائك الأول وتوفر دخولًا أسرع مقارنة برموز QR."
+    },
+    "q5": {
+      "question": "كيف أحصل على بطاقة NFC؟",
+      "answer": "بعد شرائك الأول، قم بزيارة أي من وكلائنا المعتمدين لاستلام بطاقة NFC الخاصة بك. أحضر تأكيد الحجز وبطاقة هوية صالحة. سيتم تفعيل البطاقة وجاهزة للاستخدام فورًا."
+    },
+    "q6": {
+      "question": "هل يمكنني نقل تذاكري لشخص آخر؟",
+      "answer": "نعم، يمكنك نقل التذاكر لشخص آخر. هناك رسوم نقل صغيرة قدرها 50 جنيهًا لكل تذكرة. ستحتاج إلى عنوان البريد الإلكتروني للمستلم لإكمال النقل."
+    },
+    "q7": {
+      "question": "ماذا يحدث إذا تم إلغاء الفعالية؟",
+      "answer": "إذا تم إلغاء الفعالية، سيتم استرداد سعر التذكرة بالكامل تلقائيًا. ستتلقى إشعارًا بالبريد الإلكتروني وسيتم معالجة الاسترداد خلال 5-7 أيام عمل."
+    },
+    "q8": {
+      "question": "هل يمكنني حجز تذاكر لعدة أشخاص؟",
+      "answer": "نعم! يمكنك حجز عدة تذاكر في معاملة واحدة. للمعتمدين (الأطفال، أفراد العائلة)، ستحتاج إلى توفير عناوين بريدهم الإلكتروني لاستلام تذاكرهم الفردية."
+    },
+    "q9": {
+      "question": "ماذا أفعل إذا فقدت بطاقة NFC؟",
+      "answer": "إذا فقدت بطاقة NFC، اتصل بفريق الدعم فورًا. يمكنك الوصول إلى الفعاليات باستخدام رمز QR في تذكرتك الرقمية، لكن ستحتاج لشراء بطاقة NFC جديدة للفعاليات المستقبلية."
+    },
+    "q10": {
+      "question": "كيف أتواصل مع خدمة العملاء؟",
+      "answer": "يمكنك الوصول إلى فريق خدمة العملاء على support@ticketrunners.com أو اتصل بنا على +20 122 652 1747. نحن متاحون على مدار الساعة للمساعدة في أي أسئلة أو مشاكل."
+    }
+  },
+  "nearby_merchants": {
+    "title": "المتاجر القريبة",
+    "view_on_map": "عرض على الخريطة",
+    "howToGetCard": {
+      "title": "كيفية الحصول على بطاقة NFC",
+      "shortDescription": "ابحث عن مواقع التجار",
+      "description": "اتبع هذه الخطوات البسيطة للحصول على بطاقة NFC",
+      "step1": {
+        "title": "إنشاء حسابك",
+        "description": "تأكد من أن لديك حسابًا على موقع Ticket Runners. إذا لم يكن لديك حساب، سجّل الآن للبدء."
+      },
+      "step2": {
+        "title": "زيارة أقرب تاجر",
+        "description": "اذهب إلى أقرب موقع تاجر مدرج أدناه لاستلام بطاقة NFC الخاصة بك. تأكد من إحضار بطاقة هوية صالحة للتحقق."
+      }
+    },
+    "merchants": {
+      "cairo_bookstore": {
+        "name": "مكتبة القاهرة",
+        "address": "12 شارع التحرير، وسط البلد، القاهرة"
+      },
+      "alex_boutique": {
+        "name": "بوتيك الإسكندرية",
+        "address": "45 محطة الرمل، الإسكندرية"
+      },
+      "giza_cafe": {
+        "name": "كافيه الجيزة",
+        "address": "87 شارع الهرم، الجيزة"
+      }
+    }
+  },
+  "merchant_page": {
+    "title": "بوابة التاجر",
+    "description": "ابحث عن العميل بالبريد الإلكتروني وقم بتعيين بطاقة NFC.",
+    "customer_email": "بريد العميل الإلكتروني",
+    "email_placeholder": "customer@example.com",
+    "user_not_found": "لم يتم العثور على المستخدم",
+    "user_not_found_desc": "لا يوجد حساب مرتبط بـ {{email}}.",
+    "user_found": "تم العثور على المستخدم",
+    "user_found_desc": "الحساب يخص {{name}}.",
+    "assigning_to": "تعيين البطاقة إلى:",
+    "nfc_card_number": "رقم بطاقة NFC",
+    "card_placeholder": "أدخل الرقم التسلسلي / المعرف",
+    "assign_card": "تعيين البطاقة",
+    "card_assigned": "تم تعيين البطاقة بنجاح",
+    "card_assigned_desc": "البطاقة {{cardNumber}} مرتبطة الآن بـ {{name}}.",
+    "assign_error": "خطأ",
+    "assign_error_desc": "فشل في تعيين البطاقة."
+  },
+  "share": {
+    "title": "شارك هذا الحدث",
+    "copy": "نسخ الرابط",
+    "copied": "تم نسخ الرابط",
+    "copyLink": "نسخ الرابط",
+    "copied_description": "يمكنك الآن مشاركته في أي مكان.",
+    "facebook": "فيسبوك",
+    "twitter": "تويتر",
+    "whatsapp": "واتساب",
+    "telegram": "تليجرام",
+    "instagram": "إنستغرام",
+    "instagramTitle": "تم نسخ الرابط للإنستغرام",
+    "instagramDescription": "تم نسخ الرابط. يمكنك الآن لصقه في قصة أو منشور الإنستغرام الخاص بك.",
+    "linkedin": "لينكدإن",
+    "email": "بريد إلكتروني"
+  },
+  "cardExpired": {
+    "title": "انتهت صلاحية بطاقة الدخول",
+    "message": "انتهت صلاحية بطاقة الدخول الخاصة بك. يرجى تجديد البطاقة للاستمرار في استخدام الميزات المميزة. يمكنك الاستمرار في استخدام التطبيق بشكل طبيعي.",
+    "missingTitle": "بطاقة NFC مطلوبة",
+    "missingMessage": "تحتاج إلى ترقية أو الحصول على بطاقة NFC للوصول إلى الميزات المميزة. يمكنك الاستمرار في استخدام التطبيق بشكل طبيعي.",
+    "renewButton": "تجديد الآن",
+    "upgradeButton": "ترقية الآن",
+    "laterButton": "ربما لاحقاً",
+    "toastMessage": "انتهت صلاحية بطاقتك. يرجى التجديد للاستمرار في استخدام الميزات المميزة.",
+    "missingToast": "فكر في الترقية إلى بطاقة NFC للميزات المميزة."
+  },
+  "eventsPage": {
+    "allEvents": "جميع الفعاليات",
+    "filteredEvents": "الفعاليات المفلترة",
+    "noEventsFound": "لم يتم العثور على فعاليات تطابق معاييرك",
+    "loadingEvents": "جاري تحميل الفعاليات...",
+    "filterEvents": "تصفية الفعاليات"
+  },
+  "serverError": {
+    "title": "خطأ في الخادم",
+    "singleError": "الخادم يواجه مشاكل. قد لا تعمل بعض الميزات بشكل صحيح.",
+    "multipleErrors": "تم اكتشاف أخطاء متعددة في الخادم ({{count}})",
+    "lastError": "آخر خطأ"
+  },
+  "errorBoundary": {
+    "title": "حدث خطأ ما",
+    "description": "واجهنا خطأ غير متوقع. يرجى المحاولة مرة أخرى أو العودة إلى الصفحة الرئيسية.",
+    "errorDetails": "تفاصيل الخطأ"
+  }
+}
