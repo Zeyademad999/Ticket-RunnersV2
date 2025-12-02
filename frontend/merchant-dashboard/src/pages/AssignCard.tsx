@@ -114,6 +114,7 @@ const AssignCard: React.FC = () => {
                               assignError?.message || 
                               "Failed to assign card. Please check if the card is registered and not already assigned.";
           toast.error(errorMessage, { duration: 6000 });
+          setIsVerifying(false);
           // Don't proceed to OTP step if assignment failed
           return;
         }
@@ -138,10 +139,9 @@ const AssignCard: React.FC = () => {
       return;
     }
 
-    if (!otp) {
-      toast.error("Please enter the OTP");
-      return;
-    }
+    // Photo verification is primary - OTP is optional
+    // If photos are shown, we assume photo verification is used
+    const usePhotoVerification: boolean = !!(customer && customer.profile_image !== undefined);
 
     setIsLoading(true);
     try {
@@ -150,7 +150,8 @@ const AssignCard: React.FC = () => {
       const response = await apiService.verifyCustomerOTP(
         normalizedCardSerial,
         customerMobile,
-        otp
+        otp || "", // OTP is optional when photo verification is used
+        usePhotoVerification // Send photo_verified flag
       );
 
       if (response.success && response.data) {
@@ -162,11 +163,11 @@ const AssignCard: React.FC = () => {
         toast.error(errorMessage, { duration: 5000 });
       }
     } catch (error: any) {
-      // Handle OTP verification errors with better messages
+      // Handle verification errors with better messages
       const errorMessage = error?.response?.data?.error?.message || 
                           error?.response?.data?.message ||
                           error?.message || 
-                          "Failed to assign card. Please check the OTP and try again.";
+                          "Failed to assign card. Please verify the photos match and try again.";
       toast.error(errorMessage, { duration: 5000 });
     } finally {
       setIsLoading(false);
@@ -406,26 +407,80 @@ const AssignCard: React.FC = () => {
   const renderOTPStep = () => (
     <div className="card max-w-md mx-auto relative">
       <div className="text-center mb-6">
-        <div className="mx-auto h-12 w-12 bg-warning-100 rounded-lg flex items-center justify-center mb-4">
-          <Smartphone className="h-6 w-6 text-warning-600" />
+        <div className="mx-auto h-12 w-12 bg-primary-100 rounded-lg flex items-center justify-center mb-4">
+          <User className="h-6 w-6 text-primary-600" />
         </div>
         <h2 className="text-xl font-semibold text-gray-900">
-          {t("auth.login")}
+          Verify Customer Identity
         </h2>
-        <p className="text-gray-600">{t("auth.loginSubtitle")}</p>
+        <p className="text-gray-600">Please verify the customer's identity using the photos below</p>
       </div>
 
       {customer && (
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
-          <div className="flex items-center">
-            <User className={`h-5 w-5 text-gray-400 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-            <div>
-              <p className="text-sm font-medium text-gray-900">
-                {customer.name}
-              </p>
-              <p className="text-sm text-gray-500">{customer.mobile_number}</p>
+        <div className="space-y-6 mb-6">
+          {/* Customer Photo - Always shown */}
+          <div className="bg-gray-50 rounded-lg p-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4 text-center">
+              Customer Photo
+            </h3>
+            <div className="flex flex-col items-center">
+              {customer.profile_image ? (
+                <img
+                  src={customer.profile_image}
+                  alt={customer.name}
+                  className="w-48 h-48 object-cover rounded-lg border-4 border-primary-200 shadow-lg"
+                  onError={(e) => {
+                    // Fallback to placeholder if image fails to load
+                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}&size=192&background=6366f1&color=fff`;
+                  }}
+                />
+              ) : (
+                <div className="w-48 h-48 bg-primary-100 rounded-lg border-4 border-primary-200 flex items-center justify-center">
+                  <User className="h-24 w-24 text-primary-400" />
+                </div>
+              )}
+              <div className="mt-4 text-center">
+                <p className="text-lg font-semibold text-gray-900">
+                  {customer.name}
+                </p>
+                <p className="text-sm text-gray-500">{customer.mobile_number}</p>
+              </div>
             </div>
           </div>
+
+          {/* Authorized Collector Photo - Shown if exists */}
+          {customer.authorized_collector && (
+            <div className="bg-blue-50 rounded-lg p-6 border-2 border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-700 mb-4 text-center">
+                Authorized Collector Photo
+              </h3>
+              <div className="flex flex-col items-center">
+                {customer.authorized_collector.profile_image ? (
+                  <img
+                    src={customer.authorized_collector.profile_image}
+                    alt={customer.authorized_collector.name}
+                    className="w-48 h-48 object-cover rounded-lg border-4 border-blue-300 shadow-lg"
+                    onError={(e) => {
+                      // Fallback to placeholder if image fails to load
+                      const collectorName = customer.authorized_collector?.name || 'Collector';
+                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(collectorName)}&size=192&background=3b82f6&color=fff`;
+                    }}
+                  />
+                ) : (
+                  <div className="w-48 h-48 bg-blue-100 rounded-lg border-4 border-blue-300 flex items-center justify-center">
+                    <User className="h-24 w-24 text-blue-400" />
+                  </div>
+                )}
+                <div className="mt-4 text-center">
+                  <p className="text-lg font-semibold text-gray-900">
+                    {customer.authorized_collector.name}
+                  </p>
+                  <p className="text-sm text-gray-500">{customer.authorized_collector.mobile_number}</p>
+                  <p className="text-xs text-blue-600 mt-1 font-medium">Authorized to collect on behalf</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -437,25 +492,35 @@ const AssignCard: React.FC = () => {
             </p>
           </div>
         )}
+        
+        {/* OTP input - shown as fallback if photo verification is not sufficient */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+          <p className="text-sm text-yellow-800 text-center">
+            <strong>Photo Verification:</strong> Please verify the customer's identity matches the photos above.
+            {customer?.authorized_collector && (
+              <span className="block mt-1">If someone else is collecting, verify they match the authorized collector photo.</span>
+            )}
+          </p>
+        </div>
+
         <div>
           <label
             htmlFor="otp"
-            className="block text-sm font-medium text-gray-700"
+            className="block text-sm font-medium text-gray-700 mb-2"
           >
-            {t("auth.password")}
+            OTP Code (Optional - for additional verification)
           </label>
           <input
             id="otp"
             type="text"
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
-            className="input-field mt-1 text-center text-2xl tracking-widest"
+            className="input-field text-center text-2xl tracking-widest"
             placeholder="000000"
             maxLength={6}
-            required
           />
-          <p className="text-sm text-gray-500 mt-1">
-            Enter the 6-digit code sent to {customerMobile}
+          <p className="text-sm text-gray-500 mt-1 text-center">
+            OTP sent to {customerMobile} (optional if photos match)
           </p>
         </div>
 
@@ -475,7 +540,7 @@ const AssignCard: React.FC = () => {
             {isLoading ? (
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
             ) : (
-              <>{t("assignCard.assignCard")}</>
+              <>Verify & {t("assignCard.assignCard")}</>
             )}
           </button>
         </div>

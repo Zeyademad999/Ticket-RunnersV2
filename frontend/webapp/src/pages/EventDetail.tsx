@@ -146,6 +146,13 @@ const EventDetail: React.FC = () => {
         { name: "Food", icon: "food", available: true },
       ],
       isFeatured: true,
+      organizers: [{
+        id: "org-12",
+        name: t("eventDetail.organizer.name"),
+        logoUrl: "/placeholderLogo.png",
+        bio: "",
+        events: [],
+      }],
       organizer: {
         id: "org-12",
         name: t("eventDetail.organizer.name"),
@@ -375,9 +382,10 @@ const EventDetail: React.FC = () => {
     toast({ title: t("eventDetail.calendarToast") });
   };
 
-  const goToOrganizer = () => {
-    if (!event?.organizer?.id) return;
-    navigate(`/view-organizers/${event.organizer.id}`);
+  const goToOrganizer = (organizerId?: string) => {
+    const id = organizerId || event?.organizer?.id || (event?.organizers && event.organizers.length > 0 ? event.organizers[0].id : undefined);
+    if (!id) return;
+    navigate(`/view-organizers/${id}`);
   };
 
   // Show loading state
@@ -1091,48 +1099,61 @@ const EventDetail: React.FC = () => {
                   {t("buttons.book_now")}
                 </Button>
 
-                {/* Organizer Card */}
-                <div>
-                  <p className="text-xl font-bold text-ring mb-3">
-                    {t("eventDetail.organizers")}
-                  </p>
-                  <div
-                    className="flex items-center gap-3 p-4 bg-secondary/50 rounded-lg border border-border/50"
-                  >
-                    <div className="flex-shrink-0">
-                      {event.organizer.logoUrl ? (
-                        <img
-                          src={event.organizer.logoUrl}
-                          alt={event.organizer.name}
-                          className="w-12 h-12 rounded-lg object-cover border border-border/30"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            e.currentTarget.nextElementSibling?.classList.remove(
-                              "hidden"
-                            );
-                          }}
-                        />
-                      ) : null}
-                      <div
-                        className={`w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20 ${
-                          event.organizer.logoUrl ? "hidden" : ""
-                        }`}
-                      >
-                        <span className="text-primary font-bold text-lg">
-                          {event.organizer.name.charAt(0).toUpperCase()}
-                        </span>
+                {/* Organizers Card - Only show if organizers exist */}
+                {(() => {
+                  // Use organizers array if available, otherwise fall back to single organizer
+                  const organizersList = event.organizers && event.organizers.length > 0 
+                    ? event.organizers 
+                    : (event.organizer ? [event.organizer] : []);
+                  
+                  if (organizersList.length === 0) return null;
+                  
+                  // Get the first organizer's logo for display (or use first letter of first organizer's name)
+                  const firstOrganizer = organizersList[0];
+                  const organizerNames = organizersList.map(org => org.name).join(" & ");
+                  
+                  return (
+                    <div>
+                      <p className="text-xl font-bold text-ring mb-3">
+                        {t("eventDetail.organizers")}
+                      </p>
+                      <div className="flex items-center gap-3 p-4 bg-secondary/50 rounded-lg border border-border/50">
+                        <div className="flex-shrink-0">
+                          {firstOrganizer.logoUrl ? (
+                            <img
+                              src={firstOrganizer.logoUrl}
+                              alt={organizerNames}
+                              className="w-12 h-12 rounded-lg object-cover border border-border/30"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                e.currentTarget.nextElementSibling?.classList.remove(
+                                  "hidden"
+                                );
+                              }}
+                            />
+                          ) : null}
+                          <div
+                            className={`w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20 ${
+                              firstOrganizer.logoUrl ? "hidden" : ""
+                            }`}
+                          >
+                            <span className="text-primary font-bold text-lg">
+                              {firstOrganizer.name?.charAt(0).toUpperCase() || "E"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-foreground">
+                            {organizerNames}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            {t("eventDetail.organizer")}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-foreground">
-                        {event.organizer.name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {t("eventDetail.organizer")}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

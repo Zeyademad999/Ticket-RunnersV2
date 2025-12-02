@@ -1080,13 +1080,71 @@ const NFCCardManagement: React.FC = () => {
     }
   };
 
-  const handleAssignCardBySerial = () => {
-    // Find card by serial number and assign to customer
-    // This would require finding the card first, then updating it
-    toast({
-      title: t("admin.tickets.nfc.toast.cardAssignedBySerial"),
-      description: t("admin.tickets.nfc.toast.cardAssignedBySerialDesc"),
-    });
+  const handleAssignCardBySerial = async () => {
+    if (!assignBySerialForm.serialNumber.trim() || !assignBySerialForm.customerMobile.trim()) {
+      toast({
+        title: t("common.error"),
+        description: "Please enter both serial number and customer mobile number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Find customer by phone number (handles all formats)
+      const data = await customersApi.findCustomerByPhone(assignBySerialForm.customerMobile.trim());
+      const customer = data.customer;
+
+      if (!customer) {
+        toast({
+          title: t("common.error"),
+          description: "Customer not found with this phone number",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Find card by serial number
+      const cards = await nfcCardsApi.getCards({ 
+        search: assignBySerialForm.serialNumber.trim(),
+        page_size: 1 
+      });
+
+      if (!cards.results || cards.results.length === 0) {
+        toast({
+          title: t("common.error"),
+          description: "Card not found with this serial number",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const card = cards.results[0];
+
+      // Assign card to customer
+      await updateCardMutation.mutateAsync({
+        id: card.id,
+        data: { customer: customer.id }
+      });
+
+      toast({
+        title: t("admin.tickets.nfc.toast.cardAssignedBySerial"),
+        description: t("admin.tickets.nfc.toast.cardAssignedBySerialDesc"),
+      });
+
+      setIsAssignBySerialDialogOpen(false);
+      setAssignBySerialForm({ serialNumber: "", customerMobile: "" });
+    } catch (error: any) {
+      // Handle API error
+      const errorMessage = error?.response?.data?.error?.message || 
+                         error?.message || 
+                         "Failed to assign card";
+      toast({
+        title: t("common.error"),
+        description: errorMessage,
+        variant: "destructive",
+      });
+    }
     setIsAssignBySerialDialogOpen(false);
   };
 
@@ -1127,27 +1185,9 @@ const NFCCardManagement: React.FC = () => {
     }
 
     try {
-      // Search for customer by phone number
-      const customers = await customersApi.getCustomers({ 
-        search: assignScannedCardForm.phoneNumber.trim(),
-        page_size: 10 
-      });
-
-      if (!customers.results || customers.results.length === 0) {
-        toast({
-          title: t("common.error"),
-          description: "Customer not found with this phone number",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Find exact match by phone number
-      const customer = customers.results.find(
-        (c: any) => 
-          (c.phone === assignScannedCardForm.phoneNumber.trim()) ||
-          (c.mobile_number === assignScannedCardForm.phoneNumber.trim())
-      );
+      // Use the backend API that handles phone number normalization
+      const data = await customersApi.findCustomerByPhone(assignScannedCardForm.phoneNumber.trim());
+      const customer = data.customer;
 
       if (!customer) {
         toast({
@@ -2012,6 +2052,13 @@ const NFCCardManagement: React.FC = () => {
                 </label>
                 <Input
                   placeholder={t("admin.tickets.nfc.form.enterSerialNumber")}
+                  value={assignBySerialForm.serialNumber}
+                  onChange={(e) =>
+                    setAssignBySerialForm((prev) => ({
+                      ...prev,
+                      serialNumber: e.target.value,
+                    }))
+                  }
                   dir={i18n.language === "ar" ? "rtl" : "ltr"}
                 />
               </div>
@@ -2021,6 +2068,13 @@ const NFCCardManagement: React.FC = () => {
                 </label>
                 <Input
                   placeholder={t("admin.tickets.nfc.form.enterMobileNumber")}
+                  value={assignBySerialForm.customerMobile}
+                  onChange={(e) =>
+                    setAssignBySerialForm((prev) => ({
+                      ...prev,
+                      customerMobile: e.target.value,
+                    }))
+                  }
                   dir={i18n.language === "ar" ? "rtl" : "ltr"}
                 />
               </div>

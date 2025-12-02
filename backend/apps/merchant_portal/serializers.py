@@ -61,12 +61,35 @@ class NFCCardSerializer(serializers.ModelSerializer):
     """Serializer for NFC card with merchant fields."""
     customer_name = serializers.CharField(source='customer.name', read_only=True)
     customer_mobile = serializers.CharField(source='customer.mobile_number', read_only=True)
+    customer_profile_image = serializers.SerializerMethodField()
+    collector_name = serializers.CharField(source='collector.name', read_only=True)
+    collector_mobile = serializers.CharField(source='collector.mobile_number', read_only=True)
+    collector_profile_image = serializers.SerializerMethodField()
+    
+    def get_customer_profile_image(self, obj):
+        """Get customer profile image URL."""
+        if obj.customer and obj.customer.profile_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.customer.profile_image.url)
+            return obj.customer.profile_image.url
+        return None
+    
+    def get_collector_profile_image(self, obj):
+        """Get collector profile image URL."""
+        if obj.collector and obj.collector.profile_image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.collector.profile_image.url)
+            return obj.collector.profile_image.url
+        return None
     
     class Meta:
         model = NFCCard
         fields = [
             'id', 'serial_number', 'status', 'customer', 'customer_name', 'customer_mobile',
-            'merchant', 'assigned_at', 'delivered_at', 'hashed_code',
+            'customer_profile_image', 'collector', 'collector_name', 'collector_mobile',
+            'collector_profile_image', 'merchant', 'assigned_at', 'delivered_at', 'hashed_code',
             'issue_date', 'expiry_date', 'balance', 'last_used', 'usage_count', 'card_type'
         ]
         read_only_fields = ['id', 'issue_date', 'expiry_date', 'balance', 'last_used', 'usage_count']

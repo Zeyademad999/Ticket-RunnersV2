@@ -64,6 +64,7 @@ urlpatterns = [
     path('users/nfc-cards/', views.user_nfc_cards_list, name='user-nfc-cards-list'),
     path('users/nfc-cards/status/', views.user_nfc_card_status, name='user-nfc-card-status'),
     path('users/nfc-cards/request/', views.user_nfc_card_request, name='user-nfc-card-request'),
+    path('users/nfc-cards/assign-collector/', views.user_nfc_card_assign_collector, name='user-nfc-card-assign-collector'),
     path('users/nfc-cards/<uuid:card_id>/reload/', views.user_nfc_card_reload, name='user-nfc-card-reload'),
     path('users/nfc-cards/<uuid:card_id>/transactions/', views.user_nfc_card_transactions, name='user-nfc-card-transactions'),
     path('users/nfc-cards/<uuid:card_id>/auto-reload-settings/', views.user_nfc_card_auto_reload_settings, name='user-nfc-card-auto-reload-settings'),
@@ -82,5 +83,8 @@ urlpatterns = [
     # Check-in
     path('checkin/verify/', views.checkin_verify, name='checkin-verify'),
     path('checkin/nfc/', views.checkin_nfc, name='checkin-nfc'),
+    
+    # Admin utilities
+    path('admin/find-customer-by-phone/', views.find_customer_by_phone_api, name='admin-find-customer-by-phone'),
 ]
 

@@ -83,7 +83,7 @@ def usher_login(request):
     
     # Validate event assignment - check event exists in admin system
     try:
-        event = Event.objects.select_related('organizer', 'venue').get(id=event_id)
+        event = Event.objects.select_related('venue').prefetch_related('organizers').get(id=event_id)
     except Event.DoesNotExist:
         raise ValidationError(
             detail=f'Event with ID {event_id} not found in the system',
@@ -277,10 +277,16 @@ def usher_scan_attendee_by_card(request, card_id):
     Get attendee by card ID.
     GET /api/usher/scan/attendee/:card_id/
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     # Trim whitespace from card_id
     card_id = card_id.strip()
     
     event_id = request.query_params.get('event_id')
+    ticket_id_param = request.query_params.get('ticket_id')  # Optional ticket_id from scan result
+    
+    logger.info(f"[REQUEST] card_id={card_id}, event_id={event_id}, ticket_id_param={ticket_id_param}")
     
     try:
         card = NFCCard.objects.get(serial_number=card_id)
@@ -308,20 +314,80 @@ def usher_scan_attendee_by_card(request, card_id):
             event_id_int = int(event_id)
             event_obj = Event.objects.get(id=event_id_int)
             
-            # Look for tickets for this customer and event
-            # Check both customer (current owner) and buyer (original purchaser) relationships
-            tickets = Ticket.objects.filter(
-                event=event_obj
-            ).filter(
-                Q(customer=customer) | Q(buyer=customer)
-            ).exclude(
-                status__in=['refunded', 'banned']  # Exclude invalid statuses
-            ).order_by('-purchase_date')  # Get most recent ticket first
+            # If ticket_id is provided, try to use that specific ticket first
+            ticket = None
+            if ticket_id_param:
+                print(f"[DEBUG] TICKET_ID_PARAM received: {ticket_id_param}")
+                logger.info(f"[TICKET LOOKUP] Attempting to use provided ticket_id: {ticket_id_param}")
+                try:
+                    # First try to get the ticket without event filter
+                    ticket = Ticket.objects.select_related('event', 'customer', 'buyer').get(
+                        id=ticket_id_param
+                    )
+                    print(f"[DEBUG] Found ticket by ID: id={ticket.id}, event_id={ticket.event.id if ticket.event else None}, customer_id={ticket.customer.id if ticket.customer else None}, has_child={ticket.has_child}, child_age={ticket.child_age}")
+                    logger.info(f"[TICKET LOOKUP] Found ticket by ID: id={ticket.id}, event_id={ticket.event.id if ticket.event else None}, has_child={ticket.has_child}, child_age={ticket.child_age}")
+                    
+                    # Verify the ticket is for this event
+                    if ticket.event and ticket.event.id != event_obj.id:
+                        print(f"[DEBUG] Ticket event mismatch: ticket.event={ticket.event.id}, requested event={event_obj.id}")
+                        logger.warning(f"[TICKET LOOKUP] Provided ticket_id {ticket_id_param} is for event {ticket.event.id if ticket.event else None}, not {event_obj.id}, will search instead")
+                        ticket = None
+                    # Verify the ticket belongs to this customer
+                    elif ticket.customer != customer and ticket.buyer != customer:
+                        print(f"[DEBUG] Ticket customer mismatch: ticket.customer={ticket.customer.id if ticket.customer else None}, ticket.buyer={ticket.buyer.id if ticket.buyer else None}, card.customer={customer.id}")
+                        logger.warning(f"[TICKET LOOKUP] Provided ticket_id {ticket_id_param} does not belong to customer {customer.id}, will search instead")
+                        ticket = None
+                    else:
+                        print(f"[DEBUG] ✅ Using provided ticket_id: {ticket_id_param}, has_child={ticket.has_child}, child_age={ticket.child_age}")
+                        logger.info(f"[TICKET LOOKUP] ✅ Using provided ticket_id: {ticket_id_param}, has_child={ticket.has_child}, child_age={ticket.child_age}")
+                except Ticket.DoesNotExist:
+                    print(f"[DEBUG] Ticket with ID {ticket_id_param} not found in database")
+                    logger.warning(f"[TICKET LOOKUP] Provided ticket_id {ticket_id_param} not found in database, will search instead")
+                    ticket = None
+                except Exception as e:
+                    print(f"[DEBUG] Error looking up ticket: {str(e)}")
+                    logger.error(f"[TICKET LOOKUP] Error looking up ticket_id {ticket_id_param}: {str(e)}")
+                    ticket = None
+            else:
+                print(f"[DEBUG] No ticket_id_param provided")
             
-            if tickets.exists():
-                ticket = tickets.first()
+            # If no ticket found from ticket_id, search for tickets
+            if not ticket:
+                # Look for tickets for this customer and event
+                # Check both customer (current owner) and buyer (original purchaser) relationships
+                tickets = Ticket.objects.filter(
+                    event=event_obj
+                ).filter(
+                    Q(customer=customer) | Q(buyer=customer)
+                ).exclude(
+                    status__in=['refunded', 'banned']  # Exclude invalid statuses
+                ).select_related('event', 'customer', 'buyer')
                 
-                # Determine ticket status
+                if tickets.exists():
+                    # Log all tickets found
+                    all_tickets_list = list(tickets)
+                    logger.info(f"[TICKET LOOKUP] Found {len(all_tickets_list)} tickets for customer {customer.id} and event {event_obj.id}")
+                    for idx, t in enumerate(all_tickets_list):
+                        logger.info(f"[TICKET LOOKUP] Ticket {idx+1}: id={t.id}, has_child={t.has_child}, child_age={t.child_age}, purchase_date={t.purchase_date}")
+                    
+                    # Prioritize tickets with child data, then by most recent purchase date
+                    ticket_with_child = tickets.filter(has_child=True).order_by('-purchase_date').first()
+                    if ticket_with_child:
+                        ticket = ticket_with_child
+                        logger.info(f"[TICKET LOOKUP] Selected ticket WITH CHILD: id={ticket.id}, has_child={ticket.has_child}, child_age={ticket.child_age}")
+                    else:
+                        ticket = tickets.order_by('-purchase_date').first()
+                        logger.info(f"[TICKET LOOKUP] Selected ticket (NO CHILD): id={ticket.id}, has_child={ticket.has_child}, child_age={ticket.child_age}")
+                    
+                    # Debug: Log ticket details
+                    logger.info(f"[TICKET LOOKUP] Final selected ticket: id={ticket.id}, has_child={ticket.has_child}, child_age={ticket.child_age}, event={ticket.event.id if ticket.event else None}, customer={ticket.customer.id if ticket.customer else None}")
+                else:
+                    # No tickets found
+                    ticket = None
+                    logger.info(f"[TICKET LOOKUP] No tickets found for customer {customer.id} and event {event_obj.id}")
+            
+            # Determine ticket status (ticket may have been set from ticket_id or from search)
+            if ticket:
                 # Check if ticket was already scanned by looking at CheckinLog
                 last_scan_log = None
                 try:
@@ -425,16 +491,90 @@ def usher_scan_attendee_by_card(request, card_id):
     
     # Get dependents/children
     children = []
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         dependents = Dependent.objects.filter(customer=customer)
+        logger.info(f"Found {dependents.count()} dependents for customer {customer.id}")
         for dep in dependents:
             children.append({
                 'name': dep.name if dep.name else '',
                 'age': dep.age if dep.age else None,
                 'relationship': dep.relationship if dep.relationship else ''
             })
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Error getting dependents: {str(e)}")
         pass
+    
+    # Add child info from ticket if ticket has child
+    print(f"[DEBUG] Checking ticket for child info: ticket={ticket}, has_child={ticket.has_child if ticket else None}, child_age={ticket.child_age if ticket else None}")
+    logger.info(f"Checking ticket for child info: ticket={ticket}, has_child={ticket.has_child if ticket else None}, child_age={ticket.child_age if ticket else None}")
+    
+    # Check the current ticket first
+    if ticket:
+        # Directly check the has_child field
+        has_child_value = ticket.has_child
+        child_age_value = ticket.child_age
+        
+        print(f"[DEBUG] Ticket {ticket.id}: has_child={has_child_value}, child_age={child_age_value}")
+        logger.info(f"Ticket {ticket.id}: has_child={has_child_value}, child_age={child_age_value}")
+        
+        # Add child if has_child is True (boolean True, not just truthy)
+        if has_child_value == True:
+            print(f"[DEBUG] Adding child to array: age={child_age_value}")
+            logger.info(f"Adding child to array: age={child_age_value}")
+            children.append({
+                'name': 'Child',
+                'age': child_age_value if child_age_value is not None else None,
+                'relationship': 'child',
+                'from_ticket': True
+            })
+            print(f"[DEBUG] Children array after adding: {children}")
+            logger.info(f"Children array after adding: {children}")
+        else:
+            print(f"[DEBUG] Current ticket does not have child - has_child is {has_child_value} (not True)")
+            logger.info(f"Current ticket does not have child - has_child is {has_child_value} (not True)")
+            
+            # If current ticket doesn't have child, check all tickets for this customer/event
+            # to find if any ticket has a child (in case we got the wrong ticket)
+            if event_obj:
+                try:
+                    all_tickets = Ticket.objects.filter(
+                        event=event_obj
+                    ).filter(
+                        Q(customer=customer) | Q(buyer=customer)
+                    ).exclude(
+                        status__in=['refunded', 'banned']
+                    ).filter(
+                        has_child=True
+                    ).select_related('event', 'customer', 'buyer')
+                    
+                    if all_tickets.exists():
+                        ticket_with_child = all_tickets.first()
+                        print(f"[DEBUG] Found another ticket with child: ticket_id={ticket_with_child.id}, child_age={ticket_with_child.child_age}")
+                        logger.info(f"Found another ticket with child: ticket_id={ticket_with_child.id}, child_age={ticket_with_child.child_age}")
+                        
+                        # Add child from this ticket
+                        children.append({
+                            'name': 'Child',
+                            'age': ticket_with_child.child_age if ticket_with_child.child_age is not None else None,
+                            'relationship': 'child',
+                            'from_ticket': True
+                        })
+                        print(f"[DEBUG] Children array after adding from other ticket: {children}")
+                        logger.info(f"Children array after adding from other ticket: {children}")
+                except Exception as e:
+                    print(f"[DEBUG] Error checking other tickets for child: {str(e)}")
+                    logger.warning(f"Error checking other tickets for child: {str(e)}")
+    else:
+        print(f"[DEBUG] No ticket found")
+        logger.info(f"No ticket found")
+    
+    logger.info(f"Final children array: {children}")
+    logger.info(f"Final children array length: {len(children)}")
+    if children:
+        logger.info(f"First child in array: {children[0]}")
     
     # Get photo URL
     photo_url = None
@@ -482,6 +622,36 @@ def usher_scan_attendee_by_card(request, card_id):
             logger.warning(f"Error getting last scan info: {str(e)}")
             pass
     
+    # Prepare labels - include VIP if ticket category is VIP
+    labels = []
+    if ticket and ticket.category:
+        category_lower = ticket.category.lower()
+        if 'vip' in category_lower:
+            labels.append('VIP')
+    
+    # Add customer labels if they exist
+    if hasattr(customer, 'labels') and customer.labels:
+        if isinstance(customer.labels, list):
+            labels.extend(customer.labels)
+        elif isinstance(customer.labels, str):
+            # Handle case where labels might be stored as JSON string
+            import json
+            try:
+                parsed_labels = json.loads(customer.labels)
+                if isinstance(parsed_labels, list):
+                    labels.extend(parsed_labels)
+            except (json.JSONDecodeError, TypeError):
+                pass
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_labels = []
+    for label in labels:
+        if label not in seen:
+            seen.add(label)
+            unique_labels.append(label)
+    labels = unique_labels
+    
     # Prepare attendee data
     try:
         attendee_data = {
@@ -496,12 +666,18 @@ def usher_scan_attendee_by_card(request, card_id):
             'emergency_contact': customer.emergency_contact_mobile if hasattr(customer, 'emergency_contact_mobile') and customer.emergency_contact_mobile else None,
             'emergency_contact_name': customer.emergency_contact_name if hasattr(customer, 'emergency_contact_name') and customer.emergency_contact_name else None,
             'blood_type': customer.blood_type if hasattr(customer, 'blood_type') and customer.blood_type else None,
-            'labels': [],
+            'labels': labels,
             'children': children,
             'customer_events': customer_events,  # All events customer has tickets for
             'part_time_leave': part_time_leave,  # Part-time leave status
             'last_scan': last_scan_info  # Last scan information
         }
+        
+        # Debug: Log the children data being sent
+        print(f"[DEBUG] RESPONSE - Sending children data: {attendee_data['children']}")
+        print(f"[DEBUG] RESPONSE - Children count: {len(attendee_data['children'])}")
+        logger.info(f"[RESPONSE] Sending children data: {attendee_data['children']}")
+        logger.info(f"[RESPONSE] Children count: {len(attendee_data['children'])}")
         
         # Validate and serialize
         serializer = AttendeeSerializer(data=attendee_data)
@@ -614,6 +790,21 @@ def usher_scan_result(request):
     if result == 'valid' and ticket:
         ticket.status = 'used'
         ticket.save(update_fields=['status'])
+        
+        # Increment attended_events count for customer if this is their first scan for this event
+        if customer:
+            # Check if this is the first time this customer is being scanned for this event
+            from system.models import CheckinLog
+            existing_scans = CheckinLog.objects.filter(
+                customer=customer,
+                event=event,
+                scan_result='success'
+            )
+            
+            # Only increment if this is the first successful scan for this event
+            if not existing_scans.exists():
+                customer.attended_events = (customer.attended_events or 0) + 1
+                customer.save(update_fields=['attended_events'])
     
     # ALWAYS create check-in log - this ensures EVERY scan action is logged
     scan_result_map = {
@@ -1001,9 +1192,8 @@ def usher_scan_report(request):
     Report scan issue or incident.
     POST /api/usher/scan/report/
     """
-    serializer = ScanReportSerializer(data=request.data)
-    if not serializer.is_valid():
-        raise ValidationError(serializer.errors)
+    import logging
+    logger = logging.getLogger(__name__)
     
     if not hasattr(request, 'usher') or request.usher is None:
         return Response({
@@ -1012,18 +1202,111 @@ def usher_scan_report(request):
     
     usher = request.usher
     
-    report = ScanReport.objects.create(
-        usher=usher,
-        event_id=serializer.validated_data['event'],
-        report_type=serializer.validated_data['report_type'],
-        description=serializer.validated_data['description'],
-        card_id=serializer.validated_data.get('card_id'),
-        ticket_id=serializer.validated_data.get('ticket_id'),
-        customer_id=serializer.validated_data.get('customer_id')
-    )
+    # Prepare data for serializer
+    data = request.data.copy()
     
-    serializer = ScanReportSerializer(report)
-    return Response(serializer.data, status=status.HTTP_201_CREATED)
+    # Handle event field - convert to integer if it's a string
+    if 'event' in data:
+        try:
+            # Try to convert to int (Event IDs are integers)
+            if isinstance(data['event'], str):
+                data['event'] = int(data['event'])
+        except (ValueError, TypeError):
+            pass  # Let serializer handle the validation error
+    
+    # Handle optional UUID fields - convert empty strings to None
+    for field in ['ticket_id', 'customer_id']:
+        if field in data and (data[field] == '' or data[field] is None):
+            data[field] = None
+    
+    # Handle optional string fields - convert empty strings to None
+    if 'card_id' in data and data['card_id'] == '':
+        data['card_id'] = None
+    
+    serializer = ScanReportSerializer(data=data)
+    if not serializer.is_valid():
+        logger.error(f"Scan report validation failed: {serializer.errors}")
+        return Response({
+            'error': {
+                'code': 'VALIDATION_ERROR',
+                'message': 'Invalid data provided',
+                'details': serializer.errors
+            }
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        report = ScanReport.objects.create(
+            usher=usher,
+            event=serializer.validated_data['event'],
+            report_type=serializer.validated_data['report_type'],
+            description=serializer.validated_data['description'],
+            card_id=serializer.validated_data.get('card_id'),
+            ticket_id=serializer.validated_data.get('ticket_id'),
+            customer_id=serializer.validated_data.get('customer_id')
+        )
+        
+        # Update customer's notes field with the EVS report
+        customer = None
+        customer_id = serializer.validated_data.get('customer_id')
+        card_id = serializer.validated_data.get('card_id')
+        
+        # Try to get customer from customer_id first
+        if customer_id:
+            try:
+                from customers.models import Customer
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                logger.warning(f"Customer with ID {customer_id} not found for scan report")
+        
+        # If no customer from customer_id, try to get from card_id
+        if not customer and card_id:
+            try:
+                from nfc_cards.models import NFCCard
+                card = NFCCard.objects.get(serial_number=card_id)
+                if card.customer:
+                    customer = card.customer
+            except NFCCard.DoesNotExist:
+                logger.warning(f"Card with ID {card_id} not found for scan report")
+        
+        # If we have a customer, append the report to their notes
+        if customer:
+            from django.utils import timezone
+            from datetime import datetime
+            
+            # Format the note with timestamp, usher name, event, and description
+            event_obj = serializer.validated_data['event']
+            event_title = event_obj.title if hasattr(event_obj, 'title') else f"Event {event_obj.id}"
+            usher_name = usher.name if hasattr(usher, 'name') and usher.name else (usher.username if hasattr(usher, 'username') else f"Usher {usher.id}")
+            timestamp = timezone.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Create formatted note entry
+            note_entry = f"\n\n--- EVS Report ({timestamp}) ---\n"
+            note_entry += f"Event: {event_title}\n"
+            note_entry += f"Reported by: {usher_name}\n"
+            note_entry += f"Type: {serializer.validated_data['report_type']}\n"
+            note_entry += f"Description: {serializer.validated_data['description']}\n"
+            note_entry += "---"
+            
+            # Append to existing notes or create new
+            if customer.notes:
+                customer.notes += note_entry
+            else:
+                customer.notes = note_entry.strip()
+            
+            customer.save(update_fields=['notes'])
+            logger.info(f"Updated notes for customer {customer.id} with EVS report")
+        
+        response_serializer = ScanReportSerializer(report)
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+    except Exception as e:
+        logger.error(f"Error creating scan report: {str(e)}")
+        return Response({
+            'error': {
+                'code': 'SERVER_ERROR',
+                'message': 'Failed to create report',
+                'details': str(e)
+            }
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])

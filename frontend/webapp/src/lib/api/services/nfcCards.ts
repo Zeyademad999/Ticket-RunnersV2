@@ -143,5 +143,29 @@ export class NFCCardsService {
       return handleApiResponse(response);
     });
   }
+
+  /**
+   * Assign a collector to collect NFC card on behalf of the owner
+   * POST /api/v1/users/nfc-cards/assign-collector/
+   */
+  static async assignCollector(data: {
+    collector_phone: string;
+  }): Promise<ApiResponse<{
+    message: string;
+    collector: {
+      id: string;
+      name: string;
+      phone: string;
+      profile_image: string | null;
+    };
+  }>> {
+    return retryRequest(async () => {
+      const response = await apiClient.post(
+        "/users/nfc-cards/assign-collector/",
+        data
+      );
+      return handleApiResponse(response);
+    });
+  }
 }
 

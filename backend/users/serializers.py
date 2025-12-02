@@ -64,7 +64,7 @@ class UsherSerializer(serializers.ModelSerializer):
                     'date': event.date.isoformat() if event.date else None,
                     'status': event.status,
                     'venue': event.venue.name if event.venue else None,
-                    'organizer': event.organizer.name if event.organizer else None,
+                    'organizer': ", ".join([org.name for org in event.organizers.all()]) if event.organizers.exists() else None,
                     'category': event.category.name if event.category else None,
                 }
                 for event in instance.events.all()
@@ -98,10 +98,17 @@ class UsherSerializer(serializers.ModelSerializer):
 
 
 class MerchantSerializer(serializers.ModelSerializer):
+    assigned_cards_count = serializers.SerializerMethodField()
+    
     class Meta:
         model = Merchant
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_assigned_cards_count(self, obj):
+        """Get count of cards assigned to this merchant."""
+        from nfc_cards.models import NFCCard
+        return NFCCard.objects.filter(merchant=obj).count()
 
 
 class MerchantLocationSerializer(serializers.ModelSerializer):

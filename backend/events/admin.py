@@ -55,15 +55,16 @@ class TicketCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Event)
 class EventAdmin(admin.ModelAdmin):
-    list_display = ['id', 'title', 'organizer', 'venue', 'date', 'time', 'status', 'total_tickets', 'tickets_sold', 'tickets_available']
-    list_filter = ['status', 'category', 'date', 'created_at', 'featured']
-    search_fields = ['title', 'artist_name', 'description', 'organizer__name', 'venue__name']
+    list_display = ['id', 'title', 'get_organizers', 'venue', 'date', 'time', 'status', 'total_tickets', 'tickets_sold', 'tickets_available']
+    list_filter = ['status', 'category', 'date', 'created_at', 'featured', 'organizers']
+    search_fields = ['title', 'artist_name', 'description', 'organizers__name', 'venue__name']
     readonly_fields = ['created_at', 'updated_at', 'tickets_sold', 'tickets_available']
     list_display_links = ['id', 'title']
+    filter_horizontal = ['organizers']  # Better UI for ManyToManyField
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('title', 'artist_name', 'organizer', 'venue', 'category', 'status', 'featured')
+            'fields': ('title', 'artist_name', 'organizers', 'venue', 'category', 'status', 'featured')
         }),
         ('Event Images', {
             'description': 'Main image and venue layout image for the event',
@@ -94,3 +95,11 @@ class EventAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def get_organizers(self, obj):
+        """Display organizers as comma-separated list."""
+        organizers = obj.organizers.all()
+        if organizers.exists():
+            return ", ".join([org.name for org in organizers])
+        return "-"
+    get_organizers.short_description = 'Organizers'

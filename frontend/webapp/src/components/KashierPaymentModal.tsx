@@ -228,7 +228,7 @@ const KashierPaymentModal: React.FC<KashierPaymentModalProps> = ({
               <div>
                 <p className="text-sm text-muted-foreground">Total Amount</p>
                 <p className="text-2xl font-bold">
-                  {amount.toFixed(2)} {currency}
+                  {(amount || 0).toFixed(2)} {currency}
                 </p>
               </div>
               <div className="bg-green-100 dark:bg-green-900/20 rounded-full p-3">

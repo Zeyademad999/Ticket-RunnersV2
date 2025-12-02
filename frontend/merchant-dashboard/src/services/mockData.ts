@@ -188,31 +188,31 @@ const mockCustomers: Customer[] = [
 
 // Mock dashboard stats
 const mockDashboardStats: DashboardStats = {
-  total_available_cards: 2,
-  total_delivered_cards: 2,
-  total_assigned_cards: 2,
+  available_cards: 2,
+  delivered_cards: 2,
+  assigned_cards: 2,
   total_cards: 6,
   recent_activity: [
     {
-      id: 1,
-      action: "Card assigned",
       card_serial: "TR001234567891",
       customer_name: "Fatima Al Zahra",
-      timestamp: "2024-01-12T14:30:00Z",
+      customer_mobile: "0501234567",
+      assigned_at: "2024-01-12T14:30:00Z",
+      delivered_at: null,
     },
     {
-      id: 2,
-      action: "Card delivered",
       card_serial: "TR001234567892",
       customer_name: "Omar Al Rashid",
-      timestamp: "2024-01-08T11:20:00Z",
+      customer_mobile: "0501234568",
+      assigned_at: "2024-01-08T11:20:00Z",
+      delivered_at: "2024-01-08T12:00:00Z",
     },
     {
-      id: 3,
-      action: "Card assigned",
       card_serial: "TR001234567895",
       customer_name: "Khalid Al Falasi",
-      timestamp: "2024-01-14T10:20:00Z",
+      customer_mobile: "0501234569",
+      assigned_at: "2024-01-14T10:20:00Z",
+      delivered_at: null,
     },
   ],
 };

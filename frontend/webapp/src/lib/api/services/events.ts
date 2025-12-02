@@ -201,15 +201,59 @@ export class EventsService {
           available: true,
         })) || [],
       isFeatured: apiData.featured || false,
-      organizer: {
-        id: (apiData.organizer?.id || apiData.organizer_id)?.toString() || "",
-        name: apiData.organizer?.name || apiData.organizer_name || "",
-        logoUrl: apiData.organizer?.logo 
-          ? this.getFullImageUrl(apiData.organizer.logo)
-          : (apiData.organizer?.logoUrl ? this.getFullImageUrl(apiData.organizer.logoUrl) : ""),
-        bio: "", // Not provided in API
-        events: [], // Not provided in API
-      },
+      // Handle multiple organizers (new format) or single organizer (old format for backward compatibility)
+      organizers: (() => {
+        if (apiData.organizers && Array.isArray(apiData.organizers) && apiData.organizers.length > 0) {
+          // New format: array of organizers
+          return apiData.organizers.map((org: any) => ({
+            id: org?.id?.toString() || "",
+            name: org?.name || "",
+            logoUrl: org?.logo 
+              ? this.getFullImageUrl(org.logo)
+              : (org?.logoUrl ? this.getFullImageUrl(org.logoUrl) : ""),
+            bio: org?.bio || "",
+            events: org?.events || [],
+          }));
+        } else if (apiData.organizer || apiData.organizer_id || apiData.organizer_name) {
+          // Old format: single organizer (for backward compatibility)
+          return [{
+            id: (apiData.organizer?.id || apiData.organizer_id)?.toString() || "",
+            name: apiData.organizer?.name || apiData.organizer_name || "",
+            logoUrl: apiData.organizer?.logo 
+              ? this.getFullImageUrl(apiData.organizer.logo)
+              : (apiData.organizer?.logoUrl ? this.getFullImageUrl(apiData.organizer.logoUrl) : ""),
+            bio: apiData.organizer?.bio || "",
+            events: apiData.organizer?.events || [],
+          }];
+        }
+        return [];
+      })(),
+      // Keep organizer for backward compatibility (use first organizer if available)
+      organizer: (() => {
+        if (apiData.organizers && Array.isArray(apiData.organizers) && apiData.organizers.length > 0) {
+          const firstOrg = apiData.organizers[0];
+          return {
+            id: firstOrg?.id?.toString() || "",
+            name: firstOrg?.name || "",
+            logoUrl: firstOrg?.logo 
+              ? this.getFullImageUrl(firstOrg.logo)
+              : (firstOrg?.logoUrl ? this.getFullImageUrl(firstOrg.logoUrl) : ""),
+            bio: firstOrg?.bio || "",
+            events: firstOrg?.events || [],
+          };
+        } else if (apiData.organizer || apiData.organizer_id || apiData.organizer_name) {
+          return {
+            id: (apiData.organizer?.id || apiData.organizer_id)?.toString() || "",
+            name: apiData.organizer?.name || apiData.organizer_name || "",
+            logoUrl: apiData.organizer?.logo 
+              ? this.getFullImageUrl(apiData.organizer.logo)
+              : (apiData.organizer?.logoUrl ? this.getFullImageUrl(apiData.organizer.logoUrl) : ""),
+            bio: apiData.organizer?.bio || "",
+            events: apiData.organizer?.events || [],
+          };
+        }
+        return undefined;
+      })(),
       totalTickets: apiData.venue?.capacity || 0,
       ticketsSold: 0, // Not provided in API
       ticketsAvailable: apiData.venue?.capacity || 0,
@@ -297,6 +341,12 @@ export class EventsService {
             description: undefined, // Not provided in API
           }
         : undefined,
+      minimumAge: apiData.minimum_age || undefined,
+      childEligibilityEnabled: apiData.child_eligibility_enabled ?? false,
+      childEligibilityRuleType: apiData.child_eligibility_rule_type || null,
+      childEligibilityMinAge: apiData.child_eligibility_min_age || null,
+      childEligibilityMaxAge: apiData.child_eligibility_max_age || null,
+      isUnseated: apiData.is_unseated ?? false,
     };
   }
 

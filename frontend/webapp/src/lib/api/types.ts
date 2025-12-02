@@ -94,7 +94,8 @@ export interface EventData {
   termsAndConditions?: string;
   facilities?: Facility[];
   isFeatured?: boolean;
-  organizer: Organizer;
+  organizer?: Organizer; // Optional for backward compatibility
+  organizers?: Organizer[]; // New field for multiple organizers
   totalTickets: number;
   ticketsSold: number;
   ticketsAvailable: number;
@@ -262,6 +263,9 @@ export interface Ticket {
   is_transferred?: boolean;
   transferred_from_name?: string;
   transferred_from_mobile?: string;
+  // Child information (for owner tickets)
+  has_child?: boolean;
+  child_age?: number | null;
 }
 
 export interface TicketTier {

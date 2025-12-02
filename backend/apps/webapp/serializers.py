@@ -107,8 +107,8 @@ class PublicEventSerializer(serializers.ModelSerializer):
     """Serializer for public event listing."""
     ticket_categories = TicketCategorySerializer(many=True, read_only=True)
     
-    organizer_name = serializers.CharField(source='organizer.name', read_only=True)
-    organizer_id = serializers.IntegerField(source='organizer.id', read_only=True)
+    organizer_name = serializers.SerializerMethodField()
+    organizer_id = serializers.SerializerMethodField()
     organizer = serializers.SerializerMethodField()
     venue_name = serializers.CharField(source='venue.name', read_only=True)
     venue_address = serializers.CharField(source='venue.address', read_only=True)
@@ -130,26 +130,44 @@ class PublicEventSerializer(serializers.ModelSerializer):
             'location', 'venue_name', 'venue_address', 'venue_city',
             'organizer_name', 'organizer_id', 'organizer', 'category_id', 'category_name', 'status',
             'featured', 'total_tickets', 'ticket_limit', 'ticket_transfer_enabled',
-            'thumbnail_path', 'starting_price', 'image', 'venue_layout_image', 'ticket_categories'
+            'thumbnail_path', 'starting_price', 'image', 'venue_layout_image', 'ticket_categories',
+            'child_eligibility_enabled', 'child_eligibility_rule_type',
+            'child_eligibility_min_age', 'child_eligibility_max_age'
         ]
     
-    def get_organizer(self, obj):
-        """Get organizer details as an object."""
-        if obj.organizer:
-            request = self.context.get('request')
-            logo_url = None
-            if obj.organizer.profile_image:
-                if request:
-                    logo_url = request.build_absolute_uri(obj.organizer.profile_image.url)
-                else:
-                    logo_url = obj.organizer.profile_image.url if hasattr(obj.organizer.profile_image, 'url') else str(obj.organizer.profile_image)
-            
-            return {
-                'id': obj.organizer.id,
-                'name': obj.organizer.name,
-                'logo': logo_url,
-            }
+    def get_organizer_name(self, obj):
+        """Get organizer names as comma-separated string."""
+        organizers = obj.organizers.all()
+        if organizers.exists():
+            return ", ".join([org.name for org in organizers])
         return None
+    
+    def get_organizer_id(self, obj):
+        """Get first organizer ID for backward compatibility."""
+        first_organizer = obj.organizers.first()
+        return first_organizer.id if first_organizer else None
+    
+    def get_organizer(self, obj):
+        """Get organizer details as a list of objects."""
+        organizers = obj.organizers.all()
+        if organizers.exists():
+            request = self.context.get('request')
+            result = []
+            for org in organizers:
+                logo_url = None
+                if org.profile_image:
+                    if request:
+                        logo_url = request.build_absolute_uri(org.profile_image.url)
+                    else:
+                        logo_url = org.profile_image.url if hasattr(org.profile_image, 'url') else str(org.profile_image)
+                
+                result.append({
+                    'id': org.id,
+                    'name': org.name,
+                    'logo': logo_url,
+                })
+            return result
+        return []
     
     def get_image(self, obj):
         """Get event main image URL."""
@@ -202,6 +220,8 @@ class TicketDetailSerializer(serializers.Serializer):
     is_owner = serializers.BooleanField(default=False)
     category = serializers.CharField(required=False, allow_blank=True)  # Ticket category for this specific ticket
     price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)  # Price for this specific ticket
+    has_child = serializers.BooleanField(required=False, default=False)  # Ticket holder has a child
+    child_age = serializers.IntegerField(required=False, allow_null=True)  # Age of the child
 
 
 class TicketBookingSerializer(serializers.Serializer):
@@ -425,7 +445,7 @@ class TicketSerializer(serializers.ModelSerializer):
             'buyer_name', 'buyer_mobile', 'buyer_email',
             'is_assigned_to_me', 'is_assigned_to_other', 'needs_claiming', 'ticket_transfer_enabled',
             'transferred_from_name', 'transferred_from_mobile', 'is_transferred',
-            'transfer_fee_type', 'transfer_fee_value'
+            'transfer_fee_type', 'transfer_fee_value', 'has_child', 'child_age'
         ]
 
 

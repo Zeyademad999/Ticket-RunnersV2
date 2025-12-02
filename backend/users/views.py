@@ -578,6 +578,8 @@ class MerchantViewSet(viewsets.ModelViewSet):
             return [IsAuthenticated(), HasPermission("merchants_view")]
         elif self.action == 'create_credentials':
             return [IsAuthenticated(), HasPermission("merchants_manage_credentials")]
+        elif self.action == 'assign_cards':
+            return [IsAuthenticated(), HasPermission("merchants_edit")]
         return [IsAuthenticated()]
     
     @action(detail=True, methods=['put'])
@@ -616,6 +618,62 @@ class MerchantViewSet(viewsets.ModelViewSet):
         
         return Response({
             'message': 'Credentials created successfully',
+            'merchant': MerchantSerializer(merchant).data
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def assign_cards(self, request, pk=None):
+        """
+        Assign a number of NFC cards to a merchant.
+        POST /api/merchants/{id}/assign_cards/
+        Body: { "number_of_cards": 10 }
+        """
+        from nfc_cards.models import NFCCard
+        from django.db import transaction
+        
+        merchant = self.get_object()
+        number_of_cards = request.data.get('number_of_cards')
+        
+        if not number_of_cards:
+            raise ValidationError("number_of_cards is required")
+        
+        try:
+            number_of_cards = int(number_of_cards)
+        except (ValueError, TypeError):
+            raise ValidationError("number_of_cards must be a valid integer")
+        
+        if number_of_cards <= 0:
+            raise ValidationError("number_of_cards must be greater than 0")
+        
+        # Get available unassigned cards (not assigned to any customer and not assigned to any merchant)
+        available_cards = NFCCard.objects.filter(
+            status='active',
+            customer__isnull=True,  # Not assigned to any customer
+            merchant__isnull=True   # Not assigned to any merchant
+        )[:number_of_cards]
+        
+        available_count = available_cards.count()
+        
+        if available_count < number_of_cards:
+            return Response({
+                'error': {
+                    'code': 'INSUFFICIENT_CARDS',
+                    'message': f'Only {available_count} cards available. Requested {number_of_cards} cards.'
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Assign cards to merchant
+        with transaction.atomic():
+            assigned_cards = []
+            for card in available_cards:
+                card.merchant = merchant
+                card.save()
+                assigned_cards.append(card.serial_number)
+        
+        return Response({
+            'message': f'Successfully assigned {len(assigned_cards)} cards to merchant',
+            'assigned_count': len(assigned_cards),
+            'assigned_cards': assigned_cards,
             'merchant': MerchantSerializer(merchant).data
         }, status=status.HTTP_200_OK)
 

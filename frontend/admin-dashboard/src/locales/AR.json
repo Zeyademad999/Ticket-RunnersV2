@@ -8,6 +8,7 @@
   "saving": "جاري الحفظ...",
   "actions": "الإجراءات",
   "loading": "جاري التحميل...",
+  "deleting": "جاري الحذف...",
   "searchEvents": "ابحث عن الفعاليات...",
   "home": "الرئيسية",
   "bookings": "الحجوزات",
@@ -855,7 +856,9 @@
     "invalidDate": "تاريخ غير صحيح",
     "backToDashboard": "العودة إلى لوحة التحكم",
     "notAvailable": "غير متاح",
-    "errorLoadingData": "خطأ في تحميل البيانات"
+    "errorLoadingData": "خطأ في تحميل البيانات",
+    "yes": "نعم",
+    "no": "لا"
   },
   "editEvent": {
     "title": "طلب تعديل الفعالية",
@@ -1166,6 +1169,7 @@
         "role": "الدور",
         "status": "الحالة",
         "created": "تاريخ الإنشاء",
+        "updated": "تاريخ التحديث",
         "lastLogin": "آخر تسجيل دخول",
         "actions": "الإجراءات"
       },
@@ -1254,6 +1258,7 @@
         "profileImage": "صورة الملف الشخصي",
         "phone": "الهاتف",
         "createdDate": "تاريخ الإنشاء",
+        "updatedDate": "تاريخ التحديث",
         "lastLogin": "آخر تسجيل دخول",
         "permissions": "الصلاحيات",
         "never": "أبداً"
@@ -1444,7 +1449,8 @@
         "actions": "الإجراءات",
         "owner": "المالك",
         "commission": "العمولة",
-        "payoutBalance": "رصيد الدفع"
+        "payoutBalance": "رصيد الدفع",
+        "assignedCards": "البطاقات المعينة"
       },
       "status": {
         "active": "نشط",
@@ -1482,6 +1488,14 @@
         "deleteMerchantConfirm": "هل أنت متأكد من حذف {{name}}؟ لا يمكن التراجع عن هذا الإجراء.",
         "transferCards": "نقل البطاقات إلى التاجر",
         "transferCardsSubtitle": "نقل مجموعة من بطاقات NFC إلى مخزون التاجر لبيعها للمستخدمين",
+        "assignCards": "تعيين البطاقات للتاجر",
+        "assignCardsDesc": "تعيين بطاقات NFC إلى {{name}}. ستكون هذه البطاقات متاحة للتاجر لتعيينها للعملاء.",
+        "merchant": "التاجر",
+        "currentAssignedCards": "البطاقات المعينة حالياً",
+        "numberOfCards": "عدد البطاقات",
+        "numberOfCardsPlaceholder": "أدخل عدد البطاقات المراد تعيينها",
+        "numberOfCardsHint": "أدخل عدد بطاقات NFC غير المعينة لتعيينها لهذا التاجر",
+        "assignCardsButton": "تعيين البطاقات",
         "merchantEvents": "فعاليات التاجر",
         "merchantEventsSubtitle": "الفعاليات التي يديرها",
         "merchantTransactions": "معاملات التاجر",
@@ -2353,7 +2367,8 @@
         "banCustomer": "حظر العميل",
         "unbanCustomer": "إلغاء حظر العميل",
         "forcePasswordReset": "إجبار إعادة تعيين كلمة المرور",
-        "deleteCustomer": "حذف العميل"
+        "deleteCustomer": "حذف العميل",
+        "viewEvsNotes": "عرض ملاحظات EVS"
       },
       "dialogs": {
         "customerDetails": "تفاصيل العميل",
@@ -2373,7 +2388,19 @@
         "close": "إغلاق",
         "cancel": "إلغاء",
         "saveChanges": "حفظ التغييرات",
-        "addCustomerButton": "إضافة العميل"
+        "addCustomerButton": "إضافة العميل",
+        "deleteCustomer": "حذف العميل",
+        "evsNotes": "ملاحظات EVS",
+        "evsNotesDescription": "ملاحظات من نظام التحقق من الفعاليات لـ",
+        "noEvsNotes": "لا توجد ملاحظات EVS متاحة لهذا العميل.",
+        "deleteCustomerConfirm": "هل أنت متأكد من حذف هذا العميل؟ لا يمكن التراجع عن هذا الإجراء.",
+        "deleteCustomerWarning": "سيؤدي هذا إلى حذف العميل وجميع السجلات المرتبطة به بشكل دائم بما في ذلك:",
+        "deleteWarningTickets": "جميع التذاكر",
+        "deleteWarningDependents": "جميع المعتمدين",
+        "deleteWarningPayments": "جميع معاملات الدفع",
+        "deleteWarningFavorites": "جميع المفضلة",
+        "deleteWarningNfcCards": "جميع بطاقات NFC",
+        "delete": "حذف"
       },
       "form": {
         "name": "الاسم",
@@ -2550,7 +2577,9 @@
         "saveLabels": "حفظ العلامات",
         "error": {
           "nameRequired": "اسم العلامة مطلوب",
-          "nameRequiredDesc": "يرجى إدخال اسم للعلامة"
+          "nameRequiredDesc": "يرجى إدخال اسم للعلامة",
+          "labelExists": "العلامة موجودة بالفعل",
+          "labelExistsDesc": "علامة بهذا الاسم موجودة بالفعل لهذا العميل"
         },
         "toast": {
           "labelAdded": "تمت إضافة العلامة",
@@ -3864,7 +3893,16 @@
         "selectCategoryOptional": "اختر الفئة (اختياري)",
         "priceFromEvent": "السعر من سعر بدء الفعالية",
         "noCategoriesAvailable": "لا توجد فئات متاحة لهذه الفعالية",
-        "categoryNotAvailable": "هذه الفعالية لا تحتوي على فئات تذاكر. حقل الفئة اختياري."
+        "categoryNotAvailable": "هذه الفعالية لا تحتوي على فئات تذاكر. حقل الفئة اختياري.",
+        "paidOutsideSystem": "تم الدفع خارج النظام",
+        "priceDisabledOutsideSystem": "السعر معطل - تم الدفع خارج النظام"
+      },
+      "events": {
+        "title": "الفعاليات",
+        "subtitle": "اختر فعالية لعرض تذاكرها",
+        "ticketsSold": "التذاكر المباعة",
+        "viewTickets": "عرض التذاكر",
+        "noEvents": "لم يتم العثور على فعاليات"
       },
       "checkInLogs": {
         "title": "سجلات تسجيل الدخول المباشرة",

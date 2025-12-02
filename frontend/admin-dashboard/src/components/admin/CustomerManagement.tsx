@@ -34,6 +34,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -77,6 +87,7 @@ import {
   TrendingUp,
   CreditCard,
   Ticket,
+  FileText,
   MapPin,
   Star,
   StarOff,
@@ -104,7 +115,7 @@ import {
 } from "@/lib/utils";
 import { COUNTRY_DIAL_CODES } from "@/constants/countryCodes";
 import { ExportDialog } from "@/components/ui/export-dialog";
-import { commonColumns, ExportManager } from "@/lib/exportUtils";
+import { commonColumns, ExportManager, ColumnDefinition } from "@/lib/exportUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customersApi, nfcCardsApi } from "@/lib/api/adminApi";
 
@@ -177,12 +188,14 @@ const CustomerManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [editedCustomer, setEditedCustomer] = useState<Partial<Customer>>({});
   const [showBookingsDialog, setShowBookingsDialog] = useState(false);
   const [showNfcCardDialog, setShowNfcCardDialog] = useState(false);
   const [showActivityDialog, setShowActivityDialog] = useState(false);
   const [showEditBookingDialog, setShowEditBookingDialog] = useState(false);
   const [selectedBooking, setSelectedBooking] =
     useState<CustomerBooking | null>(null);
+  const [showEvsNotesDialog, setShowEvsNotesDialog] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
@@ -253,6 +266,8 @@ const CustomerManagement: React.FC = () => {
   const [showLabelDialog, setShowLabelDialog] = useState(false);
   const [showManageLabelsDialog, setShowManageLabelsDialog] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<CustomerLabel[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
   const [newLabel, setNewLabel] = useState({
     name: "",
     color: "#3B82F6",
@@ -378,12 +393,56 @@ const CustomerManagement: React.FC = () => {
       lastLogin: item.last_login || "",
       totalBookings: item.total_bookings || 0,
       totalSpent: parseFloat(item.total_spent) || 0,
-      nfcCardId: item.nfc_card_id || undefined,
+      nfcCardId: item.nfc_card_serial || item.nfc_card_id || undefined,
       attendedEvents: item.attended_events || 0,
       recurrentUser: item.is_recurrent || false,
       location: "", // Not in backend model
       profileImage: item.profile_image || undefined, // Use actual profile image from backend
-      labels: [], // Labels are not in backend API yet
+      labels: (() => {
+        // Convert backend labels (array of strings) to frontend CustomerLabel structure
+        if (item.labels && Array.isArray(item.labels)) {
+          return item.labels.map((labelName: string, index: number) => {
+            // Check if it's already an object (for backward compatibility)
+            if (typeof labelName === 'object' && labelName !== null) {
+              return labelName as CustomerLabel;
+            }
+            // Convert string to CustomerLabel object
+            const labelColors: { [key: string]: string } = {
+              'VIP': '#F59E0B',
+              'Premium': '#8B5CF6',
+              'Regular': '#3B82F6',
+              'Student': '#06B6D4',
+              'Early Bird': '#10B981',
+            };
+            const labelIcons: { [key: string]: string } = {
+              'VIP': 'Crown',
+              'Premium': 'Award',
+              'Regular': 'Tag',
+              'Student': 'Shield',
+              'Early Bird': 'Star',
+            };
+            return {
+              id: `label-${index}-${labelName}`,
+              name: labelName,
+              color: labelColors[labelName] || '#3B82F6',
+              description: labelName,
+              icon: labelIcons[labelName] || 'Tag',
+            } as CustomerLabel;
+          });
+        }
+        return [];
+      })(),
+      // Additional fields
+      notes: item.notes || undefined,
+      nationality: item.nationality || undefined,
+      gender: item.gender || undefined,
+      dateOfBirth: item.date_of_birth || undefined,
+      nationalId: item.national_id || undefined,
+      mobileNumber: item.mobile_number || undefined,
+      emergencyContactName: item.emergency_contact_name || undefined,
+      emergencyContactMobile: item.emergency_contact_mobile || undefined,
+      bloodType: item.blood_type || undefined,
+      feesPaid: item.fees_paid === true || item.fees_paid === 'true' || item.fees_paid === 1 || (typeof item.fees_paid === 'string' && item.fees_paid.toLowerCase() === 'true'),
     }));
   }, [customersData]);
 
@@ -812,6 +871,33 @@ const CustomerManagement: React.FC = () => {
     },
   });
 
+  // Delete customer mutation
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await customersApi.deleteCustomer(id);
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      toast({
+        title: t("admin.customers.toast.customerDeleted") || "Customer Deleted",
+        description: data?.message || t("admin.customers.toast.customerDeletedDesc") || "Customer and all related records have been deleted successfully.",
+      });
+      setCustomerToDelete(null);
+      setShowDeleteDialog(false);
+    },
+    onError: (error: any) => {
+      toast({
+        title: t("common.error"),
+        description:
+          error.response?.data?.error?.message ||
+          error.response?.data?.message ||
+          error.message ||
+          t("admin.customers.toast.error"),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Create customer mutation
   const createCustomerMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -844,6 +930,13 @@ const CustomerManagement: React.FC = () => {
       return;
     }
     setSelectedCustomer(customer);
+    setEditedCustomer({
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      location: customer.location,
+      status: customer.status,
+    });
     setIsEditDialogOpen(true);
   };
 
@@ -883,6 +976,20 @@ const CustomerManagement: React.FC = () => {
       return;
     }
     updateCustomerStatusMutation.mutate({ id: customerId, status: "active" });
+  };
+
+  const handleDeleteCustomer = (customer: Customer) => {
+    if (!requirePermission("customers_delete")) {
+      return;
+    }
+    setCustomerToDelete(customer);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteCustomer = () => {
+    if (customerToDelete) {
+      deleteCustomerMutation.mutate(customerToDelete.id);
+    }
   };
 
   const handleForcePasswordReset = (customerId: string) => {
@@ -1008,14 +1115,31 @@ const CustomerManagement: React.FC = () => {
       return;
     }
 
-    // Validate password if provided
-    if (
-      newCustomer.password &&
-      newCustomer.password !== newCustomer.confirmPassword
-    ) {
+    // Password is required for webapp login
+    if (!newCustomer.password || newCustomer.password.trim() === "") {
+      toast({
+        title: t("common.error"),
+        description: "Password is required for customer to login to webapp",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate password confirmation
+    if (newCustomer.password !== newCustomer.confirmPassword) {
       toast({
         title: t("common.error"),
         description: t("admin.customers.form.passwordsDoNotMatch"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate password length
+    if (newCustomer.password.length < 6) {
+      toast({
+        title: t("common.error"),
+        description: "Password must be at least 6 characters long",
         variant: "destructive",
       });
       return;
@@ -1031,21 +1155,25 @@ const CustomerManagement: React.FC = () => {
     appendIfValue("name", newCustomer.name.trim());
     appendIfValue("email", newCustomer.email.trim());
     appendIfValue("phone", newCustomer.phone.trim());
-    appendIfValue("mobile_number", newCustomer.mobile_number.trim());
-    appendIfValue("status", newCustomer.status);
+    // If mobile_number is not provided, it will be set from phone in the serializer
+    if (newCustomer.mobile_number && newCustomer.mobile_number.trim()) {
+      appendIfValue("mobile_number", newCustomer.mobile_number.trim());
+    }
+    appendIfValue("status", newCustomer.status || "active");
     appendIfValue("nationality", newCustomer.nationality);
     appendIfValue("gender", newCustomer.gender);
     appendIfValue("date_of_birth", newCustomer.date_of_birth);
     appendIfValue(
       "emergency_contact_name",
-      newCustomer.emergency_contact_name.trim()
+      newCustomer.emergency_contact_name?.trim()
     );
     appendIfValue(
       "emergency_contact_mobile",
-      newCustomer.emergency_contact_mobile.trim()
+      newCustomer.emergency_contact_mobile?.trim()
     );
     appendIfValue("blood_type", newCustomer.blood_type);
-    appendIfValue("password", newCustomer.password);
+    // Password is required, so always append it
+    formData.append("password", newCustomer.password);
 
     if (newCustomer.profileImageFile) {
       formData.append("profile_image", newCustomer.profileImageFile);
@@ -1057,17 +1185,39 @@ const CustomerManagement: React.FC = () => {
   const handleSaveCustomerChanges = () => {
     if (!selectedCustomer) return;
 
-    // Get form values (you'll need to add state for form fields)
-    // For now, just update status if changed
-    const formData = {
-      name: selectedCustomer.name,
-      email: selectedCustomer.email,
-      phone: selectedCustomer.phone,
-      status: selectedCustomer.status,
-      // Add other fields as needed
+    // Build form data using edited values if they exist, otherwise use original values
+    // Use 'in' operator to check if field was edited (even if empty string)
+    const formData: any = {
+      name: 'name' in editedCustomer ? editedCustomer.name : selectedCustomer.name,
+      email: 'email' in editedCustomer ? editedCustomer.email : selectedCustomer.email,
+      phone: 'phone' in editedCustomer ? editedCustomer.phone : selectedCustomer.phone,
+      location: 'location' in editedCustomer ? editedCustomer.location : selectedCustomer.location,
+      status: 'status' in editedCustomer ? editedCustomer.status : selectedCustomer.status,
     };
 
-    updateCustomerMutation.mutate({ id: selectedCustomer.id, data: formData });
+    // If phone was edited, also update mobile_number with normalized phone
+    if ('phone' in editedCustomer && editedCustomer.phone) {
+      formData.mobile_number = editedCustomer.phone.trim();
+    } else if ('phone' in editedCustomer && !editedCustomer.phone) {
+      // If phone was cleared, also clear mobile_number
+      formData.mobile_number = '';
+    }
+
+    // Trim string values
+    Object.keys(formData).forEach(key => {
+      if (typeof formData[key] === 'string') {
+        formData[key] = formData[key].trim();
+      }
+    });
+
+    updateCustomerMutation.mutate(
+      { id: selectedCustomer.id, data: formData },
+      {
+        onSuccess: () => {
+          setEditedCustomer({});
+        },
+      }
+    );
   };
 
   const handleEditBooking = (booking: CustomerBooking) => {
@@ -1105,15 +1255,7 @@ const CustomerManagement: React.FC = () => {
     setShowManageLabelsDialog(true);
   };
 
-  const handleSetVIP = (customer: Customer) => {
-    const vipLabel: CustomerLabel = {
-      id: "vip-label",
-      name: "VIP",
-      color: "#F59E0B",
-      description: "Very Important Person",
-      icon: "Crown",
-    };
-
+  const handleSetVIP = async (customer: Customer) => {
     // Check if customer already has VIP label
     const hasVIP = customer.labels.some((label) => label.name === "VIP");
 
@@ -1126,45 +1268,83 @@ const CustomerManagement: React.FC = () => {
       return;
     }
 
-    // Add VIP label to customer
-    const updatedCustomer = {
-      ...customer,
-      labels: [...customer.labels, vipLabel],
-    };
+    try {
+      // Get current labels as array of strings
+      const currentLabels = customer.labels.map((label) => label.name);
+      
+      // Add VIP to labels array
+      const updatedLabels = [...currentLabels, "VIP"];
 
-    // Update selected customer if it's the same one
-    if (selectedCustomer && selectedCustomer.id === customer.id) {
-      setSelectedCustomer(updatedCustomer);
+      // Call API to update customer labels
+      await updateCustomerMutation.mutateAsync({
+        id: customer.id,
+        data: {
+          labels: updatedLabels,
+        },
+      });
+
+      // Update local state
+      const vipLabel: CustomerLabel = {
+        id: "vip-label",
+        name: "VIP",
+        color: "#F59E0B",
+        description: "Very Important Person",
+        icon: "Crown",
+      };
+      const updatedCustomer = {
+        ...customer,
+        labels: [...customer.labels, vipLabel],
+      };
+
+      // Update selected customer if it's the same one
+      if (selectedCustomer && selectedCustomer.id === customer.id) {
+        setSelectedCustomer(updatedCustomer);
+      }
+
+      toast({
+        title: t("admin.customers.vip.setVIPSuccess"),
+        description: t("admin.customers.vip.setVIPSuccessDesc"),
+      });
+    } catch (error: any) {
+      // Error is already handled by the mutation's onError
+      console.error("Error setting VIP:", error);
     }
-
-    // Invalidate queries to refetch from API
-    queryClient.invalidateQueries({ queryKey: ["customers"] });
-
-    toast({
-      title: t("admin.customers.vip.setVIPSuccess"),
-      description: t("admin.customers.vip.setVIPSuccessDesc"),
-    });
   };
 
-  const handleRemoveVIP = (customer: Customer) => {
-    // Remove VIP label from customer
-    const updatedCustomer = {
-      ...customer,
-      labels: customer.labels.filter((label) => label.name !== "VIP"),
-    };
+  const handleRemoveVIP = async (customer: Customer) => {
+    try {
+      // Get current labels as array of strings, excluding VIP
+      const updatedLabels = customer.labels
+        .filter((label) => label.name !== "VIP")
+        .map((label) => label.name);
 
-    // Update selected customer if it's the same one
-    if (selectedCustomer && selectedCustomer.id === customer.id) {
-      setSelectedCustomer(updatedCustomer);
+      // Call API to update customer labels
+      await updateCustomerMutation.mutateAsync({
+        id: customer.id,
+        data: {
+          labels: updatedLabels,
+        },
+      });
+
+      // Update local state
+      const updatedCustomer = {
+        ...customer,
+        labels: customer.labels.filter((label) => label.name !== "VIP"),
+      };
+
+      // Update selected customer if it's the same one
+      if (selectedCustomer && selectedCustomer.id === customer.id) {
+        setSelectedCustomer(updatedCustomer);
+      }
+
+      toast({
+        title: t("admin.customers.vip.removeVIPSuccess"),
+        description: t("admin.customers.vip.removeVIPSuccessDesc"),
+      });
+    } catch (error: any) {
+      // Error is already handled by the mutation's onError
+      console.error("Error removing VIP:", error);
     }
-
-    // Invalidate queries to refetch from API
-    queryClient.invalidateQueries({ queryKey: ["customers"] });
-
-    toast({
-      title: t("admin.customers.vip.removeVIPSuccess"),
-      description: t("admin.customers.vip.removeVIPSuccessDesc"),
-    });
   };
 
   const handleAddLabel = () => {
@@ -1177,24 +1357,28 @@ const CustomerManagement: React.FC = () => {
       return;
     }
 
+    // Check if label with same name already exists
+    if (selectedLabels.some((label) => label.name.toLowerCase() === newLabel.name.trim().toLowerCase())) {
+      toast({
+        title: t("admin.customers.labels.error.labelExists") || "Label already exists",
+        description: t("admin.customers.labels.error.labelExistsDesc") || "A label with this name already exists",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const label: CustomerLabel = {
       id: `label-${Date.now()}`,
-      name: newLabel.name,
+      name: newLabel.name.trim(),
       color: newLabel.color,
       description: newLabel.description,
       icon: newLabel.icon,
     };
 
     if (selectedCustomer) {
-      const updatedCustomer = {
-        ...selectedCustomer,
-        labels: [...selectedCustomer.labels, label],
-      };
-      setSelectedCustomer(updatedCustomer);
-      setSelectedLabels(updatedCustomer.labels);
-
-      // Invalidate queries to refetch from API
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Update local state only (will be saved when user clicks Save)
+      const updatedLabels = [...selectedLabels, label];
+      setSelectedLabels(updatedLabels);
     }
 
     setNewLabel({
@@ -1212,15 +1396,9 @@ const CustomerManagement: React.FC = () => {
 
   const handleRemoveLabel = (labelId: string) => {
     if (selectedCustomer) {
-      const updatedCustomer = {
-        ...selectedCustomer,
-        labels: selectedCustomer.labels.filter((label) => label.id !== labelId),
-      };
-      setSelectedCustomer(updatedCustomer);
-      setSelectedLabels(updatedCustomer.labels);
-
-      // Invalidate queries to refetch from API
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Update local state only (will be saved when user clicks Save)
+      const updatedLabels = selectedLabels.filter((label) => label.id !== labelId);
+      setSelectedLabels(updatedLabels);
     }
 
     toast({
@@ -1229,12 +1407,24 @@ const CustomerManagement: React.FC = () => {
     });
   };
 
-  const handleSaveLabels = () => {
-    if (selectedCustomer) {
-      // Invalidate queries to refetch from API
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
+  const handleSaveLabels = async () => {
+    if (!selectedCustomer) {
+      return;
+    }
 
-      // Update selected customer
+    try {
+      // Convert CustomerLabel objects to array of strings for backend
+      const labelsArray = selectedLabels.map((label) => label.name);
+
+      // Call API to update customer labels
+      await updateCustomerMutation.mutateAsync({
+        id: selectedCustomer.id,
+        data: {
+          labels: labelsArray,
+        },
+      });
+
+      // Update local state
       const updatedSelectedCustomer = {
         ...selectedCustomer,
         labels: selectedLabels,
@@ -1245,8 +1435,12 @@ const CustomerManagement: React.FC = () => {
         title: t("admin.customers.labels.toast.labelsSaved"),
         description: t("admin.customers.labels.toast.labelsSavedDesc"),
       });
+
+      setShowManageLabelsDialog(false);
+    } catch (error: any) {
+      // Error is already handled by the mutation's onError
+      console.error("Error saving labels:", error);
     }
-    setShowManageLabelsDialog(false);
   };
 
   const getLabelIcon = (iconName: string | undefined) => {
@@ -1750,6 +1944,23 @@ const CustomerManagement: React.FC = () => {
                                   <CreditCard className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
                                   {t("admin.customers.actions.viewNfcCard")}
                                 </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedCustomer(customer);
+                                    setShowEvsNotesDialog(true);
+                                  }}
+                                >
+                                  <FileText className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                                  {t("admin.customers.actions.viewEvsNotes")}
+                                </DropdownMenuItem>
+                                {hasPermission("customers_edit") && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleManageLabels(customer)}
+                                  >
+                                    <Tags className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                                    {t("admin.customers.actions.manageLabels")}
+                                  </DropdownMenuItem>
+                                )}
                               </>
                             )}
                             {hasPermission("customers_view") &&
@@ -1777,6 +1988,18 @@ const CustomerManagement: React.FC = () => {
                                   {t("admin.customers.actions.banCustomer")}
                                 </DropdownMenuItem>
                               ))}
+                            {hasPermission("customers_delete") && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteCustomer(customer)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                                  {t("admin.customers.actions.deleteCustomer") || "Delete Customer"}
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -2109,27 +2332,81 @@ const CustomerManagement: React.FC = () => {
             </Button>
             {selectedCustomer && (
               <>
+                {hasPermission("customers_edit") && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleManageLabels(selectedCustomer)}
+                  >
+                    <Tags className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                    {t("admin.customers.actions.manageLabels")}
+                  </Button>
+                )}
+                {selectedCustomer.notes && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowEvsNotesDialog(true)}
+                  >
+                    <FileText className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                    {t("admin.customers.actions.viewEvsNotes") || "View EVS Notes"}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => {
-                    // Export customer details to CSV
+                    // Export ALL customer details to CSV
                     const exportManager = ExportManager.getInstance();
                     const customerData = [{
                       id: selectedCustomer.id,
                       name: selectedCustomer.name,
                       email: selectedCustomer.email,
                       phone: selectedCustomer.phone,
+                      mobileNumber: selectedCustomer.mobileNumber || "N/A",
                       status: selectedCustomer.status,
-                      registrationDate: selectedCustomer.registrationDate,
-                      lastLogin: selectedCustomer.lastLogin || "Never",
+                      registrationDate: formatDateForLocale(selectedCustomer.registrationDate),
+                      lastLogin: selectedCustomer.lastLogin ? formatDateForLocale(selectedCustomer.lastLogin, "MMM dd, yyyy HH:mm") : "Never",
                       totalBookings: selectedCustomer.totalBookings,
-                      totalSpent: selectedCustomer.totalSpent,
+                      totalSpent: formatCurrency(selectedCustomer.totalSpent),
                       attendedEvents: selectedCustomer.attendedEvents,
                       nfcCardId: selectedCustomer.nfcCardId || "N/A",
                       recurrentUser: selectedCustomer.recurrentUser ? "Yes" : "No",
                       location: selectedCustomer.location || "N/A",
+                      nationality: selectedCustomer.nationality || "N/A",
+                      gender: selectedCustomer.gender || "N/A",
+                      dateOfBirth: selectedCustomer.dateOfBirth ? formatDateForLocale(selectedCustomer.dateOfBirth) : "N/A",
+                      nationalId: selectedCustomer.nationalId || "N/A",
+                      bloodType: selectedCustomer.bloodType || "N/A",
+                      emergencyContactName: selectedCustomer.emergencyContactName || "N/A",
+                      emergencyContactMobile: selectedCustomer.emergencyContactMobile || "N/A",
+                      feesPaid: selectedCustomer.feesPaid ? "Yes" : "No",
+                      notes: selectedCustomer.notes || "N/A",
+                      labels: selectedCustomer.labels.map(l => l.name).join(", ") || "N/A",
                     }];
-                    const columns = commonColumns.customers;
+                    const columns: ColumnDefinition[] = [
+                      { header: "ID", key: "id", width: 10 },
+                      { header: "Name", key: "name", width: 20 },
+                      { header: "Email", key: "email", width: 25 },
+                      { header: "Phone", key: "phone", width: 15 },
+                      { header: "Mobile Number", key: "mobileNumber", width: 15 },
+                      { header: "Status", key: "status", width: 12 },
+                      { header: "Registration Date", key: "registrationDate", width: 18 },
+                      { header: "Last Login", key: "lastLogin", width: 18 },
+                      { header: "Total Bookings", key: "totalBookings", width: 15 },
+                      { header: "Total Spent", key: "totalSpent", width: 15 },
+                      { header: "Attended Events", key: "attendedEvents", width: 15 },
+                      { header: "NFC Card ID", key: "nfcCardId", width: 15 },
+                      { header: "Recurrent User", key: "recurrentUser", width: 15 },
+                      { header: "Location", key: "location", width: 15 },
+                      { header: "Nationality", key: "nationality", width: 15 },
+                      { header: "Gender", key: "gender", width: 12 },
+                      { header: "Date of Birth", key: "dateOfBirth", width: 15 },
+                      { header: "National ID", key: "nationalId", width: 15 },
+                      { header: "Blood Type", key: "bloodType", width: 12 },
+                      { header: "Emergency Contact Name", key: "emergencyContactName", width: 20 },
+                      { header: "Emergency Contact Mobile", key: "emergencyContactMobile", width: 20 },
+                      { header: "Fees Paid", key: "feesPaid", width: 12 },
+                      { header: "Notes (EVS)", key: "notes", width: 30 },
+                      { header: "Labels", key: "labels", width: 20 },
+                    ];
                     exportManager.exportToCSV(customerData, columns, {
                       filename: `customer-${selectedCustomer.id}-details`,
                       title: `Customer Details: ${selectedCustomer.name}`,
@@ -2174,6 +2451,47 @@ const CustomerManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* EVS Notes Dialog */}
+      <Dialog open={showEvsNotesDialog} onOpenChange={setShowEvsNotesDialog}>
+        <DialogContent className="rtl:text-right ltr:text-left max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="rtl:text-right ltr:text-left">
+              {t("admin.customers.dialogs.evsNotes") || "EVS Notes"}
+            </DialogTitle>
+            <DialogDescription className="rtl:text-right ltr:text-left">
+              {selectedCustomer && (
+                <>
+                  {t("admin.customers.dialogs.evsNotesDescription") || "Notes from Event Verification System for"} {selectedCustomer.name}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedCustomer?.notes ? (
+              <div className="bg-gray-50 p-4 rounded-lg max-h-96 overflow-y-auto">
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap rtl:text-right ltr:text-left">
+                  {selectedCustomer.notes}
+                </p>
+              </div>
+            ) : (
+              <div className="bg-gray-50 p-4 rounded-lg text-center">
+                <p className="text-sm text-muted-foreground">
+                  {t("admin.customers.dialogs.noEvsNotes") || "No EVS notes available for this customer."}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowEvsNotesDialog(false)}
+            >
+              {t("admin.customers.dialogs.close") || "Close"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Customer Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="rtl:text-right ltr:text-left">
@@ -2192,31 +2510,61 @@ const CustomerManagement: React.FC = () => {
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
                     {t("admin.customers.form.name")}
                   </label>
-                  <Input defaultValue={selectedCustomer.name} />
+                  <Input
+                    value={editedCustomer.name || selectedCustomer.name || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, name: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
                     {t("admin.customers.form.email")}
                   </label>
-                  <Input type="email" defaultValue={selectedCustomer.email} />
+                  <Input
+                    type="email"
+                    value={editedCustomer.email || selectedCustomer.email || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, email: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
                     {t("admin.customers.form.phone")}
                   </label>
-                  <Input defaultValue={selectedCustomer.phone} dir="ltr" />
+                  <Input
+                    value={editedCustomer.phone || selectedCustomer.phone || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, phone: e.target.value })
+                    }
+                    dir="ltr"
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
                     {t("admin.customers.form.location")}
                   </label>
-                  <Input defaultValue={selectedCustomer.location} />
+                  <Input
+                    value={editedCustomer.location || selectedCustomer.location || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, location: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
                     {t("admin.customers.form.status")}
                   </label>
-                  <Select defaultValue={selectedCustomer.status}>
+                  <Select
+                    value={editedCustomer.status || selectedCustomer.status}
+                    onValueChange={(value) =>
+                      setEditedCustomer({
+                        ...editedCustomer,
+                        status: value as "active" | "inactive" | "banned",
+                      })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -2273,7 +2621,10 @@ const CustomerManagement: React.FC = () => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditedCustomer({});
+              }}
             >
               {t("admin.customers.dialogs.cancel")}
             </Button>
@@ -2556,7 +2907,7 @@ const CustomerManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
-                    {t("admin.customers.form.newPassword")}
+                    {t("admin.customers.form.newPassword")} *
                   </label>
                   <Input
                     type="password"
@@ -2570,11 +2921,12 @@ const CustomerManagement: React.FC = () => {
                     placeholder={t(
                       "admin.customers.form.newPasswordPlaceholder"
                     )}
+                    required
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right ltr:text-left">
-                    {t("admin.customers.form.confirmPassword")}
+                    {t("admin.customers.form.confirmPassword")} *
                   </label>
                   <Input
                     type="password"
@@ -2588,11 +2940,12 @@ const CustomerManagement: React.FC = () => {
                     placeholder={t(
                       "admin.customers.form.confirmPasswordPlaceholder"
                     )}
+                    required
                   />
                 </div>
               </div>
               <p className="text-xs text-muted-foreground mt-2 rtl:text-right ltr:text-left">
-                {t("admin.customers.form.passwordOptional")}
+                Password is required for customer to login to webapp
               </p>
             </div>
           </div>
@@ -3478,7 +3831,65 @@ const CustomerManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog - REMOVED: Only Ban functionality is available */}
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("admin.customers.dialogs.deleteCustomer") || "Delete Customer"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {customerToDelete && (
+                <>
+                  {t("admin.customers.dialogs.deleteCustomerConfirm") || 
+                    "Are you sure you want to delete this customer? This action cannot be undone."}
+                  <br />
+                  <br />
+                  <strong>{customerToDelete.name}</strong> ({customerToDelete.email})
+                  <br />
+                  <br />
+                  {t("admin.customers.dialogs.deleteCustomerWarning") || 
+                    "This will permanently delete the customer and all related records including:"}
+                  <ul className="list-disc list-inside mt-2 space-y-1">
+                    <li>{t("admin.customers.dialogs.deleteWarningTickets") || "All tickets"}</li>
+                    <li>{t("admin.customers.dialogs.deleteWarningDependents") || "All dependents"}</li>
+                    <li>{t("admin.customers.dialogs.deleteWarningPayments") || "All payment transactions"}</li>
+                    <li>{t("admin.customers.dialogs.deleteWarningFavorites") || "All favorites"}</li>
+                    <li>{t("admin.customers.dialogs.deleteWarningNfcCards") || "All NFC cards"}</li>
+                  </ul>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setShowDeleteDialog(false);
+                setCustomerToDelete(null);
+              }}
+            >
+              {t("admin.customers.dialogs.cancel") || "Cancel"}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteCustomer}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteCustomerMutation.isPending}
+            >
+              {deleteCustomerMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  {t("common.deleting") || "Deleting..."}
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {t("admin.customers.dialogs.delete") || "Delete"}
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

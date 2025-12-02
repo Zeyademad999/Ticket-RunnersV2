@@ -61,11 +61,32 @@ export default function TicketDetails() {
         setLoading(true);
         // Fetch the ticket detail (now returns ticket and related_tickets)
         const response = await TicketsService.getTicketDetail(id);
-        setTicket(response.ticket);
+        
+        // Normalize ticket data - convert snake_case to camelCase if needed
+        const normalizeTicket = (t: any): TicketType => {
+          const normalized = {
+            ...t,
+            purchaseDate: t.purchaseDate || t.purchase_date || '',
+            has_child: t.has_child !== undefined ? Boolean(t.has_child) : (t.hasChild !== undefined ? Boolean(t.hasChild) : false),
+            child_age: t.child_age !== undefined ? t.child_age : (t.childAge !== undefined ? t.childAge : null),
+          };
+          // Debug log for child info
+          if (normalized.has_child || normalized.child_age !== null) {
+            console.log('Ticket with child info:', {
+              id: normalized.id,
+              has_child: normalized.has_child,
+              child_age: normalized.child_age,
+              raw: { has_child: t.has_child, child_age: t.child_age, hasChild: t.hasChild, childAge: t.childAge }
+            });
+          }
+          return normalized;
+        };
+        
+        setTicket(normalizeTicket(response.ticket));
         
         // Use related_tickets from the API response (all tickets from same booking)
         // These include tickets assigned to others
-        setRelatedTickets(response.related_tickets || []);
+        setRelatedTickets((response.related_tickets || []).map(normalizeTicket));
       } catch (error: any) {
         console.error("Error fetching ticket details:", error);
         
@@ -114,8 +135,15 @@ export default function TicketDetails() {
       // Refresh ticket data
       if (id) {
         const response = await TicketsService.getTicketDetail(id);
-        setTicket(response.ticket);
-        setRelatedTickets(response.related_tickets || []);
+        // Normalize ticket data - convert snake_case to camelCase if needed
+        const normalizeTicket = (t: any): TicketType => ({
+          ...t,
+          purchaseDate: t.purchaseDate || t.purchase_date || '',
+          has_child: t.has_child !== undefined ? Boolean(t.has_child) : (t.hasChild !== undefined ? Boolean(t.hasChild) : false),
+          child_age: t.child_age !== undefined ? t.child_age : (t.childAge !== undefined ? t.childAge : null),
+        });
+        setTicket(normalizeTicket(response.ticket));
+        setRelatedTickets((response.related_tickets || []).map(normalizeTicket));
       }
     } catch (error: any) {
       console.error("Error claiming ticket:", error);
@@ -513,6 +541,18 @@ export default function TicketDetails() {
                       </span>
                       <span className="font-medium">{ticketItem.price || 0} EGP</span>
                     </div>
+                    {/* Show child information if ticket has child */}
+                    {(ticketItem.has_child === true && ticketItem.child_age !== null && ticketItem.child_age !== undefined) && (
+                      <div className="flex items-center gap-2 text-sm p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
+                        <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-muted-foreground">
+                          {t("ticketDetails.tickets.hasChild", "Has child")}:
+                        </span>
+                        <span className="font-medium text-blue-700 dark:text-blue-300">
+                          {t("ticketDetails.tickets.childAge", "{{age}} years old", { age: ticketItem.child_age })}
+                        </span>
+                      </div>
+                    )}
                     {ticketItem.checkInTime && (
                       <div className="flex items-center gap-2 text-sm">
                         <CheckCircle className="h-4 w-4 text-green-500" />

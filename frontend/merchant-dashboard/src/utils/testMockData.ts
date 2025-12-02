@@ -58,8 +58,8 @@ export const testMockData = async () => {
     console.log("\n7️⃣ Testing Dashboard Stats...");
     const statsResponse = await mockApiService.getDashboardStats();
     console.log("✅ Dashboard stats retrieved:", statsResponse.success);
-    console.log("   Available cards:", statsResponse.data?.total_available_cards);
-    console.log("   Delivered cards:", statsResponse.data?.total_delivered_cards);
+    console.log("   Available cards:", statsResponse.data?.available_cards);
+    console.log("   Delivered cards:", statsResponse.data?.delivered_cards);
     
     // Test 8: Card Inventory
     console.log("\n8️⃣ Testing Card Inventory...");

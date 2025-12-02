@@ -222,6 +222,12 @@ class ScanReportSerializer(serializers.ModelSerializer):
     """Serializer for scan reports."""
     usher_name = serializers.CharField(source='usher.name', read_only=True)
     event_title = serializers.CharField(source='event.title', read_only=True)
+    event = serializers.PrimaryKeyRelatedField(queryset=Event.objects.all(), required=True)
+    ticket_id = serializers.UUIDField(required=False, allow_null=True)
+    customer_id = serializers.UUIDField(required=False, allow_null=True)
+    card_id = serializers.CharField(required=False, allow_blank=True, allow_null=True, max_length=100)
+    description = serializers.CharField(required=True)
+    report_type = serializers.ChoiceField(choices=ScanReport.REPORT_TYPE_CHOICES, required=True)
     
     class Meta:
         model = ScanReport
@@ -230,5 +236,23 @@ class ScanReportSerializer(serializers.ModelSerializer):
             'report_type', 'description', 'card_id', 'ticket_id',
             'customer_id', 'status', 'admin_notes', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'status', 'admin_notes', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'usher', 'status', 'admin_notes', 'created_at', 'updated_at']
+    
+    def validate_ticket_id(self, value):
+        """Convert empty string to None for ticket_id."""
+        if value == '' or value is None:
+            return None
+        return value
+    
+    def validate_customer_id(self, value):
+        """Convert empty string to None for customer_id."""
+        if value == '' or value is None:
+            return None
+        return value
+    
+    def validate_card_id(self, value):
+        """Convert empty string to None for card_id."""
+        if value == '' or value is None:
+            return None
+        return value
 

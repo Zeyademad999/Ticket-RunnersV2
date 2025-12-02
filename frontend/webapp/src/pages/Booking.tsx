@@ -12,6 +12,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { PhoneNumberInput } from "@/components/PhoneNumberInput";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -111,7 +112,7 @@ const Booking = () => {
   const eventData = apiEvent
     ? (() => {
         const apiEventRaw = apiEvent as any;
-        return {
+        const eventDataResult = {
           title: apiEvent.title || "Event",
           artist_name: apiEvent.artist_name || apiEventRaw.artist_name || undefined,
           date: apiEvent.date || new Date().toISOString().split("T")[0],
@@ -124,6 +125,7 @@ const Booking = () => {
           childEligibilityEnabled:
             apiEvent.childEligibilityEnabled ??
             apiEventRaw.child_eligibility_enabled ??
+            apiEventRaw.childEligibilityEnabled ??
             false,
           childEligibilityRuleType:
             apiEvent.childEligibilityRuleType ??
@@ -140,6 +142,22 @@ const Booking = () => {
           isUnseated: apiEvent.isUnseated ?? apiEventRaw.is_unseated ?? false,
           ticketCategories: apiEvent.ticketCategories || [],
         };
+        // Debug log to verify child eligibility data
+        console.log("Event data for booking:", {
+          childEligibilityEnabled: eventDataResult.childEligibilityEnabled,
+          childEligibilityRuleType: eventDataResult.childEligibilityRuleType,
+          childEligibilityMinAge: eventDataResult.childEligibilityMinAge,
+          childEligibilityMaxAge: eventDataResult.childEligibilityMaxAge,
+          apiEventChildEligibility: apiEvent.childEligibilityEnabled,
+          apiEventRaw: {
+            child_eligibility_enabled: apiEventRaw.child_eligibility_enabled,
+            child_eligibility_rule_type: apiEventRaw.child_eligibility_rule_type,
+            child_eligibility_min_age: apiEventRaw.child_eligibility_min_age,
+            child_eligibility_max_age: apiEventRaw.child_eligibility_max_age,
+          },
+          fullApiEvent: apiEvent
+        });
+        return eventDataResult;
       })()
     : {
         title: "Loading...",
@@ -339,6 +357,22 @@ const Booking = () => {
         return;
       }
 
+      // Validate child age eligibility if child is specified
+      if (eventData.childEligibilityEnabled) {
+        const invalidChildAges = currentTickets.filter(
+          (t) => t.isOwnerTicket && t.hasChild && (t.childAge === null || t.childAge === undefined || !isChildAgeEligible(t.childAge))
+        );
+
+        if (invalidChildAges.length > 0) {
+          toast({
+            title: t("booking.validationError", "Validation Error"),
+            description: getChildEligibilityErrorMessage() || t("booking.childAgeInvalid", "Child age does not meet eligibility requirements"),
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Additional validation: Double-check all ticket details before sending to payment
       // This is a final safety check to prevent any self-assignment
       const userPhoneNormalized = user?.mobile_number
@@ -425,14 +459,31 @@ const Booking = () => {
           }
         }
 
-        return {
+        const ticketDetail = {
           name: (t.isOwnerTicket ? ownerName : t.name || "").trim(),
           mobile: t.isOwnerTicket ? ownerMobile : ticketMobile,
           email: (t.isOwnerTicket ? ownerEmail : t.email || "").trim(),
           is_owner: t.isOwnerTicket || false,
           category: ticketCategory, // Ticket-specific category
           price: ticketTier.price, // Ticket-specific price
+          has_child: t.isOwnerTicket ? Boolean(t.hasChild) : false, // Only for owner tickets
+          child_age: t.isOwnerTicket && t.hasChild ? (t.childAge !== null && t.childAge !== undefined ? t.childAge : null) : null, // Only for owner tickets
         };
+        
+        // Debug log for child info
+        if (t.isOwnerTicket && t.hasChild) {
+          console.log('Sending child info in ticket details:', {
+            index,
+            hasChild: t.hasChild,
+            childAge: t.childAge,
+            ticketDetail: {
+              has_child: ticketDetail.has_child,
+              child_age: ticketDetail.child_age
+            }
+          });
+        }
+        
+        return ticketDetail;
       });
 
       // If we have fewer ticket details than total tickets, pad with empty details
@@ -454,8 +505,22 @@ const Booking = () => {
           is_owner: false,
           category: ticketCategory,
           price: ticketTier.price,
+          has_child: false,
+          child_age: null,
         });
       }
+
+      // Debug: Log ticket details before sending
+      console.log('All ticket details being sent:', JSON.stringify(ticketDetails, null, 2));
+      const ownerTickets = ticketDetails.filter(td => td.is_owner);
+      console.log('Owner tickets:', ownerTickets);
+      ownerTickets.forEach((td, idx) => {
+        console.log(`Owner ticket ${idx + 1}:`, {
+          has_child: td.has_child,
+          child_age: td.child_age,
+          is_owner: td.is_owner
+        });
+      });
 
       // Initialize Kashier payment
       const paymentInitResponse = await PaymentsService.initializePayment({
@@ -543,6 +608,8 @@ const Booking = () => {
       assigned?: boolean;
       isOwnerTicket?: boolean;
       mobileCountryCode?: string | null;
+      hasChild?: boolean;
+      childAge?: number | null;
     }[]
   >([]);
   const [addOrder, setAddOrder] = useState<TierKey[]>([]);
@@ -805,6 +872,55 @@ const Booking = () => {
       detectCountryFromPhone(ticket.mobile)?.code ||
       null;
     return Boolean(code && code !== "EG");
+  };
+
+  // Validate child age against event eligibility rules
+  const isChildAgeEligible = (age: number | null | undefined): boolean => {
+    if (age === null || age === undefined) return false;
+    if (!eventData.childEligibilityEnabled || !eventData.childEligibilityRuleType) {
+      return false;
+    }
+
+    const ruleType = eventData.childEligibilityRuleType;
+    const minAge = eventData.childEligibilityMinAge;
+    const maxAge = eventData.childEligibilityMaxAge;
+
+    if (ruleType === 'between') {
+      if (minAge !== null && maxAge !== null) {
+        return minAge <= age && age <= maxAge;
+      }
+    } else if (ruleType === 'less_than') {
+      if (maxAge !== null) {
+        return age < maxAge;
+      }
+    } else if (ruleType === 'more_than') {
+      if (minAge !== null) {
+        return age > minAge;
+      }
+    }
+
+    return false;
+  };
+
+  // Get child eligibility error message
+  const getChildEligibilityErrorMessage = (): string => {
+    if (!eventData.childEligibilityEnabled || !eventData.childEligibilityRuleType) {
+      return "";
+    }
+
+    const ruleType = eventData.childEligibilityRuleType;
+    const minAge = eventData.childEligibilityMinAge;
+    const maxAge = eventData.childEligibilityMaxAge;
+
+    if (ruleType === 'between' && minAge !== null && maxAge !== null) {
+      return t("booking.childAgeBetweenError", { minAge, maxAge }, `Child age must be between ${minAge} and ${maxAge} years`);
+    } else if (ruleType === 'less_than' && maxAge !== null) {
+      return t("booking.childAgeLessThanError", { maxAge }, `Child must be less than ${maxAge} years old`);
+    } else if (ruleType === 'more_than' && minAge !== null) {
+      return t("booking.childAgeMoreThanError", { minAge }, `Child must be more than ${minAge} years old`);
+    }
+
+    return t("booking.childAgeInvalid", "Child age does not meet eligibility requirements");
   };
 
   const ensureOwnerTicket = (updatedTickets: typeof tickets, total: number) => {
@@ -1120,7 +1236,12 @@ const Booking = () => {
     }
 
     let updated = [...tickets];
-    updated[index] = { ...updated[index], [field]: value };
+    // Ensure boolean values are explicitly set (not undefined)
+    if (field === "hasChild") {
+      updated[index] = { ...updated[index], [field]: Boolean(value) };
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
 
     // If isOwnerTicket is set to true, clear any phone errors for this ticket
     if (field === "isOwnerTicket" && value === true) {
@@ -1184,6 +1305,8 @@ const Booking = () => {
             ticketType,
             isOwnerTicket: false,
             mobileCountryCode: "EG",
+            hasChild: false,
+            childAge: null,
           };
         } else {
           updated[index].assignedTicketNumber = index + 1;
@@ -1210,12 +1333,26 @@ const Booking = () => {
   const currency = t("currency.egp");
   const numberFormat = new Intl.NumberFormat(i18n.language);
 
-  // Check if any ticket has empty required fields
+  // Check if any ticket has empty required fields or invalid child age
   const hasIncompleteTickets = tickets.some((t) => {
     if (!t) return false;
 
-    if (t.isOwnerTicket) return false;
+    // For owner tickets, check child age validation if child is specified
+    if (t.isOwnerTicket) {
+      if (t.hasChild) {
+        // If child is checked but no age provided, it's incomplete
+        if (t.childAge === null || t.childAge === undefined) {
+          return true;
+        }
+        // If child age is provided but doesn't meet eligibility requirements, it's invalid
+        if (!isChildAgeEligible(t.childAge)) {
+          return true;
+        }
+      }
+      return false;
+    }
 
+    // For non-owner tickets, check required fields
     if (!t.name?.trim()) return true;
     if (!t.mobile?.trim()) return true;
     if (requiresEmailForTicket(t) && !t.email?.trim()) return true;
@@ -1600,6 +1737,65 @@ const Booking = () => {
                                 </div>
                               )}
                             </div>
+                            {/* Child Eligibility Checkbox - Only show if event allows children */}
+                            {ticket.isOwnerTicket && Boolean(eventData.childEligibilityEnabled) && (
+                              <div className="space-y-2 mt-3 mb-3">
+                                <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
+                                  <Checkbox
+                                    id={`ticket-${index}-hasChild`}
+                                    checked={ticket.hasChild === true}
+                                    onCheckedChange={(checked) => {
+                                      // Direct state update to avoid any interference
+                                      setTickets((prev) => {
+                                        const updated = [...prev];
+                                        const isChecked = checked === true;
+                                        updated[index] = {
+                                          ...updated[index],
+                                          hasChild: isChecked,
+                                          childAge: isChecked ? updated[index].childAge : null,
+                                        };
+                                        return ensureOwnerTicket(updated, totalTickets);
+                                      });
+                                    }}
+                                  />
+                                  <Label
+                                    htmlFor={`ticket-${index}-hasChild`}
+                                    className="text-sm font-medium cursor-pointer"
+                                  >
+                                    {t("booking.iHaveChild", "I have a child")}
+                                  </Label>
+                                </div>
+                                  {ticket.hasChild && (
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`ticket-${index}-childAge`}>
+                                        {t("booking.childAge", "Child's Age")}
+                                      </Label>
+                                      <Input
+                                        id={`ticket-${index}-childAge`}
+                                        type="number"
+                                        min="0"
+                                        max="18"
+                                        value={ticket.childAge || ""}
+                                        onChange={(e) => {
+                                          const age = e.target.value ? parseInt(e.target.value, 10) : null;
+                                          updateTicket(index, "childAge", age);
+                                        }}
+                                        placeholder={t("booking.childAgePlaceholder", "Enter child's age")}
+                                        className={
+                                          ticket.childAge !== null && ticket.childAge !== undefined && !isChildAgeEligible(ticket.childAge)
+                                            ? "border-red-500 focus:border-red-500"
+                                            : ""
+                                        }
+                                      />
+                                      {ticket.childAge !== null && ticket.childAge !== undefined && !isChildAgeEligible(ticket.childAge) && (
+                                        <p className="text-xs text-red-600 dark:text-red-400">
+                                          {getChildEligibilityErrorMessage()}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               <div className="space-y-2">
                                 <Label>{t("booking.ticketType")}</Label>

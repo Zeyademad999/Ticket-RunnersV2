@@ -231,7 +231,8 @@ class ApiService {
   async verifyCustomerOTP(
     cardSerial: string,
     customerMobile: string,
-    otpCode: string
+    otpCode: string,
+    photoVerified: boolean = false
   ): Promise<ApiResponse<{ hashed_code: string; card: NFCCard }>> {
     if (!this.api) {
       throw new Error("API not initialized");
@@ -241,6 +242,7 @@ class ApiService {
         card_serial: cardSerial,
         customer_mobile: customerMobile,
         otp_code: otpCode,
+        photo_verified: photoVerified,
       });
       
       return {
@@ -276,6 +278,8 @@ class ApiService {
           email: customerData.email,
           status: customerData.status,
           fees_paid: customerData.fees_paid,
+          profile_image: customerData.profile_image,
+          authorized_collector: customerData.authorized_collector,
           is_registered: customerData.is_registered,
           can_assign_card: customerData.can_assign_card,
         } as any,

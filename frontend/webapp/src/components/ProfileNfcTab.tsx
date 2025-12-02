@@ -18,6 +18,8 @@ import { NFCCardsService } from "@/lib/api/services/nfcCards";
 import { PaymentsService } from "@/lib/api/services/payments";
 import { useToast } from "@/hooks/use-toast";
 import KashierPaymentModal from "@/components/KashierPaymentModal";
+import { AssignCollectorModal } from "@/components/AssignCollectorModal";
+import { UserPlus } from "lucide-react";
 
 export const ProfileNfcTab = (props: any) => {
   const {
@@ -66,6 +68,8 @@ export const ProfileNfcTab = (props: any) => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<any>(null);
   const [paymentType, setPaymentType] = useState<'buy' | 'renew' | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState<number>(0);
+  const [showCollectorModal, setShowCollectorModal] = useState(false);
 
   // Fetch NFC card payment status
   useEffect(() => {
@@ -170,6 +174,7 @@ export const ProfileNfcTab = (props: any) => {
       }
 
       setPaymentConfig(paymentInitResponse.data);
+      setPaymentAmount(amount);
       setShowPaymentModal(true);
     } catch (error: any) {
       console.error("NFC card payment initialization error:", error);
@@ -185,11 +190,12 @@ export const ProfileNfcTab = (props: any) => {
     toast({
       title: "Payment Successful",
       description: paymentType === 'buy' 
-        ? "Your NFC card purchase is being processed."
+        ? "Your NFC card purchase is being processed. You can now assign someone to collect your card."
         : "Your NFC card renewal is being processed.",
     });
     setShowPaymentModal(false);
     setPaymentConfig(null);
+    const wasBuying = paymentType === 'buy';
     setPaymentType(null);
     
     // Refetch card status and details
@@ -200,6 +206,14 @@ export const ProfileNfcTab = (props: any) => {
     try {
       const status = await NFCCardsService.getCardStatus();
       setCardPaymentStatus(status);
+      
+      // If payment was for buying a card, automatically open collector modal after payment
+      if (wasBuying && status.has_paid_card_fee) {
+        // Small delay to ensure UI updates
+        setTimeout(() => {
+          setShowCollectorModal(true);
+        }, 500);
+      }
     } catch (error) {
       console.error("Failed to refresh card status:", error);
     }
@@ -251,7 +265,9 @@ export const ProfileNfcTab = (props: any) => {
             )}
             <div
               className={
-                !hasActiveNfcCard || isCardDeactivated
+                // Only blur if card is deactivated, not if just not assigned yet
+                // User can see the page normally after payment, even without card assigned
+                isCardDeactivated
                   ? "blur-sm pointer-events-none select-none transition-all duration-300"
                   : "transition-all duration-300"
               }
@@ -430,21 +446,6 @@ export const ProfileNfcTab = (props: any) => {
                     </p>
                   </div>
                 )}
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground">
-                      {t("profilepage.nfc.noCardData")}
-                    </p>
-                    <Button
-                      onClick={refetch}
-                      variant="outline"
-                      size="sm"
-                      className="mt-2"
-                    >
-                      {t("profilepage.nfc.retry")}
-                    </Button>
-                  </div>
-                )}
                 <div className="bg-muted/20 rounded-lg p-4">
                   <h4 className="font-semibold mb-2">
                     {t("profilepage.nfc.cardFeaturesTitle")}
@@ -543,6 +544,19 @@ export const ProfileNfcTab = (props: any) => {
                   >
                     {addedToWallet ? t("wallet.added") : t("wallet.add")}
                   </Button>
+                  <Button
+                    className="duration-300 w-full text-center sm:w-auto"
+                    onClick={async () => {
+                      // Always show the info modal first
+                      // The modal will handle payment check internally
+                      setShowCollectorModal(true);
+                    }}
+                    variant="outline"
+                    disabled={loadingPaymentStatus}
+                  >
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    {t("profilepage.nfc.allowCollector")}
+                  </Button>
                   {addedToWallet && showCountdown && (
                     <Button
                       className="duration-300 w-full text-center sm:w-auto"
@@ -589,7 +603,8 @@ export const ProfileNfcTab = (props: any) => {
           </CardContent>
         </Card>
       </TabsContent>
-      {!hasActiveNfcCard && (
+      {/* Only show overlay if card is deactivated, not if just not assigned yet */}
+      {isCardDeactivated && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60 backdrop-blur-sm z-10 text-center p-4">
           <p className="text-foreground ">{t("profilepage.nfc.notice")}</p>
         </div>
@@ -603,12 +618,35 @@ export const ProfileNfcTab = (props: any) => {
             setShowPaymentModal(false);
             setPaymentConfig(null);
             setPaymentType(null);
+            setPaymentAmount(0);
           }}
           paymentConfig={paymentConfig}
+          amount={paymentAmount}
+          currency="EGP"
           onPaymentSuccess={handlePaymentSuccess}
           onPaymentError={handlePaymentError}
         />
       )}
+
+      {/* Assign Collector Modal */}
+      <AssignCollectorModal
+        isOpen={showCollectorModal}
+        onClose={() => setShowCollectorModal(false)}
+        onSuccess={() => {
+          // Refetch card details after successful assignment
+          if (refetch) {
+            refetch();
+          }
+        }}
+        hasPaidCardFee={cardPaymentStatus?.has_paid_card_fee || false}
+        onPayCard={async () => {
+          // Close collector modal and open payment modal
+          setShowCollectorModal(false);
+          setPaymentType('buy');
+          await handleNfcCardPayment('buy');
+        }}
+        isPaying={loadingPaymentStatus || showPaymentModal}
+      />
     </div>
   );
 };

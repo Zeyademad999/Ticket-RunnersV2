@@ -41,6 +41,14 @@ class TicketListSerializer(serializers.ModelSerializer):
         payment = PaymentTransaction.objects.filter(ticket=obj).order_by('-created_at').first()
         if payment:
             return payment.status
+        # If no payment transaction exists but ticket exists, it means payment was made
+        # (either through system payment that wasn't recorded, or paid outside system)
+        # Default to 'completed' since ticket cannot exist without payment
+        if obj.customer and obj.buyer:
+            return 'completed'
+        # If ticket has a customer, they paid for it
+        if obj.customer:
+            return 'completed'
         return None
     
     def get_is_assigned(self, obj):

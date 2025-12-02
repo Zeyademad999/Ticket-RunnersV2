@@ -31,7 +31,17 @@ class NFCCard(models.Model):
         null=True,
         blank=True,
         related_name='nfc_cards',
-        db_index=True
+        db_index=True,
+        help_text="Card owner"
+    )
+    collector = models.ForeignKey(
+        'customers.Customer',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='collected_nfc_cards',
+        db_index=True,
+        help_text="Person authorized to collect this card on behalf of the owner"
     )
     merchant = models.ForeignKey(
         'users.Merchant',
@@ -76,6 +86,7 @@ class NFCCard(models.Model):
         indexes = [
             models.Index(fields=['serial_number']),
             models.Index(fields=['customer']),
+            models.Index(fields=['collector']),
             models.Index(fields=['merchant']),
             models.Index(fields=['status']),
             models.Index(fields=['expiry_date']),

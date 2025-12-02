@@ -64,6 +64,7 @@ class Customer(models.Model):
     blood_type = models.CharField(max_length=10, blank=True, null=True, help_text="Blood type (e.g., A+, B-, O+, AB+)")
     profile_image = models.ImageField(upload_to='customer_profiles/', blank=True, null=True, help_text="Customer profile image")
     notes = models.TextField(blank=True, null=True, help_text="Notes from EVS (Event Verification System) or other sources")
+    labels = models.JSONField(default=list, blank=True, help_text="Custom labels assigned by admin (e.g., ['VIP', 'Premium'])")
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     

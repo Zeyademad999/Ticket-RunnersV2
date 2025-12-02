@@ -193,25 +193,33 @@ def merchant_dashboard_stats(request):
     """
     merchant = request.merchant
     
-    cards = NFCCard.objects.filter(merchant=merchant)
+    # Cards assigned to this merchant
+    merchant_cards = NFCCard.objects.filter(merchant=merchant)
+    
+    # Available cards: Cards assigned to this merchant that are not yet assigned to customers
+    # These are cards that this merchant can assign to customers
+    available_cards = merchant_cards.filter(
+        status='active',
+        customer__isnull=True  # Not assigned to any customer yet
+    )
     
     stats = {
-        'available_cards': cards.filter(status='active', customer__isnull=True).count(),
-        'delivered_cards': cards.filter(status='active', delivered_at__isnull=False).count(),
-        'assigned_cards': cards.filter(status='active', assigned_at__isnull=False).count(),
-        'total_cards': cards.count(),
+        'available_cards': available_cards.count(),  # Cards assigned to merchant but not to customers
+        'delivered_cards': merchant_cards.filter(status='active', delivered_at__isnull=False).count(),
+        'assigned_cards': merchant_cards.filter(status='active', assigned_at__isnull=False).count(),
+        'total_cards': merchant_cards.count(),  # Total cards assigned to this merchant
     }
     
-    # Recent activity (last 10 card assignments)
-    recent_activity = cards.filter(assigned_at__isnull=False).order_by('-assigned_at')[:10]
+    # Recent activity (last 10 card assignments by this merchant)
+    recent_activity = merchant_cards.filter(assigned_at__isnull=False).order_by('-assigned_at')[:10]
     activity_data = []
     for card in recent_activity:
         activity_data.append({
             'card_serial': card.serial_number,
             'customer_name': card.customer.name if card.customer else 'N/A',
             'customer_mobile': card.customer.mobile_number if card.customer else 'N/A',
-            'assigned_at': card.assigned_at,
-            'delivered_at': card.delivered_at,
+            'assigned_at': card.assigned_at.isoformat() if card.assigned_at else None,
+            'delivered_at': card.delivered_at.isoformat() if card.delivered_at else None,
         })
     
     stats['recent_activity'] = activity_data
@@ -259,7 +267,8 @@ def merchant_assign_card(request):
         logger.warning(f"❌ Card {card_serial} is already assigned to customer {card.customer.id} ({card.customer.name})")
         # Check if it's assigned to the same customer
         try:
-            customer = Customer.objects.get(mobile_number=customer_mobile)
+            normalized_mobile = normalize_mobile_number(customer_mobile)
+            customer = Customer.objects.get(mobile_number=normalized_mobile)
             if card.customer == customer:
                 logger.warning(f"Card {card_serial} already assigned to same customer {customer.name}")
                 return Response({
@@ -281,7 +290,8 @@ def merchant_assign_card(request):
     
     # Card is not assigned, proceed with customer lookup
     try:
-        customer = Customer.objects.get(mobile_number=customer_mobile)
+        normalized_mobile = normalize_mobile_number(customer_mobile)
+        customer = Customer.objects.get(mobile_number=normalized_mobile)
     except Customer.DoesNotExist:
         return Response({
             'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
@@ -293,8 +303,8 @@ def merchant_assign_card(request):
             'error': {'code': 'CUSTOMER_INACTIVE', 'message': 'Customer account is not active'}
         }, status=status.HTTP_400_BAD_REQUEST)
     
-    # Send OTP to customer
-    otp, success = create_and_send_otp(customer_mobile, 'customer_verification', app_name="TicketRunners")
+    # Send OTP to customer (use normalized mobile number)
+    otp, success = create_and_send_otp(normalized_mobile, 'customer_verification', app_name="TicketRunners")
     
     if not success:
         return Response({
@@ -314,6 +324,7 @@ def merchant_verify_customer_otp(request):
     """
     Verify customer OTP and complete card assignment.
     POST /api/merchant/verify-customer-otp/
+    Supports photo verification (otp_code can be empty if photo_verified is true).
     """
     logger.info(f"=== merchant_verify_customer_otp called ===")
     logger.info(f"Request data: {request.data}")
@@ -324,16 +335,29 @@ def merchant_verify_customer_otp(request):
     if card_serial:
         card_serial = card_serial.strip().upper()
     customer_mobile = request.data.get('customer_mobile')
-    otp_code = request.data.get('otp_code')
+    otp_code = request.data.get('otp_code', '').strip()
+    photo_verified = request.data.get('photo_verified', False)
     
-    if not all([card_serial, customer_mobile, otp_code]):
-        logger.error("Missing required fields: card_serial, customer_mobile, or otp_code")
-        raise ValidationError("card_serial, customer_mobile, and otp_code are required")
+    if not all([card_serial, customer_mobile]):
+        logger.error("Missing required fields: card_serial or customer_mobile")
+        raise ValidationError("card_serial and customer_mobile are required")
     
-    # Verify OTP
-    if not verify_otp(customer_mobile, otp_code, 'customer_verification'):
-        logger.warning(f"Invalid OTP for customer {customer_mobile}")
-        raise AuthenticationError("Invalid or expired OTP")
+    # Normalize mobile number
+    normalized_mobile = normalize_mobile_number(customer_mobile)
+    
+    # Verify OTP only if provided, or if photo_verified is False
+    # If photo_verified is True, OTP is optional
+    if not photo_verified:
+        if not otp_code:
+            logger.error("OTP code is required when photo verification is not used")
+            raise ValidationError("otp_code is required when photo_verified is false")
+        
+        # Verify OTP (use normalized mobile number)
+        if not verify_otp(normalized_mobile, otp_code, 'customer_verification'):
+            logger.warning(f"Invalid OTP for customer {customer_mobile}")
+            raise AuthenticationError("Invalid or expired OTP")
+    else:
+        logger.info(f"Photo verification used for customer {customer_mobile} - OTP verification skipped")
     
     logger.info(f"OTP verified. Processing assignment: card_serial={card_serial}, customer_mobile={customer_mobile}")
     
@@ -354,7 +378,8 @@ def merchant_verify_customer_otp(request):
         logger.warning(f"❌ Card {card_serial} is already assigned to customer {card.customer.id} ({card.customer.name})")
         # Check if it's assigned to the same customer
         try:
-            customer = Customer.objects.get(mobile_number=customer_mobile)
+            normalized_mobile = normalize_mobile_number(customer_mobile)
+            customer = Customer.objects.get(mobile_number=normalized_mobile)
             if card.customer == customer:
                 return Response({
                     'error': {'code': 'CARD_ALREADY_ASSIGNED', 'message': f'This card is already assigned to this customer ({customer.name})'}
@@ -371,7 +396,8 @@ def merchant_verify_customer_otp(request):
     
     # Card is not assigned, proceed with customer lookup
     try:
-        customer = Customer.objects.get(mobile_number=customer_mobile)
+        normalized_mobile = normalize_mobile_number(customer_mobile)
+        customer = Customer.objects.get(mobile_number=normalized_mobile)
     except Customer.DoesNotExist:
         return Response({
             'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
@@ -394,10 +420,15 @@ def merchant_verify_customer_otp(request):
     card.status = 'active'
     card.save()
     
+    # Mark customer as having paid fees (since they have an active NFC card)
+    if not customer.fees_paid:
+        customer.fees_paid = True
+        customer.save(update_fields=['fees_paid'])
+    
     return Response({
         'message': 'Card assigned successfully',
         'hashed_code': hashed_code,
-        'card': NFCCardSerializer(card).data
+        'card': NFCCardSerializer(card, context={'request': request}).data
     }, status=status.HTTP_200_OK)
 
 
@@ -405,25 +436,33 @@ def merchant_verify_customer_otp(request):
 @permission_classes([IsMerchant])
 def merchant_cards_list(request):
     """
-    List merchant's cards.
+    List merchant's cards and available cards.
     GET /api/merchant/cards/
+    - If status='available': Returns all unassigned cards from admin NFC section
+    - Otherwise: Returns cards assigned to this merchant
     """
     merchant = request.merchant
-    cards = NFCCard.objects.filter(merchant=merchant).select_related('customer')
-    
-    # Filtering
     status_filter = request.query_params.get('status')
     search = request.query_params.get('search')
     
-    if status_filter:
+    # Show cards assigned to this merchant
+    cards = NFCCard.objects.filter(merchant=merchant).select_related('customer', 'collector')
+    
+    # Apply status filter if provided
+    if status_filter == 'available':
+        # Available cards: assigned to merchant but not to customers
+        cards = cards.filter(status='active', customer__isnull=True)
+    elif status_filter:
         cards = cards.filter(status=status_filter)
+    
+    # Apply search filter
     if search:
         cards = cards.filter(
             Q(serial_number__icontains=search) |
             Q(customer__mobile_number__icontains=search)
         )
     
-    serializer = NFCCardSerializer(cards, many=True)
+    serializer = NFCCardSerializer(cards, many=True, context={'request': request})
     return Response(serializer.data, status=status.HTTP_200_OK)
 
 
@@ -531,21 +570,99 @@ def merchant_verify_mobile_change(request):
     }, status=status.HTTP_200_OK)
 
 
+def normalize_mobile_number(mobile_number: str) -> str:
+    """
+    Normalize mobile number to handle different formats.
+    Converts Egyptian numbers from 01104484492 to +201104484492 format.
+    """
+    if not mobile_number:
+        return mobile_number
+    
+    # Remove any whitespace
+    mobile_number = mobile_number.strip()
+    
+    # If it starts with +20, return as is
+    if mobile_number.startswith('+20'):
+        return mobile_number
+    
+    # If it starts with 20 (without +), add +
+    if mobile_number.startswith('20') and len(mobile_number) >= 12:
+        return '+' + mobile_number
+    
+    # If it starts with 0 (Egyptian local format), replace 0 with +20
+    if mobile_number.startswith('0') and len(mobile_number) == 11:
+        return '+20' + mobile_number[1:]
+    
+    # If it's 10 digits starting with 1 (Egyptian mobile without leading 0)
+    if mobile_number.startswith('1') and len(mobile_number) == 10:
+        return '+20' + mobile_number
+    
+    # Return as is if no pattern matches
+    return mobile_number
+
+
 @api_view(['GET'])
 @permission_classes([IsMerchant])
 def merchant_verify_customer(request, mobile):
     """
     Verify customer separately (check registration & fees).
     GET /api/merchant/verify-customer/:mobile/
+    Returns customer photo and authorized collector info if available.
     """
     merchant = request.merchant
     
+    # Normalize mobile number to handle different formats
+    normalized_mobile = normalize_mobile_number(mobile)
+    
+    # Try to find customer with normalized number first, then try original
     try:
-        customer = Customer.objects.get(mobile_number=mobile)
+        customer = Customer.objects.get(mobile_number=normalized_mobile)
     except Customer.DoesNotExist:
-        return Response({
-            'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
-        }, status=status.HTTP_404_NOT_FOUND)
+        # Try with original format as fallback
+        try:
+            customer = Customer.objects.get(mobile_number=mobile)
+        except Customer.DoesNotExist:
+            return Response({
+                'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Get customer profile image URL
+    customer_profile_image = None
+    if customer.profile_image:
+        try:
+            customer_profile_image = request.build_absolute_uri(customer.profile_image.url)
+        except (AttributeError, ValueError):
+            pass
+    
+    # Check if customer has any NFC cards with an authorized collector
+    # Get the most recent card with a collector (if any)
+    collector_info = None
+    try:
+        from nfc_cards.models import NFCCard
+        card_with_collector = NFCCard.objects.filter(
+            customer=customer,
+            collector__isnull=False
+        ).select_related('collector').order_by('-assigned_at').first()
+        
+        if card_with_collector and card_with_collector.collector:
+            collector = card_with_collector.collector
+            collector_profile_image = None
+            if collector.profile_image:
+                try:
+                    collector_profile_image = request.build_absolute_uri(collector.profile_image.url)
+                except (AttributeError, ValueError):
+                    pass
+            
+            collector_info = {
+                'id': str(collector.id),
+                'name': collector.name,
+                'mobile_number': collector.mobile_number,
+                'profile_image': collector_profile_image
+            }
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Error getting collector info: {str(e)}")
     
     data = {
         'id': customer.id,
@@ -555,7 +672,9 @@ def merchant_verify_customer(request, mobile):
         'status': customer.status,
         'fees_paid': customer.fees_paid,
         'is_registered': True,
-        'can_assign_card': customer.status == 'active'  # Fees paid in person, no check needed
+        'can_assign_card': customer.status == 'active',  # Fees paid in person, no check needed
+        'profile_image': customer_profile_image,
+        'authorized_collector': collector_info  # Will be None if no collector assigned
     }
     
     return Response(data, status=status.HTTP_200_OK)
@@ -574,8 +693,11 @@ def merchant_send_customer_otp(request):
     if not customer_mobile:
         raise ValidationError("customer_mobile is required")
     
+    # Normalize mobile number
+    normalized_mobile = normalize_mobile_number(customer_mobile)
+    
     try:
-        customer = Customer.objects.get(mobile_number=customer_mobile)
+        customer = Customer.objects.get(mobile_number=normalized_mobile)
     except Customer.DoesNotExist:
         return Response({
             'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
@@ -587,7 +709,8 @@ def merchant_send_customer_otp(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Fees are paid in person to merchant, no check needed
-    otp, success = create_and_send_otp(customer_mobile, 'customer_verification', app_name="TicketRunners")
+    # Use normalized mobile number for OTP
+    otp, success = create_and_send_otp(normalized_mobile, 'customer_verification', app_name="TicketRunners")
     
     if not success:
         return Response({
@@ -610,6 +733,8 @@ def merchant_validate_card(request):
     """
     logger.info(f"=== merchant_validate_card called ===")
     logger.info(f"Request data: {request.data}")
+    
+    merchant = request.merchant
     
     serializer = CardValidationSerializer(data=request.data)
     if not serializer.is_valid():

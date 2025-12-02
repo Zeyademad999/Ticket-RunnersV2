@@ -88,7 +88,8 @@ interface Event {
   id: string;
   title: string;
   artist_name?: string;
-  organizer: string;
+  organizer: string; // Keep for backward compatibility with list view
+  organizers?: string[]; // New field for multiple organizers
   date: string;
   time: string;
   location: string;
@@ -212,7 +213,7 @@ const EventsManagement: React.FC = () => {
   const [newEvent, setNewEvent] = useState({
     title: "",
     artist_name: "",
-    organizer: "",
+    organizers: [] as string[],
     date: "",
     time: "",
     location: "",
@@ -260,7 +261,7 @@ const EventsManagement: React.FC = () => {
   const [editEventData, setEditEventData] = useState({
     title: "",
     artist_name: "",
-    organizer: "",
+    organizers: [] as string[],
     date: "",
     time: "",
     location: "",
@@ -516,7 +517,11 @@ const EventsManagement: React.FC = () => {
         value: 5,
       },
       ticketTransferEnabled: true, // Default, will be fetched from detail
-      childrenAllowed: true, // Default
+      childrenAllowed: item.child_eligibility_enabled || false, // Use actual value from API
+      childEligibilityEnabled: item.child_eligibility_enabled || false, // Use actual value from API
+      childEligibilityRuleType: (item.child_eligibility_rule_type || "") as "between" | "less_than" | "more_than" | "",
+      childEligibilityMinAge: item.child_eligibility_min_age || null,
+      childEligibilityMaxAge: item.child_eligibility_max_age || null,
       ticketLimit: item.ticket_limit || 10,
       usheringAccounts: 0,
       imageUrl: item.thumbnail_path || "/public/placeholderLogo.png",
@@ -1475,14 +1480,19 @@ const EventsManagement: React.FC = () => {
         categoryName = event.category || "";
       }
 
-      // Get organizer ID - API returns organizer as object with id property
-      const organizerId =
-        eventDetails.organizer?.id?.toString() ||
-        (typeof eventDetails.organizer === "string"
-          ? eventDetails.organizer
-          : null) ||
-        event.organizer?.toString() ||
-        "";
+      // Get organizer IDs - API returns organizers as array of objects or single object
+      let organizerIds: string[] = [];
+      if (eventDetails.organizers && Array.isArray(eventDetails.organizers)) {
+        // New format: array of organizer objects
+        organizerIds = eventDetails.organizers
+          .map((org: any) => org?.id?.toString() || org?.toString())
+          .filter((id: string) => id);
+      } else if (eventDetails.organizer) {
+        // Old format: single organizer object or ID (for backward compatibility)
+        const orgId = eventDetails.organizer?.id?.toString() || 
+                     (typeof eventDetails.organizer === "string" ? eventDetails.organizer : null);
+        if (orgId) organizerIds = [orgId];
+      }
 
       // Get venue ID - API returns venue as object with id property
       const venueId =
@@ -1539,7 +1549,7 @@ const EventsManagement: React.FC = () => {
       setEditEventData({
         title: eventDetails.title || event.title || "",
         artist_name: eventDetails.artist_name || event.artist_name || "",
-        organizer: organizerId,
+        organizers: organizerIds,
         date: eventDetails.date || event.date || "",
         time: eventDetails.time || event.time || "",
         location: venueId,
@@ -1564,12 +1574,7 @@ const EventsManagement: React.FC = () => {
             : event.ticketTransferEnabled !== undefined
             ? event.ticketTransferEnabled
             : false,
-        childrenAllowed:
-          eventDetails.children_allowed !== undefined
-            ? eventDetails.children_allowed
-            : event.childrenAllowed !== undefined
-            ? event.childrenAllowed
-            : true,
+        childrenAllowed: eventDetails.child_eligibility_enabled || false, // Use child_eligibility_enabled from API
         childEligibilityEnabled: eventDetails.child_eligibility_enabled || false,
         childEligibilityRuleType: (eventDetails.child_eligibility_rule_type || "") as "between" | "less_than" | "more_than" | "",
         childEligibilityMinAge: eventDetails.child_eligibility_min_age || null,
@@ -1593,7 +1598,7 @@ const EventsManagement: React.FC = () => {
 
       console.log("Edit event data set:", {
         category: categoryName,
-        organizer: organizerId,
+        organizers: organizerIds,
         location: venueId,
         gallery: galleryImages.length,
         ticketCategories: ticketCategories.length,
@@ -1601,8 +1606,8 @@ const EventsManagement: React.FC = () => {
     } catch (error) {
       console.error("Error fetching event details:", error);
       // Fallback to basic event data if API call fails
-      // Try to get organizer ID from the event list data
-      let organizerId = "";
+      // Try to get organizer IDs from the event list data
+      let organizerIds: string[] = [];
       if (event.organizer) {
         // Try to find organizer in the organizers list to get ID
         const organizersList = organizersData?.results || organizersData || [];
@@ -1611,8 +1616,8 @@ const EventsManagement: React.FC = () => {
             org.name === event.organizer ||
             org.id?.toString() === event.organizer?.toString()
         );
-        organizerId =
-          foundOrganizer?.id?.toString() || event.organizer?.toString() || "";
+        const orgId = foundOrganizer?.id?.toString() || event.organizer?.toString() || "";
+        if (orgId) organizerIds = [orgId];
       }
 
       // Try to get venue ID from the event list data
@@ -1635,7 +1640,7 @@ const EventsManagement: React.FC = () => {
 
       setEditEventData({
         title: event.title || "",
-        organizer: organizerId,
+        organizers: organizerIds,
         date: event.date || "",
         time: event.time || "",
         location: venueId,
@@ -1956,8 +1961,6 @@ const EventsManagement: React.FC = () => {
       }
     }
 
-    const organizer = editEventData.organizer?.toString().trim();
-
     if (!title || title === "") {
       toast({
         title: "Validation Error",
@@ -1985,14 +1988,7 @@ const EventsManagement: React.FC = () => {
       return;
     }
 
-    if (!organizer || organizer === "" || organizer === "no-organizers") {
-      toast({
-        title: "Validation Error",
-        description: "Please select an organizer",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Organizers are optional - no validation needed
 
     // Ensure time format is correct (HH:MM:SS)
     let timeValue = editEventData.time || "00:00:00";
@@ -2061,19 +2057,18 @@ const EventsManagement: React.FC = () => {
           : true,
     };
 
-    // Add organizer ID - ensure it's a valid number
-    if (organizer && organizer !== "no-organizers") {
-      const organizerId = parseInt(organizer);
-      if (!isNaN(organizerId)) {
-        updateData.organizer = organizerId;
-      } else {
-        toast({
-          title: "Validation Error",
-          description: "Invalid organizer selected",
-          variant: "destructive",
-        });
-        return;
+    // Add organizer IDs - convert string array to number array
+    const organizers = editEventData.organizers || [];
+    if (organizers.length > 0) {
+      const organizerIds = organizers
+        .map((id) => parseInt(id))
+        .filter((id) => !isNaN(id));
+      if (organizerIds.length > 0) {
+        updateData.organizers = organizerIds;
       }
+    } else {
+      // If no organizers selected, send empty array to clear organizers
+      updateData.organizers = [];
     }
 
     // Add venue ID if available - send null if "none" to clear venue
@@ -2146,8 +2141,8 @@ const EventsManagement: React.FC = () => {
       updateData.transfer_fee_value = transferFeeValue;
     }
 
-    // Add child eligibility fields
-    updateData.child_eligibility_enabled = editEventData.childEligibilityEnabled || false;
+    // Add child eligibility fields - explicitly set to false if not enabled
+    updateData.child_eligibility_enabled = Boolean(editEventData.childEligibilityEnabled);
     if (editEventData.childEligibilityEnabled && editEventData.childEligibilityRuleType) {
       updateData.child_eligibility_rule_type = editEventData.childEligibilityRuleType;
       if (editEventData.childEligibilityMinAge !== null && editEventData.childEligibilityMinAge !== undefined) {
@@ -2156,6 +2151,11 @@ const EventsManagement: React.FC = () => {
       if (editEventData.childEligibilityMaxAge !== null && editEventData.childEligibilityMaxAge !== undefined) {
         updateData.child_eligibility_max_age = editEventData.childEligibilityMaxAge;
       }
+    } else {
+      // Clear eligibility rules when disabled
+      updateData.child_eligibility_rule_type = null;
+      updateData.child_eligibility_min_age = null;
+      updateData.child_eligibility_max_age = null;
     }
 
     // Add ticket categories - always send as array to avoid backend errors
@@ -2687,7 +2687,7 @@ const EventsManagement: React.FC = () => {
     }
 
     // Validate required fields
-    if (!newEvent.title || !newEvent.organizer || !newEvent.date) {
+    if (!newEvent.title || !newEvent.date) {
       toast({
         title: t("admin.events.toast.validationError"),
         description: t("admin.events.toast.validationErrorDesc"),
@@ -2696,15 +2696,7 @@ const EventsManagement: React.FC = () => {
       return;
     }
 
-    // Validate organizer is not the placeholder value
-    if (newEvent.organizer === "no-organizers") {
-      toast({
-        title: t("admin.events.toast.validationError"),
-        description: "Please select a valid organizer.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Organizers are optional - no validation needed
 
     // Validate total tickets
     if (!newEvent.totalTickets || newEvent.totalTickets < 1) {
@@ -2729,18 +2721,10 @@ const EventsManagement: React.FC = () => {
       return;
     }
 
-    // Prepare data for API - ensure IDs are used
-    const organizerId = newEvent.organizer
-      ? parseInt(newEvent.organizer)
-      : null;
-    if (!organizerId || isNaN(organizerId)) {
-      toast({
-        title: t("admin.events.toast.validationError"),
-        description: t("admin.events.toast.invalidOrganizer"),
-        variant: "destructive",
-      });
-      return;
-    }
+    // Prepare organizer IDs for API - convert string array to number array
+    const organizerIds = newEvent.organizers
+      .map((id) => parseInt(id))
+      .filter((id) => !isNaN(id));
 
     const venueId =
       newEvent.location && newEvent.location !== "none"
@@ -2781,7 +2765,10 @@ const EventsManagement: React.FC = () => {
       "terms_and_conditions",
       (newEvent.termsAndConditions || "").trim()
     );
-    formData.append("organizer", organizerId.toString());
+    // Append organizers as array (API expects array of IDs)
+    organizerIds.forEach((id) => {
+      formData.append("organizers", id.toString());
+    });
     if (venueId && !isNaN(venueId)) {
       formData.append("venue", venueId.toString());
     }
@@ -3459,13 +3446,13 @@ const EventsManagement: React.FC = () => {
                         <div className="flex items-center justify-center">
                           <div
                             className={`w-3 h-3 rounded-full ${
-                              event.childrenAllowed
+                              event.childEligibilityEnabled || event.childrenAllowed
                                 ? "bg-green-500"
                                 : "bg-red-500"
                             }`}
                           ></div>
                           <span className="text-xs ml-2 rtl:mr-2 rtl:ml-0">
-                            {event.childrenAllowed ? "Yes" : "No"}
+                            {event.childEligibilityEnabled || event.childrenAllowed ? "Yes" : "No"}
                           </span>
                         </div>
                       </TableCell>
@@ -3949,40 +3936,48 @@ const EventsManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right">
-                    {t("admin.events.form.organizer")} *
+                    {t("admin.events.form.organizers")} {t("admin.events.form.optional")}
                   </label>
-                  <Select
-                    value={editEventData.organizer}
-                    onValueChange={(value) =>
-                      handleEditEventDataChange("organizer", value)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={t("admin.events.form.selectOrganizer")}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(organizersData?.results || organizersData || [])
-                        .length === 0 ? (
-                        <SelectItem value="no-organizers" disabled>
-                          No organizers available. Please create an organizer
-                          first.
-                        </SelectItem>
-                      ) : (
-                        (organizersData?.results || organizersData || []).map(
+                  <div className="border rounded-md p-3 max-h-48 overflow-y-auto">
+                    {(organizersData?.results || organizersData || []).length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No organizers available. Please create an organizer first.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(organizersData?.results || organizersData || []).map(
                           (organizer: any) => (
-                            <SelectItem
-                              key={organizer.id}
-                              value={organizer.id.toString()}
-                            >
-                              {organizer.name}
-                            </SelectItem>
+                            <div key={organizer.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                              <Checkbox
+                                id={`organizer-${organizer.id}`}
+                                checked={editEventData.organizers.includes(organizer.id.toString())}
+                                onCheckedChange={(checked) => {
+                                  const currentOrganizers = [...editEventData.organizers];
+                                  if (checked) {
+                                    if (!currentOrganizers.includes(organizer.id.toString())) {
+                                      currentOrganizers.push(organizer.id.toString());
+                                    }
+                                  } else {
+                                    const index = currentOrganizers.indexOf(organizer.id.toString());
+                                    if (index > -1) {
+                                      currentOrganizers.splice(index, 1);
+                                    }
+                                  }
+                                  handleEditEventDataChange("organizers", currentOrganizers);
+                                }}
+                              />
+                              <label
+                                htmlFor={`organizer-${organizer.id}`}
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                              >
+                                {organizer.name}
+                              </label>
+                            </div>
                           )
-                        )
-                      )}
-                    </SelectContent>
-                  </Select>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right">
@@ -4282,9 +4277,17 @@ const EventsManagement: React.FC = () => {
               <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
                 <Switch
                   checked={editEventData.childrenAllowed}
-                  onCheckedChange={(checked) =>
-                    handleEditEventDataChange("childrenAllowed", checked)
-                  }
+                  onCheckedChange={(checked) => {
+                    handleEditEventDataChange("childrenAllowed", checked);
+                    // Also enable/disable child eligibility when "Allow Children" is toggled
+                    handleEditEventDataChange("childEligibilityEnabled", checked);
+                    // Clear eligibility rules when disabled
+                    if (!checked) {
+                      handleEditEventDataChange("childEligibilityRuleType", "");
+                      handleEditEventDataChange("childEligibilityMinAge", null);
+                      handleEditEventDataChange("childEligibilityMaxAge", null);
+                    }
+                  }}
                 />
                 <span className="text-sm">Allow Children</span>
               </div>
@@ -5136,40 +5139,48 @@ const EventsManagement: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.organizer")} *
+                  {t("admin.events.form.organizers")} {t("admin.events.form.optional")}
                 </label>
-                <Select
-                  value={newEvent.organizer}
-                  onValueChange={(value) =>
-                    handleNewEventChange("organizer", value)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue
-                      placeholder={t("admin.events.form.selectOrganizer")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(organizersData?.results || organizersData || [])
-                      .length === 0 ? (
-                      <SelectItem value="no-organizers" disabled>
-                        No organizers available. Please create an organizer
-                        first.
-                      </SelectItem>
-                    ) : (
-                      (organizersData?.results || organizersData || []).map(
+                <div className="border rounded-md p-3 max-h-48 overflow-y-auto">
+                  {(organizersData?.results || organizersData || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No organizers available. Please create an organizer first.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {(organizersData?.results || organizersData || []).map(
                         (organizer: any) => (
-                          <SelectItem
-                            key={organizer.id}
-                            value={organizer.id.toString()}
-                          >
-                            {organizer.name}
-                          </SelectItem>
+                          <div key={organizer.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                            <Checkbox
+                              id={`new-organizer-${organizer.id}`}
+                              checked={newEvent.organizers.includes(organizer.id.toString())}
+                              onCheckedChange={(checked) => {
+                                const currentOrganizers = [...newEvent.organizers];
+                                if (checked) {
+                                  if (!currentOrganizers.includes(organizer.id.toString())) {
+                                    currentOrganizers.push(organizer.id.toString());
+                                  }
+                                } else {
+                                  const index = currentOrganizers.indexOf(organizer.id.toString());
+                                  if (index > -1) {
+                                    currentOrganizers.splice(index, 1);
+                                  }
+                                }
+                                handleNewEventChange("organizers", currentOrganizers);
+                              }}
+                            />
+                            <label
+                              htmlFor={`new-organizer-${organizer.id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                            >
+                              {organizer.name}
+                            </label>
+                          </div>
                         )
-                      )
-                    )}
-                  </SelectContent>
-                </Select>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
@@ -5456,9 +5467,17 @@ const EventsManagement: React.FC = () => {
             <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
               <Switch
                 checked={newEvent.childrenAllowed}
-                onCheckedChange={(checked) =>
-                  handleNewEventChange("childrenAllowed", checked)
-                }
+                onCheckedChange={(checked) => {
+                  handleNewEventChange("childrenAllowed", checked);
+                  // Also enable/disable child eligibility when "Allow Children" is toggled
+                  handleNewEventChange("childEligibilityEnabled", checked);
+                  // Clear eligibility rules when disabled
+                  if (!checked) {
+                    handleNewEventChange("childEligibilityRuleType", "");
+                    handleNewEventChange("childEligibilityMinAge", null);
+                    handleNewEventChange("childEligibilityMaxAge", null);
+                  }
+                }}
               />
               <span className="text-sm">
                 {t("admin.events.form.allowChildren")}

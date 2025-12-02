@@ -789,6 +789,28 @@ def _create_tickets_from_payment(transaction):
                                 ticket_data['customer'] = assigned_customer
                         except Exception:
                             pass
+                else:
+                    # Owner's ticket - save child information
+                    has_child_key_exists = 'has_child' in detail
+                    has_child_value = detail.get('has_child', False)
+                    child_age_value = detail.get('child_age')
+                    
+                    # Debug logging
+                    logger.info(f"Payment ticket {i+1} - Owner ticket detail: has_child key exists: {has_child_key_exists}, value: {has_child_value}, child_age: {child_age_value}")
+                    
+                    # Only set has_child if the key exists and value is truthy
+                    if has_child_key_exists:
+                        ticket_data['has_child'] = bool(has_child_value)
+                        # Only set child_age if has_child is True and child_age is provided
+                        if bool(has_child_value) and child_age_value is not None:
+                            ticket_data['child_age'] = int(child_age_value) if child_age_value else None
+                        else:
+                            ticket_data['child_age'] = None
+                    else:
+                        ticket_data['has_child'] = False
+                        ticket_data['child_age'] = None
+                    
+                    logger.info(f"Payment ticket {i+1} - Final ticket_data: has_child={ticket_data.get('has_child')}, child_age={ticket_data.get('child_age')}")
             
             ticket = Ticket.objects.create(**ticket_data)
             tickets.append(ticket)

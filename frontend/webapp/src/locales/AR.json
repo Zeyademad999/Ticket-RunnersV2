@@ -226,7 +226,11 @@
     "emailInternationalDescription": "سنرسل التذكرة عبر البريد الإلكتروني لأن الرسائل النصية قد لا تكون متاحة لهذا الرقم.",
     "emailOptionalLabel": "البريد الإلكتروني (اختياري)",
     "internationalEmailMissing": "الرجاء إدخال بريد إلكتروني لأي تذكرة رقمها ليس مصرياً.",
-    "ownerSameCategorySwitch": "لديك بالفعل تذكرة من نفس الفئة. اختر فئة مختلفة إذا أردت تبديل التذكرة الخاصة بك.",
+    "iHaveChild": "لدي طفل",
+    "childAgeBetweenError": "يجب أن يكون عمر الطفل بين {{minAge}} و {{maxAge}} سنة",
+    "childAgeLessThanError": "يجب أن يكون عمر الطفل أقل من {{maxAge}} سنة",
+    "childAgeMoreThanError": "يجب أن يكون عمر الطفل أكثر من {{minAge}} سنة",
+    "childAgeInvalid": "عمر الطفل لا يفي بمتطلبات الأهلية",
 
     "tiers": {
       "gold": "ذهبي",
@@ -246,12 +250,16 @@
   "paymentConfirmation": {
     "title": "تم الدفع بنجاح",
     "thankYou": "شكرًا لحجزك مع Ticket Runners!",
+    "thankYouNfc": "شكرًا لدفعك مقابل بطاقة NFC!",
     "detailsTitle": "تفاصيل الدفع",
     "event": "الفعالية",
+    "paymentType": "نوع الدفع",
+    "nfcCardPayment": "دفع بطاقة NFC",
     "transactionId": "رقم العملية",
     "totalPaid": "إجمالي المبلغ المدفوع",
     "browseEvents": "تصفح المزيد من الفعاليات",
-    "goToMyTickets": "الذهاب إلى تذاكري"
+    "goToMyTickets": "الذهاب إلى تذاكري",
+    "goToNfc": "الذهاب إلى NFC"
   },
   "profilepage": {
     "loading": "جاري تحميل الملف الشخصي...",
@@ -326,7 +334,38 @@
       "expires": "تاريخ الانتهاء",
       "addToWallet": "أضف إلى المحفظة",
       "notice": "يرجى استلام بطاقتك من أقرب تاجر",
-      "deactivatedDisclaimer": "بطاقتك غير مفعلة. يرجى شراء بطاقة جديدة من أقرب تاجر."
+      "deactivatedDisclaimer": "بطاقتك غير مفعلة. يرجى شراء بطاقة جديدة من أقرب تاجر.",
+      "cardFeeStatus": "حالة رسوم البطاقة",
+      "feePaid": "مدفوع",
+      "feeNotPaid": "غير مدفوع",
+      "feePaidDescription": "لقد قمت بدفع رسوم شراء بطاقة NFC الأولية بالفعل.",
+      "feeNotPaidDescription": "تحتاج إلى دفع رسوم شراء بطاقة NFC الأولية للحصول على بطاقتك.",
+      "renewCard": "تجديد البطاقة",
+      "allowCollector": "السماح لشخص ما بجمع بطاقتي",
+      "collectorModal": {
+        "title": "السماح لشخص ما بجمع بطاقتي",
+        "description": "تفويض شخص ما لاستلام بطاقة NFC الخاصة بك نيابة عنك",
+        "descriptionPayment": "تحتاج إلى دفع ثمن بطاقة NFC أولاً قبل تعيين شخص للجمع",
+        "descriptionPhone": "أدخل رقم هاتف الشخص الذي سيجمع بطاقتك",
+        "importantInfo": "معلومات مهمة",
+        "infoText1": "الشخص الذي تختاره لاستلام بطاقتك سيكون قادرًا على استلامها من التاجر. سيرى التاجر كل من صورتك الشخصية وصورة الشخص الذي يجمع البطاقة لأغراض التحقق.",
+        "infoText2": "يجب أن يكون الشخص الذي يجمع البطاقة لديه حساب في نظامنا ليتم تعيينه.",
+        "paymentRequired": "الدفع مطلوب",
+        "paymentText": "تحتاج إلى دفع ثمن بطاقة NFC أولاً قبل أن تتمكن من تعيين شخص لاستلامها نيابة عنك.",
+        "collectorPhone": "رقم هاتف الشخص الذي يجمع البطاقة",
+        "collectorPhonePlaceholder": "أدخل رقم الهاتف",
+        "collectorPhoneHint": "أدخل رقم هاتف الشخص الذي سيجمع بطاقتك. يجب أن يكون لديه حساب في نظامنا.",
+        "iUnderstand": "أفهم",
+        "payCard": "دفع البطاقة",
+        "assignCollector": "تعيين الشخص الذي يجمع البطاقة",
+        "assigning": "جاري التعيين...",
+        "processing": "جاري المعالجة...",
+        "cancel": "إلغاء",
+        "back": "رجوع",
+        "successMessage": "تم تعيين الشخص الذي يجمع البطاقة بنجاح! يمكن لـ {{name}} الآن استلام بطاقتك.",
+        "errorMessage": "فشل في تعيين الشخص الذي يجمع البطاقة",
+        "errorMessageRetry": "فشل في تعيين الشخص الذي يجمع البطاقة. يرجى المحاولة مرة أخرى."
+      }
     },
     "myBookings": {
       "title": "حجوزاتي",
@@ -442,7 +481,9 @@
       "purchasedBy": "تم الشراء بواسطة",
       "myTicket": "تذكرتي",
       "thisIsMyTicket": "هذه تذكرتك",
-      "readOnly": "للقراءة فقط"
+      "readOnly": "للقراءة فقط",
+      "hasChild": "لديه طفل",
+      "childAge": "{{age}} سنة"
     },
     "summary": {
       "title": "ملخص الطلب",

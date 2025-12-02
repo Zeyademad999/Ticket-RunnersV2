@@ -23,7 +23,7 @@ class EventViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Event model.
     """
-    queryset = Event.objects.select_related('organizer', 'venue', 'category').all()
+    queryset = Event.objects.select_related('venue', 'category').prefetch_related('organizers').all()
     permission_classes = [IsAuthenticated]
     filterset_class = EventFilter
     search_fields = ['title', 'description']

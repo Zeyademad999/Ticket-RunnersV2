@@ -125,9 +125,10 @@ const CustomerManagement: React.FC = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showCustomerDetails, setShowCustomerDetails] = useState(false);
+  const [editedCustomer, setEditedCustomer] = useState<Partial<Customer>>({});
 
   // Mock customers data
-  const customers: Customer[] = [
+  const [customers, setCustomers] = useState<Customer[]>([
     {
       id: "C001",
       name: "Ahmed Hassan",
@@ -206,7 +207,7 @@ const CustomerManagement: React.FC = () => {
       location: "Cairo, Egypt",
       profileImage: "/public/Portrait_Placeholder.png",
     },
-  ];
+  ]);
 
   // Mock customer bookings
   const customerBookings: CustomerBooking[] = [
@@ -334,7 +335,37 @@ const CustomerManagement: React.FC = () => {
 
   const handleEditCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
+    setEditedCustomer({
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone,
+      location: customer.location,
+      status: customer.status,
+    });
     setIsEditDialogOpen(true);
+  };
+
+  const handleSaveCustomer = () => {
+    if (!selectedCustomer) return;
+
+    setCustomers((prevCustomers) =>
+      prevCustomers.map((customer) =>
+        customer.id === selectedCustomer.id
+          ? {
+              ...customer,
+              ...editedCustomer,
+            }
+          : customer
+      )
+    );
+
+    toast({
+      title: "Customer updated",
+      description: "Customer information has been successfully updated",
+    });
+
+    setIsEditDialogOpen(false);
+    setEditedCustomer({});
   };
 
   const handleViewCustomer = (customer: Customer) => {
@@ -823,23 +854,52 @@ const CustomerManagement: React.FC = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Name</label>
-                  <Input defaultValue={selectedCustomer.name} />
+                  <Input
+                    value={editedCustomer.name || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, name: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Email</label>
-                  <Input type="email" defaultValue={selectedCustomer.email} />
+                  <Input
+                    type="email"
+                    value={editedCustomer.email || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, email: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Phone</label>
-                  <Input defaultValue={selectedCustomer.phone} />
+                  <Input
+                    value={editedCustomer.phone || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, phone: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Location</label>
-                  <Input defaultValue={selectedCustomer.location} />
+                  <Input
+                    value={editedCustomer.location || ""}
+                    onChange={(e) =>
+                      setEditedCustomer({ ...editedCustomer, location: e.target.value })
+                    }
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium">Status</label>
-                  <Select defaultValue={selectedCustomer.status}>
+                  <Select
+                    value={editedCustomer.status || selectedCustomer.status}
+                    onValueChange={(value) =>
+                      setEditedCustomer({
+                        ...editedCustomer,
+                        status: value as "active" | "inactive" | "banned",
+                      })
+                    }
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -856,11 +916,14 @@ const CustomerManagement: React.FC = () => {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEditDialogOpen(false)}
+              onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditedCustomer({});
+              }}
             >
               Cancel
             </Button>
-            <Button onClick={() => setIsEditDialogOpen(false)}>
+            <Button onClick={handleSaveCustomer}>
               Save Changes
             </Button>
           </DialogFooter>

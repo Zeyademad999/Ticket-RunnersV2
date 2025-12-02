@@ -852,7 +852,9 @@
     "invalidDate": "Invalid Date",
     "backToDashboard": "Back to Dashboard",
     "notAvailable": "N/A",
-    "errorLoadingData": "Error loading data"
+    "errorLoadingData": "Error loading data",
+    "yes": "Yes",
+    "no": "No"
   },
   "editEvent": {
     "title": "Edit Event Request",
@@ -1169,6 +1171,7 @@
         "role": "Role",
         "status": "Status",
         "created": "Created",
+        "updated": "Updated",
         "lastLogin": "Last Login",
         "actions": "Actions"
       },
@@ -1267,6 +1270,7 @@
         "profileImage": "Profile Image",
         "phone": "Phone",
         "createdDate": "Created Date",
+        "updatedDate": "Updated Date",
         "lastLogin": "Last Login",
         "permissions": "Permissions",
         "never": "Never"
@@ -1462,7 +1466,8 @@
         "actions": "Actions",
         "owner": "Owner",
         "commission": "Commission",
-        "payoutBalance": "Payout Balance"
+        "payoutBalance": "Payout Balance",
+        "assignedCards": "Assigned Cards"
       },
       "status": {
         "active": "Active",
@@ -1487,6 +1492,7 @@
         "suspend": "Suspend",
         "activate": "Activate",
         "createCredentials": "Create Credentials",
+        "assignCards": "Assign Cards",
         "deleteMerchant": "Delete Merchant"
       },
       "noMerchantsFound": "No merchants found",
@@ -1501,6 +1507,14 @@
         "deleteMerchantConfirm": "Are you sure you want to delete {{name}}? This action cannot be undone.",
         "transferCards": "Transfer Cards to Merchant",
         "transferCardsSubtitle": "Transfer a range of NFC cards to a merchant's stock for selling to users",
+        "assignCards": "Assign Cards to Merchant",
+        "assignCardsDesc": "Assign NFC cards to {{name}}. These cards will be available for the merchant to assign to customers.",
+        "merchant": "Merchant",
+        "currentAssignedCards": "Currently Assigned Cards",
+        "numberOfCards": "Number of Cards",
+        "numberOfCardsPlaceholder": "Enter number of cards to assign",
+        "numberOfCardsHint": "Enter the number of unassigned NFC cards to assign to this merchant",
+        "assignCardsButton": "Assign Cards",
         "merchantEvents": "Merchant Events",
         "merchantEventsSubtitle": "Events managed by",
         "merchantTransactions": "Merchant Transactions",
@@ -2380,7 +2394,9 @@
         "reactivate": "Reactivate",
         "banCustomer": "Ban Customer",
         "unbanCustomer": "Unban Customer",
-        "forcePasswordReset": "Force Password Reset"
+        "forcePasswordReset": "Force Password Reset",
+        "deleteCustomer": "Delete Customer",
+        "viewEvsNotes": "View EVS Notes"
       },
       "dialogs": {
         "customerDetails": "Customer Details",
@@ -2391,6 +2407,13 @@
         "addCustomerSubtitle": "Create a new customer account",
         "deleteCustomer": "Delete Customer",
         "deleteCustomerConfirm": "Are you sure you want to delete this customer? This action cannot be undone.",
+        "deleteCustomerWarning": "This will permanently delete the customer and all related records including:",
+        "deleteWarningTickets": "All tickets",
+        "deleteWarningDependents": "All dependents",
+        "deleteWarningPayments": "All payment transactions",
+        "deleteWarningFavorites": "All favorites",
+        "deleteWarningNfcCards": "All NFC cards",
+        "delete": "Delete",
         "viewBookings": "View Bookings",
         "viewBookingsFor": "View Bookings for",
         "viewNfcCard": "View NFC Card",
@@ -2402,7 +2425,10 @@
         "close": "Close",
         "cancel": "Cancel",
         "saveChanges": "Save Changes",
-        "addCustomerButton": "Add Customer"
+        "addCustomerButton": "Add Customer",
+        "evsNotes": "EVS Notes",
+        "evsNotesDescription": "Notes from Event Verification System for",
+        "noEvsNotes": "No EVS notes available for this customer."
       },
       "form": {
         "name": "Name",
@@ -2583,7 +2609,9 @@
         "saveLabels": "Save Labels",
         "error": {
           "nameRequired": "Label name required",
-          "nameRequiredDesc": "Please enter a name for the label"
+          "nameRequiredDesc": "Please enter a name for the label",
+          "labelExists": "Label already exists",
+          "labelExistsDesc": "A label with this name already exists for this customer"
         },
         "toast": {
           "labelAdded": "Label Added",
@@ -3594,6 +3622,8 @@
         "unlimitedTicketLimitDescription": "Guests can purchase up to the total number of tickets when this is enabled.",
         "ticketLimitUnlimitedPlaceholder": "Unlimited",
         "organizer": "Organizer",
+        "organizers": "Organizers",
+        "optional": "(optional)",
         "description": "Description",
         "enableTicketTransfers": "Enable Ticket Transfers",
         "required": "Required",
@@ -3930,7 +3960,16 @@
         "noEventsFound": "No events found.",
         "pricePlaceholder": "0.00",
         "phonePlaceholder": "+966501234567",
-        "priceAutoFilled": "Price auto-filled from selected category"
+        "priceAutoFilled": "Price auto-filled from selected category",
+        "paidOutsideSystem": "Paid Outside System",
+        "priceDisabledOutsideSystem": "Price disabled - paid outside system"
+      },
+      "events": {
+        "title": "Events",
+        "subtitle": "Select an event to view its tickets",
+        "ticketsSold": "Tickets Sold",
+        "viewTickets": "View Tickets",
+        "noEvents": "No events found"
       },
       "checkInLogs": {
         "title": "Real-time Check-in Logs",

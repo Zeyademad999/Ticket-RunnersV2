@@ -1064,17 +1064,30 @@ def user_login(request):
     normalized_mobile = normalize_mobile_number(mobile_number)
     
     # Try to find customer with normalized mobile number first
+    from django.db.models import Q
     try:
-        customer = Customer.objects.get(mobile_number=normalized_mobile)
+        customer = Customer.objects.get(
+            Q(mobile_number=normalized_mobile) | 
+            Q(mobile_number=mobile_number) |
+            Q(phone=normalized_mobile) |
+            Q(phone=mobile_number)
+        )
     except Customer.DoesNotExist:
-        # If not found, try with original format as fallback
-        try:
-            customer = Customer.objects.get(mobile_number=mobile_number)
-        except Customer.DoesNotExist:
-            raise AuthenticationError(
-                detail="Invalid mobile number or password",
-                code="INVALID_CREDENTIALS"
-            )
+        raise AuthenticationError(
+            detail="Invalid mobile number or password",
+            code="INVALID_CREDENTIALS"
+        )
+    except Customer.MultipleObjectsReturned:
+        # If multiple found, prefer the one with matching mobile_number
+        customer = Customer.objects.filter(
+            Q(mobile_number=normalized_mobile) | 
+            Q(mobile_number=mobile_number)
+        ).first()
+        if not customer:
+            customer = Customer.objects.filter(
+                Q(phone=normalized_mobile) | 
+                Q(phone=mobile_number)
+            ).first()
     
     if not customer.check_password(password):
         raise AuthenticationError(
@@ -1376,7 +1389,7 @@ def public_events_list(request):
     Fetches all events from the same Event model used by admin dashboard.
     """
     # Show all events except cancelled ones (same as admin dashboard)
-    events = Event.objects.exclude(status='cancelled').select_related('organizer', 'venue', 'category').prefetch_related('ticket_categories').order_by('-date', '-time')
+    events = Event.objects.exclude(status='cancelled').select_related('venue', 'category').prefetch_related('organizers', 'ticket_categories').order_by('-date', '-time')
     
     # Filtering
     category = request.query_params.get('category')
@@ -1412,7 +1425,7 @@ def public_event_detail(request, event_id):
     GET /api/v1/public/events/:id/
     """
     try:
-        event = Event.objects.select_related('organizer', 'venue', 'category').prefetch_related('ticket_categories').get(id=event_id)
+        event = Event.objects.select_related('venue', 'category').prefetch_related('organizers', 'ticket_categories').get(id=event_id)
     except Event.DoesNotExist:
         return Response({
             'error': {'code': 'NOT_FOUND', 'message': 'Event not found'}
@@ -1574,12 +1587,51 @@ def ticket_book(request):
                 else:
                     # Owner's ticket - customer is the buyer
                     ticket_data['customer'] = customer
+                    # Save child information for owner tickets
+                    # Check if has_child key exists in detail (not just default to False)
+                    has_child_key_exists = 'has_child' in detail
+                    has_child_value = detail.get('has_child', False)
+                    child_age_value = detail.get('child_age')
+                    
+                    # Debug logging BEFORE processing
+                    import logging
+                    logger = logging.getLogger(__name__)
+                    logger.info(f"Booking ticket {i+1} - Owner ticket detail: {detail}")
+                    logger.info(f"has_child key exists: {has_child_key_exists}, value: {has_child_value}, type: {type(has_child_value)}")
+                    logger.info(f"child_age value: {child_age_value}, type: {type(child_age_value)}")
+                    
+                    # Only set has_child if the key exists and value is truthy
+                    if has_child_key_exists:
+                        ticket_data['has_child'] = bool(has_child_value)
+                        # Only set child_age if has_child is True and child_age is provided
+                        if bool(has_child_value) and child_age_value is not None:
+                            ticket_data['child_age'] = int(child_age_value) if child_age_value else None
+                        else:
+                            ticket_data['child_age'] = None
+                    else:
+                        ticket_data['has_child'] = False
+                        ticket_data['child_age'] = None
+                    
+                    # Debug logging AFTER processing
+                    logger.info(f"Booking ticket {i+1} - Final ticket_data: has_child={ticket_data.get('has_child')}, child_age={ticket_data.get('child_age')}")
             else:
                 # No details provided - assume owner's ticket
                 ticket_data['customer'] = customer
             
             ticket = Ticket.objects.create(**ticket_data)
             tickets.append(ticket)
+            
+            # Link ticket to payment transaction
+            # Create individual transaction for each ticket to track payment status
+            from payments.models import PaymentTransaction
+            PaymentTransaction.objects.create(
+                customer=customer,
+                ticket=ticket,
+                amount=ticket_price,
+                payment_method=payment_method,
+                status='pending',  # Will be updated to 'completed' below
+                transaction_id=f"{transaction.transaction_id}-T{i+1}"
+            )
             
             # Handle notifications for assigned tickets
             if ticket.assigned_mobile and ticket.assigned_mobile != customer.mobile_number:
@@ -1639,6 +1691,14 @@ def ticket_book(request):
         # Update transaction status
         transaction.status = 'completed'
         transaction.save()
+        
+        # Update all ticket payment transactions to completed
+        from payments.models import PaymentTransaction
+        PaymentTransaction.objects.filter(
+            customer=customer,
+            ticket__in=tickets,
+            status='pending'
+        ).update(status='completed')
         
         # Update customer stats
         customer.total_bookings += quantity
@@ -3015,7 +3075,7 @@ def public_events_featured(request):
     # Featured events are those marked as featured=True, or if none, show upcoming events
     events = Event.objects.filter(
         Q(featured=True) | Q(status__in=['upcoming', 'ongoing'])
-    ).exclude(status='cancelled').select_related('organizer', 'venue', 'category')
+    ).exclude(status='cancelled').select_related('venue', 'category').prefetch_related('organizers')
     
     # Order by featured first, then by date (upcoming first) and limit to 10
     events = events.order_by('-featured', 'date')[:10]
@@ -3055,7 +3115,7 @@ def public_organizer_detail(request, organizer_id):
             'error': {'code': 'NOT_FOUND', 'message': 'Organizer not found'}
         }, status=status.HTTP_404_NOT_FOUND)
     
-    events_count = Event.objects.filter(organizer=organizer, status__in=['upcoming', 'ongoing']).count()
+    events_count = Event.objects.filter(organizers=organizer, status__in=['upcoming', 'ongoing']).count()
     
     # Get logo URL if available
     logo_url = None
@@ -3903,6 +3963,169 @@ def user_nfc_card_auto_reload_settings(request, card_id):
             'threshold_amount': float(auto_reload.threshold_amount),
             'reload_amount': float(auto_reload.reload_amount),
             'enabled': auto_reload.enabled
+        }
+    }, status=status.HTTP_200_OK)
+
+
+def find_customer_by_phone(phone_number: str):
+    """
+    Find customer by phone number, checking all possible formats.
+    Returns Customer object or None.
+    """
+    if not phone_number:
+        return None
+    
+    # Generate all possible phone number variations
+    phone_variations = []
+    
+    # Remove all non-digit characters for normalization
+    digits_only = re.sub(r'\D', '', phone_number)
+    
+    # Original format
+    phone_variations.append(phone_number.strip())
+    phone_variations.append(digits_only)
+    
+    # If it starts with 0, try without 0 and with country code
+    if digits_only.startswith('0') and len(digits_only) == 11:
+        # Remove leading 0: 01104484492 -> 1104484492
+        phone_variations.append(digits_only[1:])
+        # Add country code: 01104484492 -> 201104484492
+        phone_variations.append('20' + digits_only[1:])
+        # Add country code with +: 01104484492 -> +201104484492
+        phone_variations.append('+20' + digits_only[1:])
+    
+    # If it starts with 20, try with and without +
+    if digits_only.startswith('20') and len(digits_only) >= 12:
+        phone_variations.append('+' + digits_only)
+        phone_variations.append(digits_only)
+    
+    # If it starts with +20, try without +
+    if phone_number.startswith('+20'):
+        phone_variations.append(phone_number[1:])  # Remove +
+        phone_variations.append(phone_number[3:])  # Remove +20
+    
+    # If it's 10 digits starting with 1, try with country code
+    if digits_only.startswith('1') and len(digits_only) == 10:
+        phone_variations.append('20' + digits_only)
+        phone_variations.append('+20' + digits_only)
+        phone_variations.append('0' + digits_only)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_variations = []
+    for v in phone_variations:
+        if v and v not in seen:
+            seen.add(v)
+            unique_variations.append(v)
+    
+    # Search in both phone and mobile_number fields
+    try:
+        customer = Customer.objects.filter(
+            Q(phone__in=unique_variations) | Q(mobile_number__in=unique_variations)
+        ).first()
+        return customer
+    except Exception:
+        return None
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def find_customer_by_phone_api(request):
+    """
+    Find customer by phone number (handles all formats).
+    GET /api/v1/admin/find-customer-by-phone/?phone=01104484492
+    """
+    phone_number = request.query_params.get('phone')
+    if not phone_number:
+        return Response({
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'phone parameter is required'}
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    customer = find_customer_by_phone(phone_number)
+    
+    if not customer:
+        return Response({
+            'error': {'code': 'NOT_FOUND', 'message': 'Customer not found with this phone number'}
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    from apps.webapp.serializers import TicketSerializer
+    return Response({
+        'customer': {
+            'id': str(customer.id),
+            'name': customer.name,
+            'phone': customer.phone,
+            'mobile_number': customer.mobile_number,
+            'email': customer.email,
+        }
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def user_nfc_card_assign_collector(request):
+    """
+    Assign a collector to collect NFC card on behalf of the owner.
+    POST /api/v1/users/nfc-cards/assign-collector/
+    Body: { "collector_phone": "01104484492" }
+    """
+    customer_id = request.user.id if hasattr(request.user, 'id') else None
+    if not customer_id:
+        return Response({
+            'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required'}
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    try:
+        owner = Customer.objects.get(id=customer_id)
+    except Customer.DoesNotExist:
+        return Response({
+            'error': {'code': 'NOT_FOUND', 'message': 'User not found'}
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    collector_phone = request.data.get('collector_phone')
+    if not collector_phone:
+        return Response({
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'collector_phone is required'}
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Find collector by phone number (checking all formats)
+    collector = find_customer_by_phone(collector_phone)
+    
+    if not collector:
+        return Response({
+            'error': {
+                'code': 'COLLECTOR_NOT_FOUND',
+                'message': 'The person you selected must have an account in our system to collect your card. Please ask them to create an account first.'
+            }
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if collector is the same as owner
+    if collector.id == owner.id:
+        return Response({
+            'error': {'code': 'INVALID_COLLECTOR', 'message': 'You cannot assign yourself as collector'}
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get the owner's active NFC card
+    try:
+        card = NFCCard.objects.get(customer=owner, status='active')
+    except NFCCard.DoesNotExist:
+        return Response({
+            'error': {'code': 'CARD_NOT_FOUND', 'message': 'You do not have an active NFC card'}
+        }, status=status.HTTP_404_NOT_FOUND)
+    except NFCCard.MultipleObjectsReturned:
+        # If multiple active cards, get the most recent one
+        card = NFCCard.objects.filter(customer=owner, status='active').order_by('-created_at').first()
+    
+    # Assign collector
+    card.collector = collector
+    card.save(update_fields=['collector'])
+    
+    return Response({
+        'message': 'Collector assigned successfully',
+        'collector': {
+            'id': str(collector.id),
+            'name': collector.name,
+            'phone': collector.phone or collector.mobile_number,
+            'profile_image': collector.profile_image.url if collector.profile_image else None
         }
     }, status=status.HTTP_200_OK)
 

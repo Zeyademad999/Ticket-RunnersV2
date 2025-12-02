@@ -104,6 +104,7 @@ type AdminUser = {
   lastLogin: string;
   permissions: string[];
   createdAt: string;
+  updatedAt?: string;
   profileImage?: string;
   fullName: string;
   phone?: string;
@@ -293,6 +294,7 @@ const AdminUserManagement: React.FC = () => {
           lastLogin: item.last_login || '',
           permissions: item.permissions || [], // Get permissions from API response
           createdAt: item.date_joined || item.created_at || '',
+          updatedAt: item.updated_at || undefined,
           phone: item.phone || undefined,
         };
       } else if (userType === 'organizers') {
@@ -306,6 +308,7 @@ const AdminUserManagement: React.FC = () => {
           lastLogin: item.user?.last_login || '',
           permissions: [],
           createdAt: item.created_at || item.user?.date_joined || '',
+          updatedAt: item.updated_at || item.user?.updated_at || undefined,
           phone: item.contact_mobile || undefined,
         };
       } else if (userType === 'merchants') {
@@ -2126,6 +2129,9 @@ const AdminUserManagement: React.FC = () => {
                     {t("admin.users.table.created")}
                   </TableHead>
                   <TableHead className="rtl:text-right ltr:text-left">
+                    {t("admin.users.table.updated")}
+                  </TableHead>
+                  <TableHead className="rtl:text-right ltr:text-left">
                     {t("admin.users.table.actions")}
                   </TableHead>
                 </TableRow>
@@ -2133,14 +2139,14 @@ const AdminUserManagement: React.FC = () => {
               <TableBody>
                 {usersLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
                       <span className="ml-2 text-muted-foreground">{t("common.loading")}</span>
                     </TableCell>
                   </TableRow>
                 ) : usersError ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <AlertCircle className="h-8 w-8 text-red-500 mx-auto" />
                       <span className="ml-2 text-red-500">
                         {t("common.error")}: {usersError instanceof Error ? usersError.message : t("admin.users.toast.error")}
@@ -2149,7 +2155,7 @@ const AdminUserManagement: React.FC = () => {
                   </TableRow>
                 ) : paginatedUsers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">{t("admin.users.noUsersFound")}</p>
                     </TableCell>
@@ -2200,7 +2206,12 @@ const AdminUserManagement: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <p className="text-sm rtl:text-right ltr:text-left">
-                        {formatDateForLocale(user.createdAt)}
+                        {user.createdAt ? formatDateTimeForLocale(user.createdAt) : "-"}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm rtl:text-right ltr:text-left">
+                        {user.updatedAt ? formatDateTimeForLocale(user.updatedAt) : "-"}
                       </p>
                     </TableCell>
                     <TableCell>
@@ -2366,9 +2377,21 @@ const AdminUserManagement: React.FC = () => {
                         {t("admin.users.details.createdDate")}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {formatDateForLocale(selectedUser.createdAt)}
+                        {selectedUser.createdAt
+                          ? formatDateTimeForLocale(selectedUser.createdAt)
+                          : "-"}
                       </p>
                     </div>
+                    {selectedUser.updatedAt && (
+                      <div className="rtl:text-right ltr:text-left">
+                        <p className="text-sm font-medium">
+                          {t("admin.users.details.updatedDate")}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDateTimeForLocale(selectedUser.updatedAt)}
+                        </p>
+                      </div>
+                    )}
                     <div className="rtl:text-right ltr:text-left">
                       <p className="text-sm font-medium">
                         {t("admin.users.details.lastLogin")}

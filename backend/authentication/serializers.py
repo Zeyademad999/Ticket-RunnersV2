@@ -20,8 +20,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = AdminUser
-        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name', 'role', 'role_display', 'permissions', 'is_active', 'last_login', 'created_at']
-        read_only_fields = ['id', 'last_login', 'created_at']
+        fields = ['id', 'username', 'email', 'password', 'first_name', 'last_name', 'role', 'role_display', 'permissions', 'is_active', 'last_login', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'last_login', 'created_at', 'updated_at']
     
     def to_representation(self, instance):
         """Override to ensure permissions is always returned as a list."""

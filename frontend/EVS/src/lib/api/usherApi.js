@@ -191,12 +191,16 @@ export const scanAPI = {
     return response.data;
   },
 
-  getAttendee: async (cardId, eventId = null) => {
+  getAttendee: async (cardId, eventId = null, ticketId = null) => {
     // Trim whitespace from cardId
     const trimmedCardId = cardId ? String(cardId).trim() : '';
-    const url = eventId 
+    let url = eventId 
       ? `/scan/attendee/${encodeURIComponent(trimmedCardId)}/?event_id=${eventId}`
       : `/scan/attendee/${encodeURIComponent(trimmedCardId)}/`;
+    // Add ticket_id if provided
+    if (ticketId) {
+      url += (url.includes('?') ? '&' : '?') + `ticket_id=${encodeURIComponent(ticketId)}`;
+    }
     const response = await api.get(url);
     return response.data;
   },

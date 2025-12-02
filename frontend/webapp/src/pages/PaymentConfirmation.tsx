@@ -12,7 +12,7 @@ interface PaymentState {
   ticketTitle?: string;
   totalAmount?: number;
   transactionId?: string;
-  type?: 'booking' | 'transfer';
+  type?: 'booking' | 'transfer' | 'nfc_card';
 }
 
 export default function PaymentConfirmation() {
@@ -24,7 +24,11 @@ export default function PaymentConfirmation() {
   const paymentType = (state as PaymentState)?.type || searchParams.get('type') || 'booking';
   const eventTitle = (state as PaymentState)?.eventTitle || searchParams.get('eventTitle') || '';
   const ticketTitle = (state as PaymentState)?.ticketTitle || searchParams.get('ticketTitle') || '';
-  const displayTitle = paymentType === 'transfer' ? (ticketTitle || 'Ticket Transfer') : (eventTitle || 'Event');
+  const displayTitle = paymentType === 'transfer' 
+    ? (ticketTitle || 'Ticket Transfer') 
+    : paymentType === 'nfc_card'
+    ? t("paymentConfirmation.nfcCardPayment", "NFC Card Payment")
+    : (eventTitle || 'Event');
   const totalAmount = (state as PaymentState)?.totalAmount || parseFloat(searchParams.get('amount') || '0');
   const transactionId = (state as PaymentState)?.transactionId || searchParams.get('transactionId') || searchParams.get('orderId') || 'N/A';
   
@@ -71,7 +75,9 @@ export default function PaymentConfirmation() {
           {t("paymentConfirmation.title")}
         </h1>
         <p className="text-muted-foreground mb-8">
-          {t("paymentConfirmation.thankYou")}
+          {paymentType === 'nfc_card' 
+            ? t("paymentConfirmation.thankYouNfc", "Thank you for your NFC card payment!")
+            : t("paymentConfirmation.thankYou")}
         </p>
 
         <Card className="text-left">
@@ -82,7 +88,9 @@ export default function PaymentConfirmation() {
             <div className="flex justify-between">
               <span className="font-medium">
                 {paymentType === 'transfer' 
-                  ? t("paymentConfirmation.ticket", "Ticket") 
+                  ? t("paymentConfirmation.ticket", "Ticket")
+                  : paymentType === 'nfc_card'
+                  ? t("paymentConfirmation.paymentType", "Payment Type")
                   : t("paymentConfirmation.event", "Event")}
               </span>
               <span>{displayTitle}</span>
@@ -118,6 +126,12 @@ export default function PaymentConfirmation() {
             <Link to="/profile#bookings">
               <button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-3 rounded-xl transition">
                 {t("paymentConfirmation.viewBookings", "View My Bookings")}
+              </button>
+            </Link>
+          ) : paymentType === 'nfc_card' ? (
+            <Link to="/profile#nfc">
+              <button className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium px-6 py-3 rounded-xl transition">
+                {t("paymentConfirmation.goToNfc", "Go to NFC")}
               </button>
             </Link>
           ) : (

@@ -259,8 +259,8 @@ def organizer_dashboard_stats(request):
         
         organizer = request.organizer
         
-        events = Event.objects.filter(organizer=organizer)
-        tickets_qs = Ticket.objects.filter(event__organizer=organizer)
+        events = Event.objects.filter(organizers=organizer)
+        tickets_qs = Ticket.objects.filter(event__organizers=organizer)
         payouts = Payout.objects.filter(organizer=organizer)
         
         # Calculate available tickets: total tickets - sold tickets
@@ -323,7 +323,7 @@ def organizer_events_list(request):
         
         organizer = request.organizer
         # Prefetch ticket categories for efficiency
-        events = Event.objects.filter(organizer=organizer).select_related('venue', 'category').prefetch_related('ticket_categories')
+        events = Event.objects.filter(organizers=organizer).select_related('venue', 'category').prefetch_related('ticket_categories', 'organizers')
         
         # Filtering
         status_filter = request.query_params.get('status')
@@ -385,7 +385,7 @@ def organizer_event_detail(request, event_id):
                         event_id = int(event_id)
                     except ValueError:
                         pass
-            event = Event.objects.select_related('venue', 'category').prefetch_related('ticket_categories').get(id=event_id, organizer=organizer)
+            event = Event.objects.select_related('venue', 'category').prefetch_related('organizers', 'ticket_categories').get(id=event_id, organizers=organizer)
         except (ValueError, TypeError) as e:
             import logging
             logger = logging.getLogger(__name__)

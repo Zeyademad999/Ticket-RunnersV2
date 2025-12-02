@@ -335,7 +335,7 @@ const SystemLogs: React.FC = () => {
         id: item.id?.toString() || "",
         timestamp: item.timestamp || item.created_at || "",
         userId: userId || "unknown",
-        userName: item.user?.name || item.user_name || item.user?.username || "",
+        userName: item.user_name || item.user?.name || (item.user?.first_name && item.user?.last_name ? `${item.user.first_name} ${item.user.last_name}`.trim() : null) || item.user?.username || "",
         userRole: (item.user?.role || item.user_role || "customer") as
           | "super_admin"
           | "admin"

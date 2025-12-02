@@ -311,6 +311,7 @@ export const ticketsApi = {
     customer_id: string;
     category: string;
     price: number;
+    paid_outside_system?: boolean;
   }) => {
     const response = await adminApi.post('/tickets/', data);
     return response.data;
@@ -423,6 +424,16 @@ export const customersApi = {
    */
   getCustomerBookings: async (id: string) => {
     const response = await adminApi.get(`/customers/${id}/bookings/`);
+    return response.data;
+  },
+
+  /**
+   * Find customer by phone number (handles all formats)
+   */
+  findCustomerByPhone: async (phone: string) => {
+    const response = await adminApi.get('/v1/admin/find-customer-by-phone/', {
+      params: { phone }
+    });
     return response.data;
   },
 };
@@ -586,6 +597,14 @@ export const merchantsApi = {
    */
   deleteMerchant: async (id: string) => {
     const response = await adminApi.delete(`/merchants/${id}/`);
+    return response.data;
+  },
+
+  /**
+   * Assign cards to merchant
+   */
+  assignCards: async (id: string, data: { number_of_cards: number }) => {
+    const response = await adminApi.post(`/merchants/${id}/assign_cards/`, data);
     return response.data;
   },
 };

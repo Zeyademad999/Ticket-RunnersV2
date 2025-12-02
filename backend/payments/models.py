@@ -25,6 +25,8 @@ class PaymentTransaction(models.Model):
         ('nfc_card', 'NFC Card'),
         ('digital_wallet', 'Digital Wallet'),
         ('bank_transfer', 'Bank Transfer'),
+        ('admin_assigned', 'Admin Assigned'),
+        ('paid_outside_system', 'Paid Outside System'),
     ]
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -48,7 +50,7 @@ class PaymentTransaction(models.Model):
         validators=[MinValueValidator(0)]
     )
     payment_method = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=PAYMENT_METHOD_CHOICES,
         db_index=True
     )

@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -92,6 +93,7 @@ import { ExportDialog } from "@/components/ui/export-dialog";
 import { commonColumns } from "@/lib/exportUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ticketsApi, eventsApi } from "@/lib/api/adminApi";
+import { COUNTRY_DIAL_CODES, DEFAULT_DIAL_CODE, CountryDialCode } from "@/constants/countryCodes";
 
 type TicketLabel = {
   id: string;
@@ -150,11 +152,17 @@ const TicketsManagement: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
 
+  // View mode: 'events' or 'tickets'
+  const [viewMode, setViewMode] = useState<"events" | "tickets">("events");
+  const [selectedEventForTickets, setSelectedEventForTickets] = useState<string | null>(null);
+
   // Assign ticket dialog state
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [assignPhoneNumber, setAssignPhoneNumber] = useState<string>("");
+  const [assignPhoneDialCode, setAssignPhoneDialCode] = useState<string>(DEFAULT_DIAL_CODE);
   const [assignPrice, setAssignPrice] = useState<number>(0);
+  const [paidOutsideSystem, setPaidOutsideSystem] = useState<boolean>(false);
   const [eventSearchValue, setEventSearchValue] = useState<string>("");
   const [selectedEventDetails, setSelectedEventDetails] = useState<any>(null);
   const [eventTicketCategories, setEventTicketCategories] = useState<any[]>([]);
@@ -1032,7 +1040,7 @@ const TicketsManagement: React.FC = () => {
 
   // Create ticket mutation
   const createTicketMutation = useMutation({
-    mutationFn: async (data: { event_id: string; customer_id: string; category: string; price: number }) => {
+    mutationFn: async (data: { event_id: string; customer_id: string; category: string; price: number; paid_outside_system?: boolean }) => {
       return await ticketsApi.createTicket(data);
     },
     onSuccess: () => {
@@ -1046,6 +1054,9 @@ const TicketsManagement: React.FC = () => {
       setSelectedEventId("");
       setSelectedCategory("");
       setAssignPhoneNumber("");
+      setAssignPhoneDialCode(DEFAULT_DIAL_CODE);
+      setAssignPrice(0);
+      setPaidOutsideSystem(false);
       setEventSearchValue("");
     },
     onError: (error: any) => {
@@ -1100,8 +1111,24 @@ const TicketsManagement: React.FC = () => {
     setSelectedEventId("");
     setSelectedCategory("");
     setAssignPhoneNumber("");
+    setAssignPhoneDialCode(DEFAULT_DIAL_CODE);
     setAssignPrice(0);
+    setPaidOutsideSystem(false);
     setEventSearchValue("");
+  };
+
+  const handleViewEventTickets = (eventId: string) => {
+    setSelectedEventForTickets(eventId);
+    setViewMode("tickets");
+    setEventFilter(eventId);
+    setCurrentPage(1);
+  };
+
+  const handleBackToEvents = () => {
+    setViewMode("events");
+    setSelectedEventForTickets(null);
+    setEventFilter("all");
+    setCurrentPage(1);
   };
 
   const handleUnbanTicket = (ticketId: string) => {
@@ -1112,7 +1139,8 @@ const TicketsManagement: React.FC = () => {
     // Validate required fields
     // Category is only required if event has ticket categories
     const categoryRequired = eventTicketCategories.length > 0;
-    if (!selectedEventId || (categoryRequired && !selectedCategory) || !assignPhoneNumber || !assignPrice) {
+    const fullPhoneNumber = assignPhoneDialCode + assignPhoneNumber;
+    if (!selectedEventId || (categoryRequired && !selectedCategory) || !assignPhoneNumber || (!paidOutsideSystem && !assignPrice)) {
       toast({
         title: t("common.error"),
         description: t("admin.tickets.toast.requiredFields") || "All required fields must be filled",
@@ -1121,7 +1149,7 @@ const TicketsManagement: React.FC = () => {
       return;
     }
 
-    // Find customer by phone number
+    // Find customer by phone number (try with and without dial code)
     try {
       const { customersApi } = await import("@/lib/api/adminApi");
       const customersResponse = await customersApi.getCustomers({
@@ -1130,8 +1158,13 @@ const TicketsManagement: React.FC = () => {
       });
       
       const customers = customersResponse?.results || [];
-      const customer = customers.find(
-        (c: any) => c.phone === assignPhoneNumber || c.mobile_number === assignPhoneNumber
+      // Try to find customer with full phone number or just the number
+      let customer = customers.find(
+        (c: any) => {
+          const cPhone = c.phone || c.mobile_number || '';
+          return cPhone === fullPhoneNumber || cPhone === assignPhoneNumber || 
+                 cPhone.endsWith(assignPhoneNumber) || assignPhoneNumber.endsWith(cPhone.replace(/^\+/, ''));
+        }
       );
 
       if (!customer) {
@@ -1159,7 +1192,8 @@ const TicketsManagement: React.FC = () => {
         event_id: selectedEventId,
         customer_id: customer.id.toString(),
         category: categoryName,
-        price: assignPrice,
+        price: paidOutsideSystem ? 0 : assignPrice,
+        paid_outside_system: paidOutsideSystem,
       });
     } catch (error: any) {
       toast({
@@ -1275,51 +1309,125 @@ const TicketsManagement: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold rtl:text-right ltr:text-left">
-            {t("admin.tickets.title")}
-          </h2>
+          <div className="flex items-center gap-2">
+            {viewMode === "tickets" && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleBackToEvents}
+                className="rtl:ml-2 ltr:mr-2"
+              >
+                ← {t("admin.tickets.backToEvents") || "Back to Events"}
+              </Button>
+            )}
+            <h2 className="text-xl sm:text-2xl font-bold rtl:text-right ltr:text-left">
+              {viewMode === "events" 
+                ? (t("admin.tickets.events.title") || "Events")
+                : (t("admin.tickets.title") || "Tickets Management")}
+            </h2>
+          </div>
           <p className="text-sm sm:text-base text-muted-foreground rtl:text-right ltr:text-left">
-            {t("admin.tickets.subtitle")}
+            {viewMode === "events"
+              ? (t("admin.tickets.events.subtitle") || "Select an event to view its tickets")
+              : (t("admin.tickets.subtitle") || "Manage tickets, check-in logs, and ticket operations")}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <ExportDialog
-            data={filteredTickets}
-            columns={commonColumns.tickets}
-            title={t("admin.tickets.title")}
-            subtitle={t("admin.tickets.subtitle")}
-            filename="tickets"
-            filters={{
-              search: searchTerm,
-              event: eventFilter,
-              category: categoryFilter,
-              status: statusFilter,
-              date: dateFilter,
-            }}
-            onExport={() => {
-              toast({
-                title: t("admin.tickets.toast.exportSuccess"),
-                description: t("admin.tickets.toast.exportSuccessDesc"),
-              });
-            }}
-          >
-            <Button variant="outline" className="text-xs sm:text-sm">
-              <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-              <span className="hidden sm:inline">
-                {t("admin.tickets.actions.export")}
-              </span>
-              <span className="sm:hidden">Export</span>
-            </Button>
-          </ExportDialog>
-          <Button onClick={handleAssignTicket} className="text-xs sm:text-sm">
-            <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-            <span className="hidden sm:inline">
-              {t("admin.tickets.actions.assignTicket")}
-            </span>
-            <span className="sm:hidden">Assign</span>
-          </Button>
+          {viewMode === "tickets" && (
+            <>
+              <ExportDialog
+                data={filteredTickets}
+                columns={commonColumns.tickets}
+                title={t("admin.tickets.title")}
+                subtitle={t("admin.tickets.subtitle")}
+                filename="tickets"
+                filters={{
+                  search: searchTerm,
+                  event: eventFilter,
+                  category: categoryFilter,
+                  status: statusFilter,
+                  date: dateFilter,
+                }}
+                onExport={() => {
+                  toast({
+                    title: t("admin.tickets.toast.exportSuccess"),
+                    description: t("admin.tickets.toast.exportSuccessDesc"),
+                  });
+                }}
+              >
+                <Button variant="outline" className="text-xs sm:text-sm">
+                  <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
+                  <span className="hidden sm:inline">
+                    {t("admin.tickets.actions.export")}
+                  </span>
+                  <span className="sm:hidden">Export</span>
+                </Button>
+              </ExportDialog>
+              <Button onClick={handleAssignTicket} className="text-xs sm:text-sm">
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
+                <span className="hidden sm:inline">
+                  {t("admin.tickets.actions.assignTicket")}
+                </span>
+                <span className="sm:hidden">Assign</span>
+              </Button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Events View */}
+      {viewMode === "events" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="rtl:text-right ltr:text-left">
+              {t("admin.tickets.events.title") || "Events"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {eventsData?.results && eventsData.results.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {eventsData.results.map((event: any) => (
+                  <Card
+                    key={event.id}
+                    className="cursor-pointer hover:shadow-lg transition-shadow"
+                    onClick={() => handleViewEventTickets(event.id)}
+                  >
+                    <CardHeader>
+                      <CardTitle className="text-lg rtl:text-right ltr:text-left">
+                        {event.title}
+                      </CardTitle>
+                      <CardDescription className="rtl:text-right ltr:text-left">
+                        {event.date && format(parseISO(event.date), "MMM dd, yyyy", {
+                          locale: i18n.language === "ar" ? ar : undefined,
+                        })}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">
+                          {t("admin.tickets.events.ticketsSold") || "Tickets Sold"}: {event.tickets_sold || 0}
+                        </span>
+                        <Button variant="outline" size="sm">
+                          {t("admin.tickets.events.viewTickets") || "View Tickets"} →
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Ticket className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">{t("admin.tickets.events.noEvents") || "No events found"}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tickets View */}
+      {viewMode === "tickets" && (
+        <>
 
       {/* Filters */}
       <Card>
@@ -1712,6 +1820,8 @@ const TicketsManagement: React.FC = () => {
           )}
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Check-in Logs */}
       {false && (
@@ -2190,24 +2300,56 @@ const TicketsManagement: React.FC = () => {
                   </p>
                 )}
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.tickets.form.phoneNumber")}
                 </label>
-                <Input
-                  type="tel"
-                  placeholder={t("admin.tickets.form.phonePlaceholder")}
-                  value={assignPhoneNumber}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/[^0-9+]/g, '');
-                    setAssignPhoneNumber(value);
-                  }}
-                  dir="ltr"
-                />
+                <div className="flex gap-2">
+                  <Select
+                    value={assignPhoneDialCode}
+                    onValueChange={setAssignPhoneDialCode}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {COUNTRY_DIAL_CODES.map((country: CountryDialCode) => (
+                        <SelectItem key={country.code} value={country.dial_code}>
+                          {country.name} ({country.dial_code})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    type="tel"
+                    placeholder={t("admin.tickets.form.phonePlaceholder")}
+                    value={assignPhoneNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      setAssignPhoneNumber(value);
+                    }}
+                    dir="ltr"
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium rtl:text-right flex items-center gap-2">
+                  <Switch
+                    checked={paidOutsideSystem}
+                    onCheckedChange={(checked) => {
+                      setPaidOutsideSystem(checked);
+                      if (checked) {
+                        setAssignPrice(0);
+                      }
+                    }}
+                  />
+                  <span>{t("admin.tickets.form.paidOutsideSystem") || "Paid Outside System"}</span>
+                </label>
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.tickets.form.price")} *
+                  {t("admin.tickets.form.price")} {!paidOutsideSystem ? "*" : ""}
                 </label>
                 <Input
                   type="number"
@@ -2216,16 +2358,21 @@ const TicketsManagement: React.FC = () => {
                   placeholder={t("admin.tickets.form.pricePlaceholder")}
                   value={assignPrice || ""}
                   onChange={(e) => setAssignPrice(parseFloat(e.target.value) || 0)}
-                  disabled={eventTicketCategories.length > 0 && selectedCategory !== "" && selectedCategory !== undefined}
+                  disabled={paidOutsideSystem || (eventTicketCategories.length > 0 && selectedCategory !== "" && selectedCategory !== undefined)}
                 />
-                {eventTicketCategories.length > 0 && selectedCategory && (
+                {eventTicketCategories.length > 0 && selectedCategory && !paidOutsideSystem && (
                   <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
                     {t("admin.tickets.form.priceAutoFilled")}
                   </p>
                 )}
-                {eventTicketCategories.length === 0 && selectedEventId && selectedEventDetails && (
+                {eventTicketCategories.length === 0 && selectedEventId && selectedEventDetails && !paidOutsideSystem && (
                   <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
                     {t("admin.tickets.form.priceFromEvent")}
+                  </p>
+                )}
+                {paidOutsideSystem && (
+                  <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                    {t("admin.tickets.form.priceDisabledOutsideSystem") || "Price disabled - paid outside system"}
                   </p>
                 )}
               </div>
@@ -2239,7 +2386,9 @@ const TicketsManagement: React.FC = () => {
                 setSelectedEventId("");
                 setSelectedCategory("");
                 setAssignPhoneNumber("");
+                setAssignPhoneDialCode(DEFAULT_DIAL_CODE);
                 setAssignPrice(0);
+                setPaidOutsideSystem(false);
                 setEventSearchValue("");
                 setSelectedEventDetails(null);
                 setEventTicketCategories([]);

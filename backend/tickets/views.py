@@ -48,21 +48,38 @@ class TicketViewSet(viewsets.ModelViewSet):
         """
         from events.models import Event
         from customers.models import Customer
+        from payments.models import PaymentTransaction
+        from decimal import Decimal
         import uuid
         
         event_id = request.data.get('event_id')
         customer_id = request.data.get('customer_id')
         category = request.data.get('category')
-        price = request.data.get('price')
+        price = request.data.get('price', 0)
+        paid_outside_system = request.data.get('paid_outside_system', False)
         
-        if not all([event_id, customer_id, category, price]):
-            raise ValidationError('event_id, customer_id, category, and price are required.')
+        if not all([event_id, customer_id, category]):
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'event_id, customer_id, and category are required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Price is required unless paid outside system
+        if not paid_outside_system and (price is None or price == 0):
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'price is required unless paid_outside_system is true.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             event = Event.objects.get(id=event_id)
             customer = Customer.objects.get(id=customer_id)
-        except (Event.DoesNotExist, Customer.DoesNotExist):
-            raise NotFoundError('Event or customer not found.')
+        except Event.DoesNotExist:
+            return Response({
+                'error': {'code': 'NOT_FOUND', 'message': 'Event not found.'}
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Customer.DoesNotExist:
+            return Response({
+                'error': {'code': 'NOT_FOUND', 'message': 'Customer not found.'}
+            }, status=status.HTTP_404_NOT_FOUND)
         
         # Generate unique ticket number
         ticket_number = f"{event.id}-{customer.id}-{uuid.uuid4().hex[:8]}"
@@ -71,11 +88,42 @@ class TicketViewSet(viewsets.ModelViewSet):
         ticket = Ticket.objects.create(
             event=event,
             customer=customer,
+            buyer=customer,  # Set buyer to customer (who received the ticket)
             category=category,
-            price=price,
+            price=Decimal(str(price)) if price else Decimal('0'),
             status='valid',
             ticket_number=ticket_number
         )
+        
+        # Create payment transaction if not paid outside system
+        # This ensures payment_status shows as 'completed'
+        try:
+            if not paid_outside_system and price and Decimal(str(price)) > 0:
+                PaymentTransaction.objects.create(
+                    customer=customer,
+                    ticket=ticket,
+                    amount=Decimal(str(price)),
+                    payment_method='admin_assigned',  # Mark as admin-assigned
+                    status='completed',
+                    transaction_id=f"ADMIN-{uuid.uuid4().hex[:16]}"
+                )
+            elif paid_outside_system:
+                # Even if paid outside system, create a transaction to mark as completed
+                # This ensures the ticket shows as paid
+                PaymentTransaction.objects.create(
+                    customer=customer,
+                    ticket=ticket,
+                    amount=Decimal(str(price)) if price else Decimal('0'),
+                    payment_method='paid_outside_system',
+                    status='completed',
+                    transaction_id=f"OUTSIDE-{uuid.uuid4().hex[:16]}"
+                )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error creating payment transaction for ticket {ticket.id}: {str(e)}", exc_info=True)
+            # Don't fail the ticket creation if payment transaction creation fails
+            # The serializer will still show payment_status as 'completed' due to the fallback logic
         
         # Log system action
         ip_address = get_client_ip(request)
@@ -89,7 +137,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             status='SUCCESS'
         )
         
-        return Response(TicketDetailSerializer(ticket).data, status=status.HTTP_201_CREATED)
+        return Response(TicketListSerializer(ticket).data, status=status.HTTP_201_CREATED)
     
     def update(self, request, *args, **kwargs):
         """

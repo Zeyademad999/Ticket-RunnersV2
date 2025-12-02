@@ -63,6 +63,9 @@ class Ticket(models.Model):
     assigned_name = models.CharField(max_length=255, null=True, blank=True)
     assigned_mobile = models.CharField(max_length=20, null=True, blank=True, db_index=True)
     assigned_email = models.EmailField(null=True, blank=True)
+    # Child information (for owner tickets)
+    has_child = models.BooleanField(default=False, help_text="Ticket holder has a child")
+    child_age = models.PositiveIntegerField(null=True, blank=True, help_text="Age of the child")
     created_at = models.DateTimeField(default=timezone.now)
     
     class Meta:

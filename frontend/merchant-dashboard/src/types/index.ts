@@ -32,6 +32,13 @@ export interface NFCCard {
   updated_at: string;
 }
 
+export interface AuthorizedCollector {
+  id: string;
+  name: string;
+  mobile_number: string;
+  profile_image?: string;
+}
+
 export interface Customer {
   id: string;
   mobile_number: string;
@@ -39,6 +46,10 @@ export interface Customer {
   email?: string;
   status: "active" | "inactive";
   fees_paid: boolean;
+  profile_image?: string;
+  authorized_collector?: AuthorizedCollector;
+  is_registered?: boolean;
+  can_assign_card?: boolean;
   created_at: string;
   updated_at?: string;
 }

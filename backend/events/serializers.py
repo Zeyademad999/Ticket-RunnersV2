@@ -59,8 +59,12 @@ class EventListSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'tickets_sold', 'tickets_available', 'created_at']
     
     def get_organizer_name(self, obj):
-        """Get organizer name, handling None values."""
-        return obj.organizer.name if obj.organizer else None
+        """Get organizer names, handling None/empty values."""
+        organizers = obj.organizers.all()
+        if organizers.exists():
+            # Return comma-separated list of organizer names
+            return ", ".join([org.name for org in organizers])
+        return None
     
     def get_venue_name(self, obj):
         """Get venue name, handling None values."""
@@ -122,11 +126,12 @@ class EventListSerializer(serializers.ModelSerializer):
                     'type': obj.commission_rate_type,
                     'value': float(obj.commission_rate_value)
                 }
-            # Fall back to organizer's commission_rate
-            if obj.organizer and hasattr(obj.organizer, 'commission_rate'):
+            # Fall back to first organizer's commission_rate
+            first_organizer = obj.organizers.first()
+            if first_organizer and hasattr(first_organizer, 'commission_rate'):
                 return {
                     'type': 'percentage',
-                    'value': float(obj.organizer.commission_rate * 100)  # Convert decimal to percentage
+                    'value': float(first_organizer.commission_rate * 100)  # Convert decimal to percentage
                 }
             return {'type': 'percentage', 'value': 10.0}  # Default 10%
         except Exception:
@@ -165,7 +170,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
-            'organizer', 'venue', 'date', 'time',
+            'organizer', 'organizers', 'venue', 'date', 'time',
             'category', 'status', 'image', 'venue_layout_image', 'venue_layout_image_url', 'starting_price',
             'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited',
             'ticket_transfer_enabled', 'tickets_sold', 'tickets_available',
@@ -236,11 +241,16 @@ class EventDetailSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """Update event and ticket categories."""
         ticket_categories_data = validated_data.pop('ticket_categories', None)
+        organizers_data = validated_data.pop('organizers', None)
         
         # Update event fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+        
+        # Update organizers if provided (even if empty list, to clear existing)
+        if organizers_data is not None:
+            instance.organizers.set(organizers_data)
         
         # Update ticket categories if provided (even if empty list, to clear existing)
         if ticket_categories_data is not None:
@@ -284,13 +294,18 @@ class EventDetailSerializer(serializers.ModelSerializer):
         return None
     
     def get_organizer(self, obj):
-        if obj.organizer:
-            return {
-                'id': obj.organizer.id,
-                'name': obj.organizer.name,
-                'email': obj.organizer.email
-            }
-        return None
+        """Return list of organizers."""
+        organizers = obj.organizers.all()
+        if organizers.exists():
+            return [
+                {
+                    'id': org.id,
+                    'name': org.name,
+                    'email': org.email if hasattr(org, 'email') else None
+                }
+                for org in organizers
+            ]
+        return []
     
     def get_venue(self, obj):
         if obj.venue:
@@ -316,11 +331,12 @@ class EventDetailSerializer(serializers.ModelSerializer):
                 'type': obj.commission_rate_type,
                 'value': float(obj.commission_rate_value)
             }
-        # Fall back to organizer's commission_rate
-        if obj.organizer and hasattr(obj.organizer, 'commission_rate'):
+        # Fall back to first organizer's commission_rate
+        first_organizer = obj.organizers.first()
+        if first_organizer and hasattr(first_organizer, 'commission_rate'):
             return {
                 'type': 'percentage',
-                'value': float(obj.organizer.commission_rate * 100)  # Convert decimal to percentage
+                'value': float(first_organizer.commission_rate * 100)  # Convert decimal to percentage
             }
         return {'type': 'percentage', 'value': 10.0}  # Default 10%
 
@@ -336,7 +352,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
         model = Event
         fields = [
             'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
-            'organizer', 'venue', 'date', 'time',
+            'organizers', 'venue', 'date', 'time',
             'category', 'status', 'image', 'venue_layout_image', 'starting_price',
             'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited',
             'ticket_transfer_enabled', 'transfer_fee_type', 'transfer_fee_value',
@@ -446,7 +462,8 @@ class EventCreateSerializer(serializers.ModelSerializer):
         logger = logging.getLogger(__name__)
         
         ticket_categories_data = validated_data.pop('ticket_categories', [])
-        logger.info(f"Creating event with ticket_categories: {ticket_categories_data}")
+        organizers_data = validated_data.pop('organizers', [])
+        logger.info(f"Creating event with ticket_categories: {ticket_categories_data}, organizers: {organizers_data}")
         
         # Handle category - get or create by name
         category_name = validated_data.pop('category', None)
@@ -469,6 +486,10 @@ class EventCreateSerializer(serializers.ModelSerializer):
         # Create the event
         event = Event.objects.create(**validated_data)
         logger.info(f"Created event: {event.id} - {event.title}")
+        
+        # Set organizers (ManyToManyField)
+        if organizers_data:
+            event.organizers.set(organizers_data)
         
         # Create ticket categories
         if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
@@ -502,6 +523,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         """Update event and ticket categories."""
         ticket_categories_data = validated_data.pop('ticket_categories', None)
+        organizers_data = validated_data.pop('organizers', None)
         
         # Handle category - get or create by name
         category_name = validated_data.pop('category', None)
@@ -554,6 +576,10 @@ class EventCreateSerializer(serializers.ModelSerializer):
         # Verify venue_layout_image was saved
         instance.refresh_from_db()
         logger.info(f"After save, venue_layout_image exists: {bool(instance.venue_layout_image)}")
+        
+        # Update organizers if provided (even if empty list, to clear existing)
+        if organizers_data is not None:
+            instance.organizers.set(organizers_data)
         
         # Update ticket categories if provided (even if empty list, to clear existing)
         if ticket_categories_data is not None:

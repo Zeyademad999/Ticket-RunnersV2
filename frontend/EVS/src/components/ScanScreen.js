@@ -173,8 +173,15 @@ export default function ScanScreen() {
         },
       };
 
+      // Debug: Log children data
+      console.log('EVS: Attendee children data:', attendeeData.children);
+      console.log('EVS: Mapped dependents:', mappedAttendee.dependents);
+
       setAttendee(mappedAttendee);
 
+      // If we got a ticket_id from the response, store it for potential refetch
+      const ticketIdFromResponse = attendeeData.ticket_id;
+      
       // Determine scan result
       let result = "valid";
       if (attendeeData.ticket_status !== 'valid') {
@@ -207,12 +214,23 @@ export default function ScanScreen() {
         
         // After processing, refresh attendee data to get updated scan information
         // This ensures we have the latest scan log data including the scan that was just created
+        // Also use ticket_id from processResponse to get the correct ticket with child data
         try {
-          const updatedAttendeeData = await scanAPI.getAttendee(idToLookup, eventId);
+          const ticketIdFromProcess = processResponse.ticket_id;
+          const updatedAttendeeData = await scanAPI.getAttendee(idToLookup, eventId, ticketIdFromProcess);
+          console.log('EVS: Refreshed attendee data with ticket_id:', ticketIdFromProcess, 'children:', updatedAttendeeData.children);
+          
           // Update lastScan if available
           if (updatedAttendeeData.last_scan) {
             mappedAttendee.lastScan = updatedAttendeeData.last_scan;
           }
+          
+          // Update children/dependents if available
+          if (updatedAttendeeData.children && updatedAttendeeData.children.length > 0) {
+            mappedAttendee.dependents = updatedAttendeeData.children;
+            console.log('EVS: Updated dependents from refresh:', mappedAttendee.dependents);
+          }
+          
           setAttendee(mappedAttendee);
         } catch (refreshError) {
           console.error("Error refreshing attendee data:", refreshError);
@@ -339,14 +357,25 @@ export default function ScanScreen() {
   const handleSubmitReport = async () => {
     if (attendee && usherComment.trim()) {
       try {
-        await reportsAPI.create({
+        // Prepare report data - only include fields that have valid values
+        const reportData = {
           event: eventId,
           report_type: 'other',
           description: usherComment,
-          card_id: attendee.cardId,
-          ticket_id: attendee.ticketId,
-          customer_id: attendee.customerId,
-        });
+        };
+        
+        // Only include optional fields if they exist and are valid
+        if (attendee.cardId) {
+          reportData.card_id = attendee.cardId;
+        }
+        if (attendee.ticketId) {
+          reportData.ticket_id = attendee.ticketId;
+        }
+        if (attendee.customerId) {
+          reportData.customer_id = attendee.customerId;
+        }
+        
+        await reportsAPI.create(reportData);
         
         // Update attendee with usher comment locally
         attendee.usherComments = usherComment;
@@ -355,7 +384,11 @@ export default function ScanScreen() {
         setShowReportModal(false);
       } catch (error) {
         console.error("Error submitting report:", error);
-        alert("Failed to submit report. Please try again.");
+        const errorMessage = error?.response?.data?.error?.message || 
+                            error?.response?.data?.error?.details || 
+                            error?.message || 
+                            "Failed to submit report. Please try again.";
+        alert(`Failed to submit report: ${errorMessage}`);
       }
     }
   };
@@ -505,6 +538,36 @@ export default function ScanScreen() {
               </div>
             </div>
           )}
+
+          {/* Has Child Status - Show if ticket has child */}
+          {attendee.dependents && attendee.dependents.length > 0 && (() => {
+            // Find child from ticket (has from_ticket flag) or any child with age
+            const ticketChild = attendee.dependents.find(child => child.from_ticket === true);
+            const childWithAge = ticketChild || attendee.dependents.find(child => child.age !== null && child.age !== undefined);
+            // If no child with age, just use the first child
+            const displayChild = childWithAge || attendee.dependents[0];
+            const childAge = displayChild && displayChild.age !== null && displayChild.age !== undefined ? displayChild.age : null;
+            
+            console.log('EVS Card: Showing Has Child status', { 
+              dependents: attendee.dependents, 
+              displayChild, 
+              childAge 
+            });
+            
+            return (
+              <div className="status-row">
+                <div className="status-icon">
+                  <FaChild size={20} color="hsl(81.8, 38.5%, 28%)" />
+                </div>
+                <span className="status-label">Has Child</span>
+                <div className="status-badge status-valid">
+                  <span className="status-badge-text">
+                    {childAge !== null ? `${childAge} years old` : 'Yes'}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Ticket and Profile Labels */}
@@ -581,7 +644,12 @@ export default function ScanScreen() {
               <div className="children-list">
                 {attendee.dependents.map((child, idx) => (
                   <div key={idx} className="child-item">
-                    <span className="child-name">{child.name}</span>
+                    <div className="child-info">
+                      <span className="child-name">{child.name || 'Child'}</span>
+                      {child.age !== null && child.age !== undefined && (
+                        <span className="child-age"> ({child.age} years old)</span>
+                      )}
+                    </div>
                     <div
                       className={`child-status ${
                         child.status === "Not Scanned"
@@ -784,11 +852,11 @@ export default function ScanScreen() {
                 <img
                   src={attendee.photo}
                   alt={attendee.name}
-                  style={{ width: '120px', height: '120px', borderRadius: '50%', objectFit: 'cover' }}
+                  style={{ width: '300px', height: '300px', borderRadius: '0', objectFit: 'cover', border: '3px solid hsl(81.8, 38.5%, 28%)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}
                 />
               ) : (
-                <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#E0E0E0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
-                  <FaUser size={60} color="#999" />
+                <div style={{ width: '300px', height: '300px', borderRadius: '0', backgroundColor: 'hsl(81.8, 38.5%, 28%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: '3px solid hsl(81.8, 38.5%, 28%)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}>
+                  <FaUser size={80} color="#fff" />
                 </div>
               )}
             </div>
@@ -833,6 +901,59 @@ export default function ScanScreen() {
                   On Part-Time Leave
                 </div>
               )}
+              {/* Has Child Badge - Show if any children exist */}
+              {attendee.dependents && attendee.dependents.length > 0 && (() => {
+                // Find child from ticket (has from_ticket flag) or any child with age, or just first child
+                const ticketChild = attendee.dependents.find(child => child.from_ticket === true);
+                const childWithAge = ticketChild || attendee.dependents.find(child => child.age !== null && child.age !== undefined);
+                const displayChild = childWithAge || attendee.dependents[0];
+                const childAge = displayChild && displayChild.age !== null && displayChild.age !== undefined ? displayChild.age : null;
+                
+                console.log('EVS Modal: Showing Has Child badge', { 
+                  dependents: attendee.dependents, 
+                  displayChild, 
+                  childAge 
+                });
+                
+                return (
+                  <div style={{
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    backgroundColor: '#E3F2FD',
+                    color: '#1976D2',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    border: '1px solid #BBDEFB'
+                  }}>
+                    <FaChild size={14} />
+                    Has Child{childAge !== null ? `: ${childAge} years old` : ''}
+                  </div>
+                );
+              })()}
+              {/* Labels Badges - Show VIP and other labels */}
+              {attendee.labels && attendee.labels.length > 0 && attendee.labels.map((label, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '20px',
+                    backgroundColor: label === 'VIP' ? '#FFF3E0' : '#E8F5E8',
+                    color: label === 'VIP' ? '#F59E0B' : '#10B981',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    border: label === 'VIP' ? '1px solid #FCD34D' : '1px solid #86EFAC'
+                  }}
+                >
+                  {label === 'VIP' && <FaTag size={14} />}
+                  {label}
+                </div>
+              ))}
             </div>
             
             {/* Additional Info */}
@@ -863,6 +984,34 @@ export default function ScanScreen() {
                   <strong>Ticket Tier:</strong>
                 </div>
                 <p style={{ margin: 0, marginLeft: '26px', color: '#666' }}>{attendee.ticketTier}</p>
+              </div>
+            )}
+            
+            {/* Child Information Section - Show if customer has children */}
+            {attendee.dependents && attendee.dependents.length > 0 && (
+              <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#E3F2FD', borderRadius: '8px', border: '1px solid #BBDEFB' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <FaChild size={16} color="#1976D2" />
+                  <strong style={{ color: '#1976D2' }}>Child Information:</strong>
+                </div>
+                <div style={{ marginLeft: '26px' }}>
+                  {attendee.dependents.map((child, idx) => {
+                    // Find child from ticket (has from_ticket flag) or any child with age
+                    const isTicketChild = child.from_ticket === true;
+                    const childAge = child.age !== null && child.age !== undefined ? child.age : null;
+                    const childName = child.name || 'Child';
+                    
+                    return (
+                      <div key={idx} style={{ marginBottom: idx < attendee.dependents.length - 1 ? '8px' : '0' }}>
+                        <p style={{ margin: 0, color: '#333', fontSize: '14px' }}>
+                          <strong>{childName}</strong>
+                          {childAge !== null && ` - ${childAge} years old`}
+                          {isTicketChild && <span style={{ color: '#1976D2', fontSize: '12px', marginLeft: '5px' }}>(Included in ticket)</span>}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
             

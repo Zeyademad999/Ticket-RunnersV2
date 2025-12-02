@@ -248,6 +248,11 @@
       "emailInternationalDescription": "We'll send this ticket via email because SMS may not be available for this number.",
       "emailOptionalLabel": "Email (optional)",
       "internationalEmailMissing": "Enter an email for any ticket with a non-Egyptian phone number.",
+      "iHaveChild": "I have a child",
+      "childAgeBetweenError": "Child age must be between {{minAge}} and {{maxAge}} years",
+      "childAgeLessThanError": "Child must be less than {{maxAge}} years old",
+      "childAgeMoreThanError": "Child must be more than {{minAge}} years old",
+      "childAgeInvalid": "Child age does not meet eligibility requirements",
 
     "tiers": {
       "gold": "gold",
@@ -267,11 +272,15 @@
   "paymentConfirmation": {
     "title": "Payment Successful",
     "thankYou": "Thank you for booking with Ticket Runners!",
+    "thankYouNfc": "Thank you for your NFC card payment!",
     "detailsTitle": "Payment Details",
     "event": "Event",
+    "paymentType": "Payment Type",
+    "nfcCardPayment": "NFC Card Payment",
     "transactionId": "Transaction ID",
     "totalPaid": "Total Paid",
-      "goToMyTickets": "Go to My Tickets",
+    "goToMyTickets": "Go to My Tickets",
+    "goToNfc": "Go to NFC",
     "browseEvents": "Browse More Events"
   },
   "profilepage": {
@@ -405,7 +414,38 @@
       "expires": "Expires",
       "addToWallet": "Add to Wallet",
       "notice": "You don't have an active NFC card. Please collect your card from the nearest merchant.",
-      "deactivatedDisclaimer": "Your card is deactivated. Please buy a new card from the nearest merchant."
+      "deactivatedDisclaimer": "Your card is deactivated. Please buy a new card from the nearest merchant.",
+      "cardFeeStatus": "Card Fee Status",
+      "feePaid": "Paid",
+      "feeNotPaid": "Not Paid",
+      "feePaidDescription": "You have already paid the initial NFC card purchase fee.",
+      "feeNotPaidDescription": "You need to pay the initial NFC card purchase fee to get your card.",
+      "renewCard": "Renew Card",
+      "allowCollector": "Allow Someone to Collect My Card",
+      "collectorModal": {
+        "title": "Allow Someone to Collect My Card",
+        "description": "Authorize someone to collect your NFC card on your behalf",
+        "descriptionPayment": "You need to pay for your NFC card first before assigning a collector",
+        "descriptionPhone": "Enter the phone number of the person who will collect your card",
+        "importantInfo": "Important Information",
+        "infoText1": "The person you choose to collect your card will be able to receive it from the merchant. The merchant will see both your profile image and the collector's profile image for verification purposes.",
+        "infoText2": "The collector must have an account in our system to be assigned.",
+        "paymentRequired": "Payment Required",
+        "paymentText": "You need to pay for your NFC card first before you can assign someone to collect it for you.",
+        "collectorPhone": "Collector Phone Number",
+        "collectorPhonePlaceholder": "Enter phone number",
+        "collectorPhoneHint": "Enter the phone number of the person who will collect your card. They must have an account in our system.",
+        "iUnderstand": "I Understand",
+        "payCard": "Pay Card",
+        "assignCollector": "Assign Collector",
+        "assigning": "Assigning...",
+        "processing": "Processing...",
+        "cancel": "Cancel",
+        "back": "Back",
+        "successMessage": "Collector assigned successfully! {{name}} can now collect your card.",
+        "errorMessage": "Failed to assign collector",
+        "errorMessageRetry": "Failed to assign collector. Please try again."
+      }
     },
     "settingsTab": {
       "tab": "Settings",
@@ -502,7 +542,9 @@
       "purchasedBy": "Purchased by",
       "myTicket": "My Ticket",
       "thisIsMyTicket": "This is your ticket",
-      "readOnly": "Read Only"
+      "readOnly": "Read Only",
+      "hasChild": "Has child",
+      "childAge": "{{age}} years old"
     },
     "summary": {
       "title": "Order Summary",

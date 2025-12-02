@@ -109,11 +109,12 @@ class Event(models.Model):
     about_venue = models.TextField(blank=True, verbose_name="About The Venue", help_text="Information about the venue - this will be displayed on the event detail page")
     gates_open_time = models.TimeField(null=True, blank=True, verbose_name="Gates Open Time", help_text="Time when gates/doors open (e.g., 18:00)")
     terms_and_conditions = models.TextField(blank=True, verbose_name="Event Terms and Conditions", help_text="Terms and conditions for this event - this will be displayed on the event detail page")
-    organizer = models.ForeignKey(
+    organizers = models.ManyToManyField(
         'users.Organizer',
-        on_delete=models.CASCADE,
         related_name='events',
-        db_index=True
+        blank=True,
+        verbose_name="Organizers",
+        help_text="Event organizers (optional, can have multiple)"
     )
     venue = models.ForeignKey(
         'venues.Venue',
@@ -241,7 +242,6 @@ class Event(models.Model):
         indexes = [
             models.Index(fields=['date']),
             models.Index(fields=['status']),
-            models.Index(fields=['organizer']),
             models.Index(fields=['date', 'status']),
         ]
         ordering = ['-date', '-time']
@@ -278,9 +278,13 @@ class Event(models.Model):
                 tickets_sold = self.tickets_sold
                 return self.commission_rate_value * tickets_sold
         
-        # Fall back to organizer's commission_rate if event-specific rate not set
+        # Fall back to first organizer's commission_rate if event-specific rate not set
         if commission_rate is None:
-            commission_rate = self.organizer.commission_rate if hasattr(self.organizer, 'commission_rate') else 0.1
+            first_organizer = self.organizers.first()
+            if first_organizer and hasattr(first_organizer, 'commission_rate'):
+                commission_rate = first_organizer.commission_rate
+            else:
+                commission_rate = 0.1
         return revenue * commission_rate
     
     @property

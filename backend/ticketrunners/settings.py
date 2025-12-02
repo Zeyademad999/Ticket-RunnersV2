@@ -259,7 +259,7 @@ KASHIER_MODE = config('KASHIER_MODE', default='test')
 KASHIER_BASE_URL = config('KASHIER_BASE_URL', default='https://test-fep.kashier.io')
 KASHIER_MERCHANT_REDIRECT = config('KASHIER_MERCHANT_REDIRECT', default='http://localhost:8083/api/payment/redirect')
 KASHIER_WEBHOOK_URL = config('KASHIER_WEBHOOK_URL', default='http://192.168.0.104:8083/api/payment/webhook')
-FRONTEND_URL = config('FRONTEND_URL', default='http://192.168.0.104:8083')
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:8083')
 
 # Logging Configuration
 LOGGING = {

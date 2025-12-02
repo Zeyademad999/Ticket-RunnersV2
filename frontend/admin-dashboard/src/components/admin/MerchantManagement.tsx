@@ -98,6 +98,7 @@ type MerchantAccount = {
   verificationStatus: "verified" | "pending" | "rejected";
   documents?: string[];
   ticketsAssigned?: number; // Number of tickets assigned by this merchant
+  assignedCardsCount?: number; // Number of NFC cards assigned to this merchant
 };
 
 
@@ -130,6 +131,9 @@ const MerchantAccountsManagement: React.FC = () => {
   const [credentialsForm, setCredentialsForm] = useState({ mobile: "", password: "" });
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [merchantToDelete, setMerchantToDelete] = useState<MerchantAccount | null>(null);
+  const [isAssignCardsDialogOpen, setIsAssignCardsDialogOpen] = useState(false);
+  const [merchantToAssignCards, setMerchantToAssignCards] = useState<MerchantAccount | null>(null);
+  const [numberOfCards, setNumberOfCards] = useState<string>("");
 
   const queryClient = useQueryClient();
 
@@ -175,6 +179,7 @@ const MerchantAccountsManagement: React.FC = () => {
       verificationStatus: item.verification_status || item.verificationStatus || 'pending',
       documents: item.documents || [],
       ticketsAssigned: item.tickets_assigned || item.ticketsAssigned || 0,
+      assignedCardsCount: item.assigned_cards_count || item.assignedCardsCount || 0,
     }));
   }, [merchantsData]);
 
@@ -505,6 +510,30 @@ const MerchantAccountsManagement: React.FC = () => {
     },
   });
 
+  // Assign cards mutation
+  const assignCardsMutation = useMutation({
+    mutationFn: async ({ id, numberOfCards }: { id: string; numberOfCards: number }) => {
+      return await merchantsApi.assignCards(id, { number_of_cards: numberOfCards });
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['merchants'] });
+      toast({
+        title: t("admin.merchants.toast.cardsAssigned") || "Cards Assigned",
+        description: data.message || `Successfully assigned ${data.assigned_count || 0} cards`,
+      });
+      setIsAssignCardsDialogOpen(false);
+      setMerchantToAssignCards(null);
+      setNumberOfCards("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: t("common.error"),
+        description: error.response?.data?.error?.message || error.message || t("admin.merchants.toast.error"),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
@@ -667,6 +696,31 @@ const MerchantAccountsManagement: React.FC = () => {
     }
   };
 
+  const handleAssignCards = (merchant: MerchantAccount) => {
+    setMerchantToAssignCards(merchant);
+    setNumberOfCards("");
+    setIsAssignCardsDialogOpen(true);
+  };
+
+  const confirmAssignCards = () => {
+    if (!merchantToAssignCards) return;
+    
+    const numCards = parseInt(numberOfCards);
+    if (isNaN(numCards) || numCards <= 0) {
+      toast({
+        title: t("common.error"),
+        description: "Please enter a valid number greater than 0",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    assignCardsMutation.mutate({
+      id: merchantToAssignCards.id,
+      numberOfCards: numCards,
+    });
+  };
+
 
   const handleAddMerchant = () => {
     if (!newMerchant.businessName || !newMerchant.ownerName || !newMerchant.email || !newMerchant.phone) {
@@ -699,6 +753,16 @@ const MerchantAccountsManagement: React.FC = () => {
       toast({
         title: t("admin.merchants.toast.validationError") || t("common.error"),
         description: "Mobile number and password are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate that mobile contains only numbers
+    if (!/^[0-9]+$/.test(credentialsForm.mobile)) {
+      toast({
+        title: t("admin.merchants.toast.validationError") || t("common.error"),
+        description: "Mobile number must contain only numbers",
         variant: "destructive",
       });
       return;
@@ -1112,6 +1176,9 @@ const MerchantAccountsManagement: React.FC = () => {
                       {t("admin.merchants.table.contact")}
                     </TableHead>
                     <TableHead className="rtl:text-right ltr:text-left">
+                      {t("admin.merchants.table.assignedCards") || "Assigned Cards"}
+                    </TableHead>
+                    <TableHead className="rtl:text-right ltr:text-left">
                       {t("admin.merchants.table.actions")}
                     </TableHead>
                   </TableRow>
@@ -1139,6 +1206,13 @@ const MerchantAccountsManagement: React.FC = () => {
                         <p className="text-sm">{merchant.email}</p>
                         <p className="text-sm text-muted-foreground" dir="ltr">
                           {formatPhone(merchant.phone)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="rtl:text-right ltr:text-left">
+                        <p className="text-sm font-medium">
+                          {merchant.assignedCardsCount || 0}
                         </p>
                       </div>
                     </TableCell>
@@ -1174,6 +1248,12 @@ const MerchantAccountsManagement: React.FC = () => {
                           >
                             <Key className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
                             {t("admin.merchants.actions.createCredentials")}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleAssignCards(merchant)}
+                          >
+                            <CreditCard className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                            {t("admin.merchants.actions.assignCards") || "Assign Cards"}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -1727,9 +1807,11 @@ const MerchantAccountsManagement: React.FC = () => {
                 type="tel"
                 placeholder={t("admin.merchants.credentials.mobilePlaceholder")}
                 value={credentialsForm.mobile}
-                onChange={(e) =>
-                  setCredentialsForm({ ...credentialsForm, mobile: e.target.value })
-                }
+                onChange={(e) => {
+                  // Only allow numbers (no text)
+                  const value = e.target.value.replace(/[^0-9]/g, '');
+                  setCredentialsForm({ ...credentialsForm, mobile: value });
+                }}
                 className="mt-1"
                 dir="ltr"
               />
@@ -1805,6 +1887,77 @@ const MerchantAccountsManagement: React.FC = () => {
                 </>
               ) : (
                 t("admin.merchants.actions.deleteMerchant") || "Delete Merchant"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Assign Cards Dialog */}
+      <Dialog open={isAssignCardsDialogOpen} onOpenChange={setIsAssignCardsDialogOpen}>
+        <DialogContent className="rtl:text-right ltr:text-left">
+          <DialogHeader>
+            <DialogTitle className="rtl:text-right ltr:text-left">
+              {t("admin.merchants.dialogs.assignCards") || "Assign Cards to Merchant"}
+            </DialogTitle>
+            <DialogDescription className="rtl:text-right ltr:text-left">
+              {merchantToAssignCards
+                ? t("admin.merchants.dialogs.assignCardsDesc", {
+                    name: merchantToAssignCards.businessName || merchantToAssignCards.ownerName || merchantToAssignCards.email,
+                  }) || `Assign NFC cards to ${merchantToAssignCards.businessName || merchantToAssignCards.ownerName || merchantToAssignCards.email}. These cards will be available for the merchant to assign to customers.`
+                : t("admin.merchants.dialogs.assignCardsDesc", { name: "" }) || "Assign NFC cards to this merchant. These cards will be available for the merchant to assign to customers."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {merchantToAssignCards && (
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-sm font-medium rtl:text-right ltr:text-left">
+                  {t("admin.merchants.dialogs.merchant") || "Merchant"}: {merchantToAssignCards.businessName}
+                </p>
+                <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left">
+                  {t("admin.merchants.dialogs.currentAssignedCards") || "Currently Assigned Cards"}: {merchantToAssignCards.assignedCardsCount || 0}
+                </p>
+              </div>
+            )}
+            <div>
+              <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                {t("admin.merchants.dialogs.numberOfCards") || "Number of Cards"} *
+              </label>
+              <Input
+                type="number"
+                placeholder={t("admin.merchants.dialogs.numberOfCardsPlaceholder") || "Enter number of cards to assign"}
+                value={numberOfCards}
+                onChange={(e) => setNumberOfCards(e.target.value)}
+                className="mt-1"
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground mt-1 rtl:text-right ltr:text-left">
+                {t("admin.merchants.dialogs.numberOfCardsHint") || "Enter the number of unassigned NFC cards to assign to this merchant"}
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="rtl:flex-row-reverse">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAssignCardsDialogOpen(false);
+                setMerchantToAssignCards(null);
+                setNumberOfCards("");
+              }}
+            >
+              {t("admin.merchants.dialogs.cancel") || t("common.cancel") || "Cancel"}
+            </Button>
+            <Button
+              onClick={confirmAssignCards}
+              disabled={assignCardsMutation.isPending}
+            >
+              {assignCardsMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0 animate-spin" />
+                  {t("common.loading") || "Loading..."}
+                </>
+              ) : (
+                t("admin.merchants.dialogs.assignCardsButton") || "Assign Cards"
               )}
             </Button>
           </DialogFooter>
