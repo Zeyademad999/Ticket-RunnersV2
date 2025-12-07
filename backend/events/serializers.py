@@ -55,7 +55,8 @@ class EventListSerializer(serializers.ModelSerializer):
             'tickets_available', 'created_at', 'thumbnail_path', 'image_url',
             'location', 'starting_price', 'revenue', 'commission', 'commission_rate',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
-            'child_eligibility_min_age', 'child_eligibility_max_age', 'ticket_categories'
+            'child_eligibility_min_age', 'child_eligibility_max_age', 'ticket_categories',
+            'wheelchair_access', 'bathroom', 'parking', 'non_smoking'
         ]
         read_only_fields = ['id', 'tickets_sold', 'tickets_available', 'created_at']
     
@@ -170,7 +171,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
+            'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'closed_doors_time', 'terms_and_conditions',
             'organizer', 'organizers', 'venue', 'date', 'time',
             'category', 'status', 'image', 'venue_layout_image', 'venue_layout_image_url', 'starting_price',
             'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited',
@@ -178,6 +179,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'ticket_categories', 'ticket_categories_read', 'revenue', 'commission', 'commission_rate',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
             'child_eligibility_min_age', 'child_eligibility_max_age',
+            'wheelchair_access', 'bathroom', 'parking', 'non_smoking',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -205,7 +207,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             data = dict(data) if hasattr(data, '__iter__') else {}
         
         # Normalize boolean fields coming from FormData
-        bool_fields = ['is_ticket_limit_unlimited']
+        bool_fields = ['is_ticket_limit_unlimited', 'wheelchair_access', 'bathroom', 'parking', 'non_smoking']
         for field in bool_fields:
             if field in data:
                 value = data.get(field)
@@ -366,7 +368,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
+            'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'closed_doors_time', 'terms_and_conditions',
             'organizers', 'venue', 'date', 'time',
             'category', 'status', 'image', 'venue_layout_image', 'starting_price',
             'total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited',
@@ -374,6 +376,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
             'commission_rate_type', 'commission_rate_value',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
             'child_eligibility_min_age', 'child_eligibility_max_age',
+            'wheelchair_access', 'bathroom', 'parking', 'non_smoking',
             'ticket_categories', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -420,7 +423,7 @@ class EventCreateSerializer(serializers.ModelSerializer):
                     pass
         
         # Normalize boolean fields from FormData strings
-        bool_fields = ['is_ticket_limit_unlimited', 'child_eligibility_enabled', 'ticket_transfer_enabled']
+        bool_fields = ['is_ticket_limit_unlimited', 'child_eligibility_enabled', 'ticket_transfer_enabled', 'wheelchair_access', 'bathroom', 'parking', 'non_smoking']
         for field in bool_fields:
             if field in data:
                 value = data.get(field)

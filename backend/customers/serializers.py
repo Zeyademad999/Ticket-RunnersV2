@@ -75,6 +75,36 @@ class CustomerSerializer(serializers.ModelSerializer):
             data['profile_image'] = request.build_absolute_uri(profile_image)
         # Ensure fees_paid uses the computed value
         data['fees_paid'] = self.get_fees_paid(instance)
+        # Ensure labels are returned as objects with name, color, icon, description
+        if 'labels' in data and isinstance(data['labels'], list):
+            transformed_labels = []
+            for label_data in data['labels']:
+                if isinstance(label_data, dict) and 'name' in label_data:
+                    # Already an object, ensure all fields are present
+                    transformed_labels.append({
+                        'name': label_data.get('name'),
+                        'color': label_data.get('color', '#3B82F6'), # Default color
+                        'icon': label_data.get('icon', 'Tag'), # Default icon
+                        'description': label_data.get('description', label_data.get('name')),
+                    })
+                elif isinstance(label_data, str):
+                    # Convert string label to object with default color/icon
+                    label_name = label_data
+                    label_colors = {
+                        'VIP': '#F59E0B', 'Premium': '#8B5CF6', 'Regular': '#3B82F6',
+                        'Student': '#06B6D4', 'Early Bird': '#10B981', 'Black Card Customer': '#000000',
+                    }
+                    label_icons = {
+                        'VIP': 'Crown', 'Premium': 'Award', 'Regular': 'Tag',
+                        'Student': 'Shield', 'Early Bird': 'Star', 'Black Card Customer': 'CreditCard',
+                    }
+                    transformed_labels.append({
+                        'name': label_name,
+                        'color': label_colors.get(label_name, '#3B82F6'),
+                        'icon': label_icons.get(label_name, 'Tag'),
+                        'description': label_name,
+                    })
+            data['labels'] = transformed_labels
         return data
     
     def create(self, validated_data):
@@ -125,6 +155,43 @@ class CustomerSerializer(serializers.ModelSerializer):
         # Also normalize phone field
         if phone:
             validated_data['phone'] = normalize_mobile_number(phone)
+        
+        # Ensure labels is always a list (handle None, empty string, etc.)
+        # Labels can be either array of strings (legacy) or array of objects with name, color, icon
+        if 'labels' in validated_data:
+            labels = validated_data['labels']
+            if labels is None:
+                validated_data['labels'] = []
+            elif isinstance(labels, str):
+                # If it's a string, try to parse as JSON, otherwise make it a list
+                import json
+                try:
+                    parsed = json.loads(labels)
+                    validated_data['labels'] = parsed if isinstance(parsed, list) else [parsed] if parsed else []
+                except (json.JSONDecodeError, TypeError):
+                    validated_data['labels'] = [labels] if labels.strip() else []
+            elif isinstance(labels, list):
+                # Normalize labels - convert strings to objects, ensure objects have required fields
+                normalized_labels = []
+                for label in labels:
+                    if isinstance(label, str):
+                        # Legacy format: just a string, convert to object
+                        normalized_labels.append({
+                            'name': label,
+                            'color': '#3B82F6',  # Default color
+                            'icon': 'Tag',  # Default icon
+                        })
+                    elif isinstance(label, dict):
+                        # New format: object with name, color, icon
+                        normalized_labels.append({
+                            'name': label.get('name', ''),
+                            'color': label.get('color', '#3B82F6'),
+                            'icon': label.get('icon', 'Tag'),
+                            'description': label.get('description', label.get('name', '')),
+                        })
+                validated_data['labels'] = normalized_labels
+            else:
+                validated_data['labels'] = []
         
         return super().update(instance, validated_data)
 

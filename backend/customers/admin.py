@@ -16,7 +16,16 @@ class CustomerAdmin(admin.ModelAdmin):
     
     def is_black_card_customer(self, obj):
         """Display if customer is a Black Card Customer."""
-        return 'Black Card Customer' in (obj.labels or [])
+        # Handle both string format (legacy) and object format (new)
+        labels = obj.labels or []
+        for label in labels:
+            if isinstance(label, str):
+                if label == 'Black Card Customer':
+                    return True
+            elif isinstance(label, dict):
+                if label.get('name') == 'Black Card Customer':
+                    return True
+        return False
     is_black_card_customer.boolean = True
     is_black_card_customer.short_description = 'Black Card Customer'
     
@@ -25,8 +34,26 @@ class CustomerAdmin(admin.ModelAdmin):
         updated = 0
         for customer in queryset:
             labels = customer.labels or []
-            if 'Black Card Customer' not in labels:
-                labels.append('Black Card Customer')
+            # Check if already has Black Card Customer (handle both formats)
+            has_black_card = False
+            for label in labels:
+                if isinstance(label, str):
+                    if label == 'Black Card Customer':
+                        has_black_card = True
+                        break
+                elif isinstance(label, dict):
+                    if label.get('name') == 'Black Card Customer':
+                        has_black_card = True
+                        break
+            
+            if not has_black_card:
+                # Add as object format
+                labels.append({
+                    'name': 'Black Card Customer',
+                    'color': '#000000',
+                    'icon': 'CreditCard',
+                    'description': 'Black Card Customer - Can buy max 2 tickets for free even if event is full'
+                })
                 customer.labels = labels
                 customer.save(update_fields=['labels'])
                 updated += 1
@@ -43,9 +70,18 @@ class CustomerAdmin(admin.ModelAdmin):
         updated = 0
         for customer in queryset:
             labels = customer.labels or []
-            if 'Black Card Customer' in labels:
-                labels.remove('Black Card Customer')
-                customer.labels = labels
+            # Filter out Black Card Customer (handle both formats)
+            filtered_labels = []
+            for label in labels:
+                if isinstance(label, str):
+                    if label != 'Black Card Customer':
+                        filtered_labels.append(label)
+                elif isinstance(label, dict):
+                    if label.get('name') != 'Black Card Customer':
+                        filtered_labels.append(label)
+            
+            if len(filtered_labels) != len(labels):
+                customer.labels = filtered_labels
                 customer.save(update_fields=['labels'])
                 updated += 1
         

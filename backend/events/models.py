@@ -109,6 +109,7 @@ class Event(models.Model):
     description = models.TextField(blank=True, verbose_name="About This Event", help_text="Detailed description about the event - this will be displayed on the event detail page")
     about_venue = models.TextField(blank=True, verbose_name="About The Venue", help_text="Information about the venue - this will be displayed on the event detail page")
     gates_open_time = models.TimeField(null=True, blank=True, verbose_name="Gates Open Time", help_text="Time when gates/doors open (e.g., 18:00)")
+    closed_doors_time = models.TimeField(null=True, blank=True, verbose_name="Closed Doors Time", help_text="Time when doors close and event is considered completed (e.g., 23:00)")
     terms_and_conditions = models.TextField(blank=True, verbose_name="Event Terms and Conditions", help_text="Terms and conditions for this event - this will be displayed on the event detail page")
     organizers = models.ManyToManyField(
         'users.Organizer',
@@ -233,6 +234,23 @@ class Event(models.Model):
         blank=True,
         validators=[MinValueValidator(0)],
         help_text="Maximum age for child eligibility (used with 'between' or 'less_than' rules)"
+    )
+    # Facility fields
+    wheelchair_access = models.BooleanField(
+        default=False,
+        help_text="Wheelchair accessibility available at the venue"
+    )
+    bathroom = models.BooleanField(
+        default=False,
+        help_text="Bathroom facilities available at the venue"
+    )
+    parking = models.BooleanField(
+        default=False,
+        help_text="Parking facilities available at the venue"
+    )
+    non_smoking = models.BooleanField(
+        default=False,
+        help_text="Non-smoking policy at the venue"
     )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)

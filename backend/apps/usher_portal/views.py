@@ -420,6 +420,25 @@ def usher_scan_attendee_by_card(request, card_id):
                     scan_status = 'not_scanned'
                 
                 ticket_tier = ticket.category.lower() if ticket.category else 'standard'
+                
+                # Check if usher is allowed to scan this ticket category
+                # Team leaders can scan all categories
+                usher = request.usher
+                if not usher.is_team_leader and ticket.category:
+                    usher_ticket_categories = usher.ticket_categories or []
+                    # Normalize category names for comparison (case-insensitive)
+                    ticket_category_normalized = ticket.category.lower().strip()
+                    usher_categories_normalized = [cat.lower().strip() for cat in usher_ticket_categories if cat]
+                    
+                    # Check if ticket category is in usher's allowed categories
+                    if ticket_category_normalized not in usher_categories_normalized:
+                        return Response({
+                            'error': {
+                                'code': 'CATEGORY_NOT_ALLOWED',
+                                'message': f'You are not allowed to scan {ticket.category} tickets. Please contact your team leader.',
+                                'ticket_category': ticket.category
+                            }
+                        }, status=status.HTTP_403_FORBIDDEN)
             else:
                 # No ticket found for this event
                 ticket_status = 'invalid'
@@ -627,28 +646,77 @@ def usher_scan_attendee_by_card(request, card_id):
     if ticket and ticket.category:
         category_lower = ticket.category.lower()
         if 'vip' in category_lower:
-            labels.append('VIP')
+            # Add VIP as an object with color
+            labels.append({
+                'name': 'VIP',
+                'color': '#F59E0B',
+                'icon': 'Crown',
+            })
     
     # Add customer labels if they exist
     if hasattr(customer, 'labels') and customer.labels:
         if isinstance(customer.labels, list):
-            labels.extend(customer.labels)
+            for label in customer.labels:
+                if isinstance(label, str):
+                    # Legacy format: just a string, convert to object with default color
+                    label_colors = {
+                        'VIP': '#F59E0B',
+                        'Premium': '#8B5CF6',
+                        'Regular': '#3B82F6',
+                        'Student': '#06B6D4',
+                        'Early Bird': '#10B981',
+                        'Black Card Customer': '#000000',
+                    }
+                    label_icons = {
+                        'VIP': 'Crown',
+                        'Premium': 'Award',
+                        'Regular': 'Tag',
+                        'Student': 'Shield',
+                        'Early Bird': 'Star',
+                        'Black Card Customer': 'CreditCard',
+                    }
+                    labels.append({
+                        'name': label,
+                        'color': label_colors.get(label, '#3B82F6'),
+                        'icon': label_icons.get(label, 'Tag'),
+                    })
+                elif isinstance(label, dict):
+                    # New format: object with name, color, icon
+                    labels.append({
+                        'name': label.get('name', ''),
+                        'color': label.get('color', '#3B82F6'),
+                        'icon': label.get('icon', 'Tag'),
+                        'description': label.get('description', label.get('name', '')),
+                    })
         elif isinstance(customer.labels, str):
             # Handle case where labels might be stored as JSON string
             import json
             try:
                 parsed_labels = json.loads(customer.labels)
                 if isinstance(parsed_labels, list):
-                    labels.extend(parsed_labels)
+                    for label in parsed_labels:
+                        if isinstance(label, str):
+                            labels.append({
+                                'name': label,
+                                'color': '#3B82F6',
+                                'icon': 'Tag',
+                            })
+                        elif isinstance(label, dict):
+                            labels.append({
+                                'name': label.get('name', ''),
+                                'color': label.get('color', '#3B82F6'),
+                                'icon': label.get('icon', 'Tag'),
+                            })
             except (json.JSONDecodeError, TypeError):
                 pass
     
-    # Remove duplicates while preserving order
+    # Remove duplicates by name while preserving order
     seen = set()
     unique_labels = []
     for label in labels:
-        if label not in seen:
-            seen.add(label)
+        label_name = label.get('name') if isinstance(label, dict) else label
+        if label_name and label_name not in seen:
+            seen.add(label_name)
             unique_labels.append(label)
     labels = unique_labels
     

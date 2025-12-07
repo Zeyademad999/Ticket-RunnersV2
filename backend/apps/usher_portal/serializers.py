@@ -77,7 +77,12 @@ class AttendeeSerializer(serializers.Serializer):
     phone_number = serializers.CharField(allow_null=True, required=False, help_text="Customer phone number")
     nationality = serializers.CharField(allow_null=True, required=False, help_text="Customer nationality")
     blood_type = serializers.CharField(allow_null=True, required=False)
-    labels = serializers.ListField(child=serializers.CharField(), allow_empty=True, required=False)
+    labels = serializers.ListField(
+        child=serializers.DictField(allow_empty=True, required=False),
+        allow_empty=True, 
+        required=False,
+        help_text="List of label objects with name, color, icon"
+    )
     children = serializers.ListField(allow_empty=True, required=False)
     customer_events = serializers.ListField(allow_empty=True, required=False)  # All events customer has tickets for
     part_time_leave = serializers.DictField(allow_null=True, required=False)  # Part-time leave status

@@ -86,5 +86,11 @@ urlpatterns = [
     
     # Admin utilities
     path('admin/find-customer-by-phone/', views.find_customer_by_phone_api, name='admin-find-customer-by-phone'),
+    
+    # Marketplace
+    path('marketplace/listings/', views.marketplace_listings_list, name='marketplace-listings-list'),
+    path('marketplace/listings/<uuid:listing_id>/', views.marketplace_listing_delete, name='marketplace-listing-delete'),
+    path('marketplace/my-listings/', views.marketplace_my_listings, name='marketplace-my-listings'),
+    path('marketplace/filter-options/', views.marketplace_filter_options, name='marketplace-filter-options'),
 ]
 

@@ -18,7 +18,7 @@ import json
 from customers.models import Customer, Dependent
 from .authentication import CustomerJWTAuthentication
 from events.models import Event
-from tickets.models import Ticket, TicketRegistrationToken
+from tickets.models import Ticket, TicketRegistrationToken, TicketMarketplaceListing
 from nfc_cards.models import NFCCard, NFCCardAutoReload, NFCCardTransaction
 import os
 from payments.models import PaymentTransaction
@@ -32,7 +32,7 @@ from .serializers import (
     UserRegistrationSerializer, UserOTPSerializer, UserLoginSerializer,
     UserProfileSerializer, DependentSerializer, PublicEventSerializer,
     TicketBookingSerializer, TicketSerializer, NFCCardSerializer,
-    PaymentTransactionSerializer, FavoriteSerializer
+    PaymentTransactionSerializer, FavoriteSerializer, TicketMarketplaceListingSerializer
 )
 
 
@@ -111,7 +111,11 @@ def user_register(request):
     otp_delivery_method = serializer.validated_data.get('otp_delivery_method', 'sms')
     
     # Check if user already exists
-    if Customer.objects.filter(mobile_number=mobile_number).exists():
+    existing_customer = Customer.objects.filter(mobile_number=mobile_number).first()
+    if existing_customer:
+        # Check if the existing account is banned
+        if existing_customer.status == 'banned':
+            raise ValidationError("This account has been banned. Please contact support for more information.")
         raise ValidationError("User with this mobile number already exists")
     
     # Check if national_id already exists
@@ -178,7 +182,11 @@ def user_verify_otp(request):
     
     
     # Check if user already exists (account was already created)
-    if Customer.objects.filter(mobile_number=mobile_number).exists():
+    existing_customer = Customer.objects.filter(mobile_number=mobile_number).first()
+    if existing_customer:
+        # Check if the existing account is banned
+        if existing_customer.status == 'banned':
+            raise ValidationError("This account has been banned. Please contact support for more information.")
         # Account already exists - return success
         return Response({
             'mobile_verified': True,
@@ -545,9 +553,13 @@ def user_complete_registration(request):
         raise ValidationError("mobile_number is required")
     
     # Check if user already exists first (account was already created)
-    if Customer.objects.filter(mobile_number=mobile_number).exists():
+    existing_customer = Customer.objects.filter(mobile_number=mobile_number).first()
+    if existing_customer:
+        # Check if the existing account is banned
+        if existing_customer.status == 'banned':
+            raise ValidationError("This account has been banned. Please contact support for more information.")
         # Account already exists - return success with existing user data
-        customer = Customer.objects.get(mobile_number=mobile_number)
+        customer = existing_customer
         from django.core.cache import cache
         cache_key = f"registration_{mobile_number}"
         cache.delete(cache_key)  # Clear any stale cache
@@ -1990,7 +2002,6 @@ def user_me_bookings(request):
             'card_cost': 0,
             'renewal_cost': 0,
             'subtotal': total_amount,  # Default to ticket total if not found
-            'vat_amount': 0,
         }
         
         try:
@@ -2014,7 +2025,6 @@ def user_me_bookings(request):
                             'card_cost': float(fees.get('card_cost', 0)),
                             'renewal_cost': float(fees.get('renewal_cost', 0)),
                             'subtotal': float(fees.get('subtotal', total_amount)),
-                            'vat_amount': float(fees.get('vat_amount', 0)),
                         }
                         break
                 except (json.JSONDecodeError, ValueError, KeyError):
@@ -4424,3 +4434,355 @@ def user_event_checkin_status(request, event_id):
     }
     
     return Response(data, status=status.HTTP_200_OK)
+
+
+# ============================================================================
+# MARKETPLACE ENDPOINTS
+# ============================================================================
+
+@api_view(['GET', 'POST'])
+@permission_classes([AllowAny])
+def marketplace_listings_list(request):
+    """
+    List all active marketplace listings (public, no auth required).
+    GET /api/v1/marketplace/listings/
+    
+    Add ticket to marketplace (requires auth, terms acceptance).
+    POST /api/v1/marketplace/listings/
+    """
+    # Handle POST request for creating listings
+    if request.method == 'POST':
+        customer = getattr(request, 'customer', None)
+        if not customer:
+            return Response({
+                'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required'}
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        ticket_id = request.data.get('ticket_id')
+        terms_accepted = request.data.get('terms_accepted', False)
+        
+        if not ticket_id:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'ticket_id is required'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not terms_accepted:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Terms must be accepted'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            ticket = Ticket.objects.get(id=ticket_id, customer=customer)
+        except Ticket.DoesNotExist:
+            return Response({
+                'error': {'code': 'NOT_FOUND', 'message': 'Ticket not found or you do not own this ticket'}
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Validate ticket is transferable
+        if not ticket.event.ticket_transfer_enabled:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'This ticket is not transferable'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate ticket status
+        if ticket.status != 'valid':
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Only valid tickets can be listed'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if event date has passed
+        event = ticket.event
+        from datetime import datetime, date, time as time_module
+        now = timezone.now()
+        today = now.date()
+        current_time = now.time()
+        
+        # Check if event date is in the past
+        if event.date < today:
+            return Response({
+                'error': {'code': 'EVENT_PAST_DATE', 'message': 'This ticket is for an event that has already passed. You cannot list tickets for past events.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if event date is today and gates closed time has passed
+        if event.date == today:
+            # If closed_doors_time is set, check if it has passed
+            if event.closed_doors_time and current_time > event.closed_doors_time:
+                return Response({
+                    'error': {'code': 'GATES_CLOSED', 'message': 'The gates have closed for this event. You cannot list tickets for events that have already ended.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            # If closed_doors_time is not set, check if event start time has passed
+            elif event.time and current_time > event.time:
+                return Response({
+                    'error': {'code': 'EVENT_STARTED', 'message': 'This event has already started. You cannot list tickets for events that have already begun.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if customer is banned or inactive
+        if customer.status == 'banned':
+            return Response({
+                'error': {'code': 'ACCOUNT_BANNED', 'message': 'Your account has been banned. You cannot list tickets on the marketplace.'}
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        if customer.status != 'active':
+            return Response({
+                'error': {'code': 'ACCOUNT_INACTIVE', 'message': 'Your account is not active. Please contact support to activate your account.'}
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Check if already listed
+        if TicketMarketplaceListing.objects.filter(ticket=ticket, is_active=True).exists():
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'This ticket is already listed on the marketplace'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create listing
+        listing = TicketMarketplaceListing.objects.create(
+            ticket=ticket,
+            customer=customer,
+            terms_accepted=True,
+            terms_accepted_at=timezone.now(),
+            is_active=True
+        )
+        
+        serializer = TicketMarketplaceListingSerializer(listing, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+    # Handle GET request for listing listings
+    from venues.models import Venue
+    from events.models import EventCategory
+    
+    # Base query - only active listings from non-banned customers
+    # Note: We exclude banned customers, but allow inactive customers (they can still have valid listings)
+    # Filter by ticket status and transfer enabled to ensure only valid, transferable tickets are shown
+    # IMPORTANT: This endpoint is public (AllowAny) - all users (logged in or not) can see listings
+    
+    # Start with all active listings
+    # IMPORTANT: Show all active listings to all users (logged in or not)
+    listings = TicketMarketplaceListing.objects.filter(
+        is_active=True
+    ).select_related(
+        'ticket', 'ticket__event', 'ticket__event__venue', 
+        'ticket__event__category', 'customer'
+    ).prefetch_related('ticket__event__organizers')
+    
+    # Filter out banned customers only
+    listings = listings.exclude(customer__status='banned')
+    
+    # Filter to only valid tickets (tickets that are still valid)
+    listings = listings.filter(ticket__status='valid')
+    
+    # Filter to only events that allow transfers
+    listings = listings.filter(ticket__event__ticket_transfer_enabled=True)
+    
+    # Filtering
+    event_id = request.query_params.get('event_id')
+    event_category_id = request.query_params.get('event_category_id')
+    ticket_category = request.query_params.get('ticket_category')
+    price_min = request.query_params.get('price_min')
+    price_max = request.query_params.get('price_max')
+    event_date_start = request.query_params.get('event_date_start')
+    event_date_end = request.query_params.get('event_date_end')
+    venue_id = request.query_params.get('venue_id')
+    location = request.query_params.get('location')
+    search = request.query_params.get('search')
+    sort_by = request.query_params.get('sort_by', 'listed_recent')
+    
+    if event_id:
+        listings = listings.filter(ticket__event_id=event_id)
+    if event_category_id:
+        listings = listings.filter(ticket__event__category_id=event_category_id)
+    if ticket_category:
+        listings = listings.filter(ticket__category=ticket_category)
+    if price_min:
+        try:
+            listings = listings.filter(ticket__price__gte=Decimal(price_min))
+        except (ValueError, TypeError):
+            pass
+    if price_max:
+        try:
+            listings = listings.filter(ticket__price__lte=Decimal(price_max))
+        except (ValueError, TypeError):
+            pass
+    if event_date_start:
+        try:
+            listings = listings.filter(ticket__event__date__gte=event_date_start)
+        except (ValueError, TypeError):
+            pass
+    if event_date_end:
+        try:
+            listings = listings.filter(ticket__event__date__lte=event_date_end)
+        except (ValueError, TypeError):
+            pass
+    if venue_id:
+        listings = listings.filter(ticket__event__venue_id=venue_id)
+    if location:
+        listings = listings.filter(
+            Q(ticket__event__venue__address__icontains=location) |
+            Q(ticket__event__venue__city__icontains=location)
+        )
+    if search:
+        listings = listings.filter(ticket__event__title__icontains=search)
+    
+    # Sorting
+    if sort_by == 'price_asc':
+        listings = listings.order_by('ticket__price', '-listed_at')
+    elif sort_by == 'price_desc':
+        listings = listings.order_by('-ticket__price', '-listed_at')
+    elif sort_by == 'date_asc':
+        listings = listings.order_by('ticket__event__date', '-listed_at')
+    elif sort_by == 'date_desc':
+        listings = listings.order_by('-ticket__event__date', '-listed_at')
+    else:  # listed_recent (default)
+        listings = listings.order_by('-listed_at')
+    
+    # Pagination
+    page = int(request.query_params.get('page', 1))
+    limit = int(request.query_params.get('limit', 20))
+    offset = (page - 1) * limit
+    
+    # Get total count before pagination
+    total_count = listings.count()
+    
+    # Debug: Log the query details
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Marketplace listings query: total_count={total_count}, page={page}, limit={limit}")
+    
+    # Apply pagination
+    paginated_listings = list(listings[offset:offset + limit])
+    logger.info(f"Marketplace listings after pagination: {len(paginated_listings)} listings")
+    
+    # Serialize the listings
+    serializer = TicketMarketplaceListingSerializer(
+        paginated_listings, 
+        many=True, 
+        context={'request': request}
+    )
+    
+    return Response({
+        'results': serializer.data,
+        'count': total_count,
+        'page': page,
+        'limit': limit,
+        'total_pages': (total_count + limit - 1) // limit if limit > 0 else 1
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def marketplace_listing_delete(request, listing_id):
+    """
+    Remove listing (requires auth, owner only).
+    DELETE /api/v1/marketplace/listings/:id/
+    """
+    customer = getattr(request, 'customer', None)
+    if not customer:
+        return Response({
+            'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required'}
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Check if customer is banned
+    if customer.status == 'banned':
+        return Response({
+            'error': {'code': 'ACCOUNT_BANNED', 'message': 'Your account has been banned. You cannot manage marketplace listings.'}
+        }, status=status.HTTP_403_FORBIDDEN)
+    
+    try:
+        listing = TicketMarketplaceListing.objects.get(id=listing_id, customer=customer)
+    except TicketMarketplaceListing.DoesNotExist:
+        return Response({
+            'error': {'code': 'NOT_FOUND', 'message': 'Listing not found or you do not own this listing'}
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    listing.is_active = False
+    listing.save(update_fields=['is_active'])
+    
+    return Response({
+        'message': 'Listing removed successfully'
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def marketplace_my_listings(request):
+    """
+    Get current user's listings (requires auth).
+    GET /api/v1/marketplace/my-listings/
+    """
+    customer = getattr(request, 'customer', None)
+    if not customer:
+        return Response({
+            'error': {'code': 'UNAUTHORIZED', 'message': 'Authentication required'}
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    listings = TicketMarketplaceListing.objects.filter(
+        customer=customer
+    ).select_related(
+        'ticket', 'ticket__event', 'ticket__event__venue', 
+        'ticket__event__category', 'customer'
+    ).order_by('-listed_at')
+    
+    serializer = TicketMarketplaceListingSerializer(
+        listings, 
+        many=True, 
+        context={'request': request}
+    )
+    
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def marketplace_filter_options(request):
+    """
+    Get available filter options (categories, venues, price ranges) for dropdowns.
+    GET /api/v1/marketplace/filter-options/
+    """
+    from venues.models import Venue
+    from events.models import EventCategory
+    
+    # Get active listings from non-banned customers only
+    # Also ensure tickets are still valid and events allow transfers
+    # Note: We exclude banned customers, but allow inactive customers (they can still have valid listings)
+    active_listings = TicketMarketplaceListing.objects.filter(
+        is_active=True,
+        customer__status__in=['active', 'inactive'],  # Exclude only banned customers
+        ticket__status='valid',  # Only show valid tickets
+        ticket__event__ticket_transfer_enabled=True  # Only show tickets from events that allow transfers
+    ).select_related('ticket', 'ticket__event', 'ticket__event__venue', 'ticket__event__category')
+    
+    # Get unique categories
+    categories = EventCategory.objects.filter(
+        events__tickets__marketplace_listings__is_active=True,
+        events__tickets__marketplace_listings__customer__status__in=['active', 'inactive'],
+        events__tickets__marketplace_listings__ticket__status='valid',
+        events__tickets__marketplace_listings__ticket__event__ticket_transfer_enabled=True
+    ).distinct().values('id', 'name')
+    
+    # Get unique venues
+    venues = Venue.objects.filter(
+        events__tickets__marketplace_listings__is_active=True,
+        events__tickets__marketplace_listings__customer__status__in=['active', 'inactive'],
+        events__tickets__marketplace_listings__ticket__status='valid',
+        events__tickets__marketplace_listings__ticket__event__ticket_transfer_enabled=True
+    ).distinct().values('id', 'name', 'city')
+    
+    # Get price range
+    from django.db.models import Min, Max
+    price_range = active_listings.aggregate(
+        min_price=Min('ticket__price'),
+        max_price=Max('ticket__price')
+    )
+    
+    # Get unique ticket categories
+    ticket_categories = active_listings.values_list(
+        'ticket__category', flat=True
+    ).distinct()
+    
+    return Response({
+        'categories': list(categories),
+        'venues': list(venues),
+        'ticket_categories': list(ticket_categories),
+        'price_range': {
+            'min': float(price_range['min_price']) if price_range['min_price'] else 0,
+            'max': float(price_range['max_price']) if price_range['max_price'] else 0
+        }
+    }, status=status.HTTP_200_OK)

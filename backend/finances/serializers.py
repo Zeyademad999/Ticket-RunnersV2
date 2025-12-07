@@ -2,7 +2,7 @@
 Serializers for finances app.
 """
 from rest_framework import serializers
-from .models import Expense, Payout, CompanyFinance, ProfitShare, Settlement, Deposit, ProfitWithdrawal
+from .models import Expense, Payout, CompanyFinance, ProfitShare, Settlement, Deposit, ProfitWithdrawal, Deduction
 
 
 class ExpenseSerializer(serializers.ModelSerializer):
@@ -65,4 +65,13 @@ class ProfitWithdrawalSerializer(serializers.ModelSerializer):
         model = ProfitWithdrawal
         fields = '__all__'
         read_only_fields = ['id', 'created_at']
+
+
+class DeductionSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
+    
+    class Meta:
+        model = Deduction
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
 

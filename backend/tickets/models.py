@@ -258,3 +258,53 @@ class TicketRegistrationToken(models.Model):
         """
         self.used = True
         self.save(update_fields=['used'])
+
+
+class TicketMarketplaceListing(models.Model):
+    """
+    Model for tickets listed on the marketplace.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name='marketplace_listings',
+        db_index=True,
+        unique=True,
+        help_text="The ticket being listed"
+    )
+    customer = models.ForeignKey(
+        'customers.Customer',
+        on_delete=models.CASCADE,
+        related_name='marketplace_listings',
+        db_index=True,
+        help_text="The seller (current ticket owner)"
+    )
+    listed_at = models.DateTimeField(default=timezone.now, db_index=True)
+    terms_accepted = models.BooleanField(default=False)
+    terms_accepted_at = models.DateTimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    
+    class Meta:
+        db_table = 'ticket_marketplace_listings'
+        verbose_name = 'Ticket Marketplace Listing'
+        verbose_name_plural = 'Ticket Marketplace Listings'
+        indexes = [
+            models.Index(fields=['ticket']),
+            models.Index(fields=['customer']),
+            models.Index(fields=['listed_at']),
+            models.Index(fields=['is_active']),
+            models.Index(fields=['is_active', 'listed_at']),
+        ]
+        ordering = ['-listed_at']
+    
+    def __str__(self):
+        return f"Marketplace listing for {self.ticket.ticket_number} by {self.customer.name}"
+    
+    def deactivate(self):
+        """
+        Deactivate the listing.
+        """
+        self.is_active = False
+        self.save(update_fields=['is_active'])

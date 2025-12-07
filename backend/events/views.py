@@ -296,3 +296,49 @@ class EventViewSet(viewsets.ModelViewSet):
             }
             for cat in categories
         ])
+    
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, HasPermission("events_edit")])
+    def cancel(self, request, pk=None):
+        """
+        Cancel an event.
+        POST /api/events/:id/cancel/
+        """
+        event = self.get_object()
+        
+        # Check if event is already cancelled
+        if event.status == 'cancelled':
+            return Response(
+                {'error': 'Event is already cancelled'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Check if event is already completed
+        if event.status == 'completed':
+            return Response(
+                {'error': 'Cannot cancel a completed event'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Update event status to cancelled
+        event.status = 'cancelled'
+        event.save(update_fields=['status'])
+        
+        # Log system action
+        ip_address = get_client_ip(request)
+        log_system_action(
+            user=request.user,
+            action='CANCEL_EVENT',
+            category='event',
+            severity='WARNING',
+            description=f'Cancelled event: {event.title}',
+            ip_address=ip_address,
+            status='SUCCESS'
+        )
+        
+        return Response(
+            {
+                'message': 'Event cancelled successfully',
+                'event': EventDetailSerializer(event).data
+            },
+            status=status.HTTP_200_OK
+        )

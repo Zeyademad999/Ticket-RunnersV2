@@ -326,3 +326,81 @@ class ProfitWithdrawal(models.Model):
     
     def __str__(self):
         return f"Withdrawal {self.reference} - {self.amount}"
+
+
+class Deduction(models.Model):
+    """
+    Custom deductions model for revenue calculations.
+    Deductions can be applied to total revenue (tickets + EVS cards).
+    """
+    TYPE_CHOICES = [
+        ('percentage', 'Percentage of Total Revenue'),
+        ('fixed_per_ticket', 'Fixed Amount per Ticket Sold'),
+    ]
+    
+    name = models.CharField(max_length=200, db_index=True, help_text="Name of the deduction")
+    value = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(0)],
+        help_text="Deduction value (percentage or fixed amount)"
+    )
+    type = models.CharField(
+        max_length=20,
+        choices=TYPE_CHOICES,
+        db_index=True,
+        help_text="Type of deduction: percentage of total revenue or fixed amount per ticket"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether this deduction is currently active"
+    )
+    description = models.TextField(blank=True, help_text="Optional description of the deduction")
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        'authentication.AdminUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='deductions_created'
+    )
+    
+    class Meta:
+        db_table = 'deductions'
+        verbose_name = 'Deduction'
+        verbose_name_plural = 'Deductions'
+        indexes = [
+            models.Index(fields=['is_active']),
+            models.Index(fields=['type']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        type_display = 'Percentage' if self.type == 'percentage' else 'Fixed per Ticket'
+        return f"{self.name} - {self.value} ({type_display})"
+    
+    def calculate_amount(self, total_revenue=None, tickets_sold=None):
+        """
+        Calculate the deduction amount based on type.
+        
+        Args:
+            total_revenue: Total revenue (tickets + cards) for percentage calculations
+            tickets_sold: Number of tickets sold for fixed_per_ticket calculations
+        
+        Returns:
+            Decimal: The calculated deduction amount
+        """
+        from decimal import Decimal
+        if not self.is_active:
+            return Decimal('0.00')
+        
+        if self.type == 'percentage':
+            if total_revenue is None:
+                return Decimal('0.00')
+            return Decimal(str(total_revenue)) * (self.value / 100)
+        elif self.type == 'fixed_per_ticket':
+            if tickets_sold is None:
+                return Decimal('0.00')
+            return self.value * Decimal(str(tickets_sold))
+        return Decimal('0.00')

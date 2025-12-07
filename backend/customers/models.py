@@ -126,6 +126,26 @@ class Customer(models.Model):
         if not self.password:
             return False
         return check_password(raw_password, self.password)
+    
+    def calculate_age(self):
+        """
+        Calculate age from date of birth.
+        Returns None if date_of_birth is not set.
+        """
+        if not self.date_of_birth:
+            return None
+        
+        from datetime import date
+        today = date.today()
+        age = today.year - self.date_of_birth.year - ((today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day))
+        return age
+    
+    @property
+    def age(self):
+        """
+        Property to get current age.
+        """
+        return self.calculate_age()
 
 
 class Dependent(models.Model):

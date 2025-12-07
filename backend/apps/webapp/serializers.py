@@ -4,7 +4,7 @@ Serializers for WebApp Portal (User-Facing).
 from rest_framework import serializers
 from customers.models import Customer, Dependent
 from events.models import Event, TicketCategory
-from tickets.models import Ticket
+from tickets.models import Ticket, TicketMarketplaceListing
 from nfc_cards.models import NFCCard, NFCCardAutoReload
 from payments.models import PaymentTransaction
 from apps.webapp.models import Favorite
@@ -78,6 +78,40 @@ class UserProfileSerializer(serializers.ModelSerializer):
                 return url
             return str(obj.profile_image) if obj.profile_image else None
         return None
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Ensure labels are returned as objects with name, color, icon, description
+        if 'labels' in data and isinstance(data['labels'], list):
+            transformed_labels = []
+            for label_data in data['labels']:
+                if isinstance(label_data, dict) and 'name' in label_data:
+                    # Already an object, ensure all fields are present
+                    transformed_labels.append({
+                        'name': label_data.get('name'),
+                        'color': label_data.get('color', '#3B82F6'), # Default color
+                        'icon': label_data.get('icon', 'Tag'), # Default icon
+                        'description': label_data.get('description', label_data.get('name')),
+                    })
+                elif isinstance(label_data, str):
+                    # Convert string label to object with default color/icon
+                    label_name = label_data
+                    label_colors = {
+                        'VIP': '#F59E0B', 'Premium': '#8B5CF6', 'Regular': '#3B82F6',
+                        'Student': '#06B6D4', 'Early Bird': '#10B981', 'Black Card Customer': '#000000',
+                    }
+                    label_icons = {
+                        'VIP': 'Crown', 'Premium': 'Award', 'Regular': 'Tag',
+                        'Student': 'Shield', 'Early Bird': 'Star', 'Black Card Customer': 'CreditCard',
+                    }
+                    transformed_labels.append({
+                        'name': label_name,
+                        'color': label_colors.get(label_name, '#3B82F6'),
+                        'icon': label_icons.get(label_name, 'Tag'),
+                        'description': label_name,
+                    })
+            data['labels'] = transformed_labels
+        return data
 
 
 class DependentSerializer(serializers.ModelSerializer):
@@ -126,7 +160,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = Event
         fields = [
-            'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'terms_and_conditions',
+            'id', 'title', 'artist_name', 'description', 'about_venue', 'gates_open_time', 'closed_doors_time', 'terms_and_conditions',
             'date', 'time', 
             'location', 'venue_name', 'venue_address', 'venue_city',
             'organizer_name', 'organizer_id', 'organizer', 'category_id', 'category_name', 'status',
@@ -134,7 +168,8 @@ class PublicEventSerializer(serializers.ModelSerializer):
             'thumbnail_path', 'starting_price', 'image', 'venue_layout_image', 'ticket_categories',
             'tickets_available',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
-            'child_eligibility_min_age', 'child_eligibility_max_age'
+            'child_eligibility_min_age', 'child_eligibility_max_age',
+            'wheelchair_access', 'bathroom', 'parking', 'non_smoking'
         ]
     
     def get_organizer_name(self, obj):
@@ -483,3 +518,92 @@ class FavoriteSerializer(serializers.ModelSerializer):
         fields = ['id', 'event', 'event_title', 'created_at']
         read_only_fields = ['id', 'created_at']
 
+
+class TicketMarketplaceListingSerializer(serializers.ModelSerializer):
+    """Serializer for ticket marketplace listings."""
+    # Ticket details
+    ticket_id = serializers.UUIDField(source='ticket.id', read_only=True)
+    ticket_number = serializers.CharField(source='ticket.ticket_number', read_only=True)
+    ticket_category = serializers.CharField(source='ticket.category', read_only=True)
+    ticket_price = serializers.DecimalField(source='ticket.price', max_digits=10, decimal_places=2, read_only=True)
+    ticket_status = serializers.CharField(source='ticket.status', read_only=True)
+    
+    # Event details
+    event_id = serializers.IntegerField(source='ticket.event.id', read_only=True)
+    event_title = serializers.CharField(source='ticket.event.title', read_only=True)
+    event_date = serializers.DateField(source='ticket.event.date', read_only=True)
+    event_time = serializers.TimeField(source='ticket.event.time', read_only=True)
+    event_location = serializers.SerializerMethodField()
+    event_category = serializers.SerializerMethodField()
+    event_image = serializers.SerializerMethodField()
+    
+    # Seller contact info (only for authenticated users)
+    seller_name = serializers.SerializerMethodField()
+    seller_mobile = serializers.SerializerMethodField()
+    seller_email = serializers.SerializerMethodField()
+    is_my_listing = serializers.SerializerMethodField()
+    
+    def get_seller_name(self, obj):
+        """Get seller name - always visible."""
+        return obj.customer.name if obj.customer else ""
+    
+    def get_seller_mobile(self, obj):
+        """Get seller mobile - only for authenticated users."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.customer.mobile_number if obj.customer else None
+        return None
+    
+    def get_seller_email(self, obj):
+        """Get seller email - only for authenticated users."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.customer.email if obj.customer else None
+        return None
+    
+    def get_is_my_listing(self, obj):
+        """Check if this listing belongs to the current user."""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            customer = getattr(request, 'customer', None)
+            if customer and obj.customer:
+                return customer.id == obj.customer.id
+        return False
+    
+    # Listing metadata
+    listed_at = serializers.DateTimeField(read_only=True)
+    is_active = serializers.BooleanField(read_only=True)
+    
+    def get_event_location(self, obj):
+        """Get event location."""
+        if obj.ticket.event and obj.ticket.event.venue:
+            venue = obj.ticket.event.venue
+            if venue.address:
+                return f"{venue.address}, {venue.city}" if venue.city else venue.address
+            return venue.city or ""
+        return ""
+    
+    def get_event_category(self, obj):
+        """Get event category name."""
+        if obj.ticket.event and obj.ticket.event.category:
+            return obj.ticket.event.category.name
+        return None
+    
+    def get_event_image(self, obj):
+        """Get event image URL."""
+        if obj.ticket.event and obj.ticket.event.image:
+            if hasattr(obj.ticket.event.image, 'url'):
+                return obj.ticket.event.image.url
+            return str(obj.ticket.event.image)
+        return None
+    
+    class Meta:
+        model = TicketMarketplaceListing
+        fields = [
+            'id', 'ticket_id', 'ticket_number', 'ticket_category', 'ticket_price', 'ticket_status',
+            'event_id', 'event_title', 'event_date', 'event_time', 'event_location', 
+            'event_category', 'event_image',
+            'seller_name', 'seller_mobile', 'seller_email',
+            'listed_at', 'is_active', 'terms_accepted_at', 'is_my_listing'
+        ]
+        read_only_fields = ['id', 'listed_at', 'is_active']

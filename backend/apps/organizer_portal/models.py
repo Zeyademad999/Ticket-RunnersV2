@@ -28,7 +28,11 @@ class EventEditRequest(models.Model):
         db_index=True
     )
     requested_changes = models.TextField(help_text="Description of requested changes")
+    # Structured request data (JSON) for different types of edits
+    requested_data = models.JSONField(default=dict, blank=True, null=True, help_text="Structured request data for specific edit types")
     file_attachments = models.TextField(blank=True, null=True, help_text="JSON serialized list of file paths/URLs")
+    # New event image file (if changing event image)
+    new_event_image = models.ImageField(upload_to='event_edit_requests/', blank=True, null=True, help_text="New event image file")
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,

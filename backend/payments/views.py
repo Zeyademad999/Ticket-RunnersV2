@@ -98,6 +98,47 @@ class PaymentTransactionViewSet(viewsets.ReadOnlyModelViewSet):
             'failed_payments': failed_payments,
             'payment_methods': payment_methods
         })
+    
+    @action(detail=True, methods=['post'], url_path='mark-refunded')
+    def mark_refunded(self, request, pk=None):
+        """
+        Mark a payment as refunded.
+        POST /api/payments/{id}/mark-refunded/
+        """
+        payment = self.get_object()
+        
+        # Only allow marking completed payments as refunded
+        if payment.status != 'completed':
+            return Response({
+                'error': {
+                    'code': 'INVALID_STATUS',
+                    'message': f'Only completed payments can be marked as refunded. Current status: {payment.status}'
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update payment status
+        payment.status = 'refunded'
+        payment.save()
+        
+        # Log system action
+        from core.utils import get_client_ip, log_system_action
+        ip_address = get_client_ip(request)
+        log_system_action(
+            user=request.user,
+            action='MARK_PAYMENT_REFUNDED',
+            category='payment',
+            severity='INFO',
+            description=f'Marked payment {payment.transaction_id} as refunded',
+            ip_address=ip_address,
+            status='SUCCESS'
+        )
+        
+        serializer = self.get_serializer(payment)
+        return Response({
+            'success': True,
+            'message': 'Payment marked as refunded successfully',
+            'data': serializer.data
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
@@ -136,8 +177,7 @@ def initialize_payment(request):
         additional_fees = {
             'card_cost': request.data.get('card_cost', 0),
             'renewal_cost': request.data.get('renewal_cost', 0),
-            'subtotal': request.data.get('subtotal', 0),  # Ticket price before VAT
-            'vat_amount': request.data.get('vat_amount', 0),  # VAT on tickets
+            'subtotal': request.data.get('subtotal', 0),  # Ticket price
         }
         
         # For transfers, ticket_id is required instead of event_id

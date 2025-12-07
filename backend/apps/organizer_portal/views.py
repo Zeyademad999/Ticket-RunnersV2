@@ -1,22 +1,25 @@
 """
 Views for Organizer Portal.
 """
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework import status, viewsets
+from rest_framework.decorators import api_view, permission_classes, parser_classes, action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.utils import timezone
 from django.db.models import Q, Count, Sum
+from datetime import datetime, date, time
+import logging
 
 from users.models import Organizer
-from events.models import Event
+from events.models import Event, TicketCategory
 from tickets.models import Ticket
 from finances.models import Payout
 from core.otp_service import create_and_send_otp, verify_otp
 from core.exceptions import AuthenticationError, ValidationError
-from core.permissions import IsOrganizer
+from core.permissions import IsOrganizer, IsAdmin
+from .models import EventEditRequest
 from .serializers import (
     OrganizerLoginSerializer, OrganizerOTPSerializer,
     OrganizerProfileSerializer, OrganizerEventSerializer,
@@ -259,20 +262,138 @@ def organizer_dashboard_stats(request):
         
         organizer = request.organizer
         
-        events = Event.objects.filter(organizers=organizer)
+        # Get fresh events from database (no caching)
+        events = Event.objects.filter(organizers=organizer).select_related('venue', 'category')
         # Exclude black card tickets from all counts
         tickets_qs = Ticket.objects.filter(event__organizers=organizer, is_black_card=False)
         payouts = Payout.objects.filter(organizer=organizer)
+        
+        # Get current date and time in local timezone
+        now = timezone.localtime(timezone.now())
+        current_date = now.date()
+        current_time = now.time()
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"=== Stats calculation - Current date: {current_date}, Current time: {current_time} ===")
+        
+        # Total events: All events created by this organizer
+        total_events = events.count()
+        
+        # Initialize counters
+        live_events = 0
+        completed_events = 0
+        running_events = 0
+        
+        # Process all events to categorize them
+        for event in events:
+            event_date = event.date
+            is_today = event_date == current_date
+            is_past = event_date < current_date
+            is_future = event_date > current_date
+            
+            # Skip cancelled events
+            if event.status == 'cancelled':
+                continue
+            
+            # Debug log for ALL events to see their categorization
+            logger.info(f"Event {event.id} ({event.title}): date={event_date}, is_today={is_today}, is_past={is_past}, is_future={is_future}, gates_open={event.gates_open_time}, closed_doors={event.closed_doors_time}, current_time={current_time}, status={event.status}")
+            
+            # Check if event is completed FIRST
+            # Completed = status is 'completed' OR past date OR (today/past AND closed_doors_time has passed)
+            is_completed = False
+            
+            # Check 1: Status is explicitly completed
+            if event.status == 'completed':
+                is_completed = True
+                logger.info(f"  -> Event {event.id}: COMPLETED (status='completed')")
+            # Check 2: Event date is in the past (past events are always completed)
+            elif is_past:
+                is_completed = True
+                logger.info(f"  -> Event {event.id}: COMPLETED (past date: {event_date} < {current_date})")
+            # Check 3: Event is today or past AND closed_doors_time has passed
+            # Note: We check (is_today or is_past) but is_past is already handled above,
+            # so this effectively only checks is_today, but we keep the condition for clarity
+            elif (is_today or is_past) and event.closed_doors_time:
+                # Compare times - if current time >= closed_doors_time, event is completed
+                time_comparison = current_time >= event.closed_doors_time
+                logger.info(f"  -> Event {event.id}: Checking closed_doors_time: {event.closed_doors_time} vs current_time: {current_time} -> {time_comparison}")
+                if time_comparison:
+                    is_completed = True
+                    logger.info(f"  -> Event {event.id}: COMPLETED (closed_doors_time={event.closed_doors_time} <= current_time={current_time})")
+                else:
+                    logger.info(f"  -> Event {event.id}: NOT completed yet (closed_doors_time={event.closed_doors_time} > current_time={current_time})")
+            
+            if is_completed:
+                completed_events += 1
+                continue  # Skip to next event
+            
+            # Check if event is live (gates are open and doors haven't closed)
+            # Live = (today or past) AND gates_open_time has arrived AND doors haven't closed
+            is_live = False
+            if (is_today or is_past) and event.gates_open_time:
+                # Gates are open if current time >= gates_open_time
+                if current_time >= event.gates_open_time:
+                    # Check if doors haven't closed yet
+                    if not event.closed_doors_time:
+                        # No closed doors time set, so event is live once gates open
+                        is_live = True
+                    elif current_time < event.closed_doors_time:
+                        # Doors haven't closed yet, so event is live
+                        is_live = True
+            
+            if is_live:
+                live_events += 1
+                logger.info(f"  -> Event {event.id}: LIVE (gates_open_time={event.gates_open_time}, current_time={current_time})")
+                continue  # Skip to next event
+            
+            # Check if event is running (booking is open - available on website/web app)
+            # Running = booking open (status is upcoming or ongoing, and date >= today)
+            # But NOT live and NOT completed and doors haven't closed
+            is_running = False
+            
+            # Only check for running if event is available for booking
+            if event.status in ['upcoming', 'ongoing'] and (is_today or is_future):
+                # CRITICAL SAFETY CHECK: Never count as running if doors have closed
+                # Check this regardless of is_today/is_past flags to be absolutely sure
+                doors_closed = False
+                if event.closed_doors_time:
+                    # If event date is today or past, check if closed_doors_time has passed
+                    if event_date <= current_date:
+                        # Event is today or past - check if closed_doors_time has passed
+                        if event_date < current_date:
+                            # Past event - doors are definitely closed
+                            doors_closed = True
+                            logger.info(f"  -> Event {event.id}: BLOCKED FROM RUNNING - past event with closed_doors_time")
+                        elif event_date == current_date:
+                            # Today's event - check if closed_doors_time has passed
+                            if current_time >= event.closed_doors_time:
+                                doors_closed = True
+                                logger.info(f"  -> Event {event.id}: BLOCKED FROM RUNNING - doors closed: {event.closed_doors_time} <= current_time: {current_time}")
+                            else:
+                                logger.info(f"  -> Event {event.id}: Doors not closed yet: {event.closed_doors_time} > current_time: {current_time}")
+                
+                # Only mark as running if doors haven't closed
+                if not doors_closed:
+                    is_running = True
+                    logger.info(f"  -> Event {event.id}: RUNNING (available for booking, doors not closed)")
+                else:
+                    logger.info(f"  -> Event {event.id}: NOT RUNNING (doors have closed or event is past)")
+            
+            if is_running:
+                running_events += 1
         
         # Calculate available tickets: total tickets - sold tickets (excluding black card tickets)
         total_tickets = events.aggregate(total=Sum('total_tickets'))['total'] or 0
         tickets_sold = tickets_qs.filter(status__in=['valid', 'used']).count()
         available_tickets = total_tickets - tickets_sold
         
+        logger.info(f"=== Final stats: total={total_events}, running={running_events}, live={live_events}, completed={completed_events} ===")
+        
         stats = {
-            'total_events': events.count(),
-            'running_events': events.filter(status='ongoing').count(),
-            'completed_events': events.filter(status='completed').count(),
+            'total_events': total_events,
+            'running_events': running_events,
+            'live_events': live_events,
+            'completed_events': completed_events,
             'available_tickets': available_tickets,
             'total_tickets_sold': tickets_sold,
             'total_attendees': tickets_qs.filter(status='used').count(),
@@ -292,7 +413,6 @@ def organizer_dashboard_stats(request):
         
         return Response(stats, status=status.HTTP_200_OK)
     except Exception as e:
-        import logging
         import traceback
         logger = logging.getLogger(__name__)
         logger.error(f"Error in organizer_dashboard_stats: {str(e)}")
@@ -428,27 +548,96 @@ def organizer_event_edit_request(request, event_id):
     """
     Submit event edit request.
     POST /api/organizer/events/:id/edit-request/
+    Supports structured edit requests with requested_data JSON field.
     """
-    organizer = request.organizer
     try:
-        event = Event.objects.get(id=event_id, organizer=organizer)
+        # Check if organizer is set on request
+        if not hasattr(request, 'organizer') or request.organizer is None:
+            return Response({
+                'error': {
+                    'code': 'AUTHENTICATION_ERROR',
+                    'message': 'Organizer not authenticated'
+                }
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        organizer = request.organizer
+        
+        # Parse event_id (can be UUID or integer)
+        import uuid
+        if isinstance(event_id, str):
+            try:
+                event_id = uuid.UUID(event_id)
+            except ValueError:
+                try:
+                    event_id = int(event_id)
+                except ValueError:
+                    pass
+        
+        event = Event.objects.get(id=event_id, organizers=organizer)
     except Event.DoesNotExist:
         return Response({
             'error': {'code': 'NOT_FOUND', 'message': 'Event not found'}
         }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in organizer_event_edit_request: {str(e)}")
+        logger.error(traceback.format_exc())
+        return Response({
+            'error': {'code': 'SERVER_ERROR', 'message': 'An error occurred while processing your request'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
-    serializer = EventEditRequestSerializer(data={
-        'event': event.id,
-        'organizer': organizer.id,
-        'requested_changes': request.data.get('requested_changes', ''),
-        'file_attachments': request.data.get('file_attachments', ''),
-    })
+    try:
+        # Prepare data for serializer
+        # Handle both regular data and FormData
+        data = {
+            'event': event.id,
+            'organizer': organizer.id,
+            'requested_changes': request.data.get('requested_changes', '') or '',
+            'file_attachments': request.data.get('file_attachments', '') or '',
+        }
+        
+        # Handle requested_data (structured JSON)
+        if 'requested_data' in request.data:
+            import json
+            requested_data_value = request.data['requested_data']
+            if isinstance(requested_data_value, str):
+                try:
+                    data['requested_data'] = json.loads(requested_data_value)
+                except json.JSONDecodeError:
+                    data['requested_data'] = {}
+            else:
+                data['requested_data'] = requested_data_value
+        
+        # Handle file upload (new event image)
+        # For DRF, files should be included in the data dict, not passed separately
+        if 'new_event_image' in request.FILES:
+            data['new_event_image'] = request.FILES['new_event_image']
+        
+        serializer = EventEditRequestSerializer(data=data, context={'request': request})
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        # Return validation errors
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Serializer validation errors: {serializer.errors}")
+        return Response({
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'Invalid request data', 'details': serializer.errors}
+        }, status=status.HTTP_400_BAD_REQUEST)
     
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-    
-    raise ValidationError(serializer.errors)
+    except Exception as e:
+        import logging
+        import traceback
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error processing event edit request: {str(e)}")
+        logger.error(traceback.format_exc())
+        return Response({
+            'error': {'code': 'SERVER_ERROR', 'message': f'An error occurred: {str(e)}'}
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -711,3 +900,165 @@ def organizer_payout_invoice(request, payout_id):
         'message': 'Invoice data (PDF generation pending)',
         'invoice': invoice_data
     }, status=status.HTTP_200_OK)
+
+
+# Admin API endpoints for event edit requests
+class EventEditRequestViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for admin to view and manage event edit requests.
+    """
+    queryset = EventEditRequest.objects.select_related('event', 'organizer').all()
+    serializer_class = EventEditRequestSerializer
+    permission_classes = [IsAdmin]
+    
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        status_filter = self.request.query_params.get('status')
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return queryset.order_by('-created_at')
+    
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        """
+        Approve an event edit request and apply changes.
+        POST /api/organizer/admin/event-edit-requests/{id}/approve/
+        """
+        try:
+            edit_request = self.get_object()
+            
+            if edit_request.status != 'pending':
+                return Response({
+                    'error': {'message': 'Only pending requests can be approved'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            event = edit_request.event
+            requested_data = edit_request.requested_data or {}
+            
+            # Apply changes based on edit type
+            edit_type = requested_data.get('edit_type', '')
+            
+            if edit_type == 'edit_event_name':
+                event.title = requested_data.get('new_event_name', event.title)
+                event.save(update_fields=['title'])
+            
+            elif edit_type == 'edit_total_tickets':
+                new_total = requested_data.get('new_total_tickets')
+                if new_total is not None:
+                    event.total_tickets = new_total
+                    event.save(update_fields=['total_tickets'])
+            
+            elif edit_type == 'add_ticket_category':
+                category_name = requested_data.get('category_name')
+                category_price = requested_data.get('category_price')
+                category_total = requested_data.get('category_total_tickets')
+                if category_name and category_price is not None and category_total is not None:
+                    TicketCategory.objects.create(
+                        event=event,
+                        name=category_name,
+                        price=category_price,
+                        total_tickets=category_total
+                    )
+            
+            elif edit_type == 'mark_category_sold_out':
+                category_name = requested_data.get('category_name')
+                if category_name:
+                    try:
+                        category = TicketCategory.objects.get(event=event, name=category_name)
+                        # Mark as sold out by setting total_tickets to sold count
+                        from tickets.models import Ticket
+                        sold_count = Ticket.objects.filter(
+                            event=event,
+                            category=category_name,
+                            is_black_card=False,
+                            status__in=['valid', 'used']
+                        ).count()
+                        category.total_tickets = sold_count
+                        category.save(update_fields=['total_tickets'])
+                    except TicketCategory.DoesNotExist:
+                        pass
+            
+            elif edit_type == 'change_event_image':
+                if edit_request.new_event_image:
+                    event.image = edit_request.new_event_image
+                    event.save(update_fields=['image'])
+            
+            elif edit_type == 'edit_ticket_price':
+                category_name = requested_data.get('category_name')
+                new_price = requested_data.get('new_price')
+                if category_name and new_price is not None:
+                    # Check if there are unsold tickets (only valid tickets, not used)
+                    from tickets.models import Ticket
+                    unsold_tickets = Ticket.objects.filter(
+                        event=event,
+                        category=category_name,
+                        is_black_card=False,
+                        status='valid'  # Only valid (unsold/unused) tickets
+                    )
+                    if unsold_tickets.exists():
+                        # Update price for unsold tickets only
+                        unsold_tickets.update(price=new_price)
+                    # Update category price regardless (for future tickets)
+                    try:
+                        category = TicketCategory.objects.get(event=event, name=category_name)
+                        category.price = new_price
+                        category.save(update_fields=['price'])
+                    except TicketCategory.DoesNotExist:
+                        pass
+            
+            # Update request status
+            edit_request.status = 'approved'
+            # Store admin notes if provided
+            edit_request.admin_notes = request.data.get('admin_notes', '')
+            edit_request.save()
+            
+            serializer = EventEditRequestSerializer(edit_request, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except EventEditRequest.DoesNotExist:
+            return Response({
+                'error': {'code': 'NOT_FOUND', 'message': 'Edit request not found'}
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error approving event edit request: {str(e)}")
+            logger.error(traceback.format_exc())
+            return Response({
+                'error': {'code': 'INTERNAL_ERROR', 'message': f'An error occurred: {str(e)}'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        """
+        Reject an event edit request.
+        POST /api/organizer/admin/event-edit-requests/{id}/reject/
+        """
+        try:
+            edit_request = self.get_object()
+            
+            if edit_request.status != 'pending':
+                return Response({
+                    'error': {'message': 'Only pending requests can be rejected'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            rejection_reason = request.data.get('rejection_reason', '')
+            edit_request.status = 'rejected'
+            edit_request.admin_notes = rejection_reason
+            edit_request.save()
+            
+            serializer = EventEditRequestSerializer(edit_request, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except EventEditRequest.DoesNotExist:
+            return Response({
+                'error': {'code': 'NOT_FOUND', 'message': 'Edit request not found'}
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            import traceback
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error rejecting event edit request: {str(e)}")
+            logger.error(traceback.format_exc())
+            return Response({
+                'error': {'code': 'INTERNAL_ERROR', 'message': f'An error occurred: {str(e)}'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
