@@ -57,6 +57,7 @@
   "eventCard": {
     "featured": "Featured",
     "bookNow": "Book Now",
+    "soldOut": "SOLD OUT !!",
     "addedToFavorites": "Added to favorites",
     "removedFromFavorites": "Removed from favorites",
     "favoriteDescription": "{{title}} {{action}} your favorites!",
@@ -253,6 +254,18 @@
       "childAgeLessThanError": "Child must be less than {{maxAge}} years old",
       "childAgeMoreThanError": "Child must be more than {{minAge}} years old",
       "childAgeInvalid": "Child age does not meet eligibility requirements",
+      "soldOut": "SOLD OUT",
+      "limitedTickets": "Only {{count}} tickets left",
+      "eventSoldOut": "This event is completely sold out. No tickets are available.",
+      "categorySoldOut": "This ticket category is sold out.",
+      "maxTicketsReached": "You have reached the maximum available tickets for this category.",
+      "blackCardLimit": "Black Card Limit",
+      "blackCardMaxTickets": "Black Card customers can book a maximum of 2 free tickets.",
+      "blackCardDiscount": "Black Card Customer Discount",
+      "blackCardBookingSuccess": "Your booking has been completed successfully! Your free tickets have been reserved.",
+      "completeBooking": "Complete Booking",
+      "paidTickets": "Paid Tickets",
+      "blackCardFreeTickets": "{{count}} free ticket(s) included",
 
     "tiers": {
       "gold": "gold",
@@ -642,6 +655,7 @@
       "Outdoor": "Outdoor Area"
     },
     "perTicket": "per ticket",
+    "soldOut": "SOLD OUT",
     "vipFreeAccess": "VIP Free Access",
     "vipBlackCardBenefit": "Your Black Card grants 2 free tickets to this unseated event",
     "organizers": "Organizers",

@@ -17,7 +17,7 @@ class HomePageSectionViewSet(viewsets.ModelViewSet):
     ViewSet for HomePageSection model.
     Admin can manage sections, public can view active sections.
     """
-    queryset = HomePageSection.objects.prefetch_related('events').all()
+    queryset = HomePageSection.objects.prefetch_related('events__ticket_categories').all()
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):

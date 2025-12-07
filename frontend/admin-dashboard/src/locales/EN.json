@@ -2390,6 +2390,8 @@
         "manageLabels": "Manage Labels",
         "setVIP": "Set as VIP",
         "removeVIP": "Remove VIP",
+        "setBlackCard": "Set as Black Card Customer",
+        "removeBlackCard": "Remove Black Card Customer",
         "deactivate": "Deactivate",
         "reactivate": "Reactivate",
         "banCustomer": "Ban Customer",
@@ -2592,6 +2594,14 @@
         "setVIPSuccessDesc": "Customer has been successfully marked as VIP",
         "removeVIPSuccess": "VIP Status Removed",
         "removeVIPSuccessDesc": "VIP status has been removed from customer"
+      },
+      "blackCard": {
+        "alreadyBlackCard": "Already Black Card Customer",
+        "alreadyBlackCardDesc": "This customer already has the Black Card Customer label",
+        "setBlackCardSuccess": "Black Card Customer Set",
+        "setBlackCardSuccessDesc": "Customer has been set as Black Card Customer",
+        "removeBlackCardSuccess": "Black Card Customer Removed",
+        "removeBlackCardSuccessDesc": "Black Card Customer label has been removed"
       },
       "labels": {
         "manageLabels": "Manage Labels",
@@ -3141,7 +3151,15 @@
         "makeTeamLeaderDescription": "Make this usher a team leader to assign them to all events at once",
         "removeTeamLeader": "Remove Team Leader",
         "makeTeamLeader": "Make Team Leader",
-        "teamLeaderNote": "Note: Team leaders are automatically assigned to all events and cannot be manually unassigned from individual events."
+        "teamLeaderNote": "Note: Team leaders are automatically assigned to all events and cannot be manually unassigned from individual events.",
+        "zones": "Zones",
+        "zonesDescription": "Comma-separated list of zones",
+        "zonesPlaceholder": "e.g., Zone A, Zone B, Zone C",
+        "ticketCategories": "Ticket Categories",
+        "ticketCategoriesDescription": "Select ticket categories this usher can scan from assigned events",
+        "ticketCategoriesPlaceholder": "e.g., VIP, Standard, Premium",
+        "selectEventsFirst": "Please select events first to see available ticket categories",
+        "noTicketCategories": "No ticket categories available in selected events"
       },
       "noEventsAvailable": "No events available",
       "dialogs": {

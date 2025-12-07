@@ -40,6 +40,7 @@ export default function ScanScreen() {
     stopScanning,
     isConnected,
     bridgeAvailable,
+    onCardScanned,
   } = useWebNFC();
   
   const [cardId, setCardId] = useState("");
@@ -98,6 +99,160 @@ export default function ScanScreen() {
       });
     }
   }, [attendee, scanResult]);
+
+  // Auto-scan continuously - subscribe to card scans
+  useEffect(() => {
+    if (!isSupported && !bridgeAvailable) {
+      return; // NFC not available
+    }
+
+    if (!eventId) {
+      return; // Event ID not available yet
+    }
+
+    // Subscribe to automatic card scans
+    const unsubscribe = onCardScanned(async (scannedCardId) => {
+      console.log('[Auto-scan] Card detected:', scannedCardId);
+      // Small delay to avoid rapid-fire scans
+      await new Promise(resolve => setTimeout(resolve, 500));
+      // Automatically lookup the attendee
+      const idToLookup = scannedCardId;
+      if (!idToLookup.trim()) {
+        return;
+      }
+
+      setIsLoading(true);
+      setAttendee(null);
+      setScanResult(null);
+      setError("");
+
+      try {
+        // Get attendee information from API
+        const attendeeData = await scanAPI.getAttendee(idToLookup, eventId);
+        
+        // Map API response to component format
+        let emergencyContactDisplay = "Not provided";
+        if (attendeeData.emergency_contact_name || attendeeData.emergency_contact) {
+          const parts = [];
+          if (attendeeData.emergency_contact_name) {
+            parts.push(attendeeData.emergency_contact_name);
+          }
+          if (attendeeData.emergency_contact) {
+            parts.push(attendeeData.emergency_contact);
+          }
+          emergencyContactDisplay = parts.join(" - ");
+        }
+        
+        const mappedAttendee = {
+          name: attendeeData.name,
+          cardId: attendeeData.card_id,
+          photo: attendeeData.photo,
+          ticketValid: attendeeData.ticket_status === 'valid',
+          scanned: attendeeData.scan_status === 'already_scanned',
+          ticketTier: attendeeData.ticket_tier,
+          emergencyContact: emergencyContactDisplay,
+          emergencyContactName: attendeeData.emergency_contact_name,
+          emergencyContactMobile: attendeeData.emergency_contact,
+          phoneNumber: attendeeData.phone_number || null,
+          nationality: attendeeData.nationality || null,
+          bloodType: attendeeData.blood_type,
+          labels: attendeeData.labels || [],
+          dependents: attendeeData.children || [],
+          partTimeLeave: attendeeData.part_time_leave || null,
+          lastScan: attendeeData.last_scan || null,
+          currentScan: {
+            scannedBy: username || 'Current User',
+            scanTime: new Date().toISOString(),
+          },
+        };
+
+        setAttendee(mappedAttendee);
+        setCardId(idToLookup);
+
+        // Determine scan result
+        let result = "valid";
+        if (attendeeData.ticket_status !== 'valid') {
+          result = "invalid";
+        } else if (attendeeData.scan_status === 'already_scanned') {
+          result = "already_scanned";
+        }
+
+        setScanResult(result);
+
+        // Process scan result with backend
+        try {
+          const processResponse = await scanAPI.processResult(idToLookup, eventId, result);
+          const ticketIdFromProcess = processResponse.ticket_id;
+          if (ticketIdFromProcess) {
+            const updatedAttendeeData = await scanAPI.getAttendee(idToLookup, eventId, ticketIdFromProcess);
+            if (updatedAttendeeData.last_scan) {
+              mappedAttendee.lastScan = updatedAttendeeData.last_scan;
+            }
+            if (updatedAttendeeData.children && updatedAttendeeData.children.length > 0) {
+              mappedAttendee.dependents = updatedAttendeeData.children;
+            }
+            setAttendee(mappedAttendee);
+          }
+        } catch (processError) {
+          console.error("[Auto-scan] Error processing scan result:", processError);
+        }
+
+        // Add to local log context
+        const logEntry = {
+          cardId: idToLookup,
+          eventId,
+          username,
+          time: new Date().toISOString(),
+          result: result === "valid" ? "Valid" : 
+                  result === "invalid" ? "Invalid" :
+                  result === "already_scanned" ? "Already Scanned" : "Not Found",
+          attendee: mappedAttendee,
+        };
+        addLog(logEntry);
+        
+        // Show customer details modal
+        setShowCustomerModal(true);
+        
+        // Refresh logs
+        if (refreshLogs) {
+          setTimeout(() => refreshLogs(), 1000);
+          setTimeout(() => refreshLogs(), 2500);
+        }
+      } catch (error) {
+        console.error("Auto-scan lookup error:", error);
+        setAttendee(null);
+        let errorMessage = "Error looking up attendee. Please try again.";
+        if (error.response?.data?.error) {
+          const errorData = error.response.data.error;
+          if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          } else if (errorData && typeof errorData === 'object') {
+            errorMessage = errorData.message || errorData.detail || errorMessage;
+          }
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        setError(errorMessage);
+        setScanResult("not_found");
+        
+        try {
+          await scanAPI.processResult(idToLookup, eventId, "not_found");
+        } catch (processError) {
+          console.error("[Auto-scan] Error processing not_found result:", processError);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    });
+
+    // Cleanup on unmount
+    return () => {
+      unsubscribe();
+    };
+  }, [isSupported, bridgeAvailable, onCardScanned, eventId, username, addLog, refreshLogs]);
 
   // Handle NFC scan
   const handleNFCScan = async () => {
@@ -162,6 +317,8 @@ export default function ScanScreen() {
         emergencyContact: emergencyContactDisplay,
         emergencyContactName: attendeeData.emergency_contact_name,
         emergencyContactMobile: attendeeData.emergency_contact,
+        phoneNumber: attendeeData.phone_number || null,
+        nationality: attendeeData.nationality || null,
         bloodType: attendeeData.blood_type,
         labels: attendeeData.labels || [],
         dependents: attendeeData.children || [],
@@ -570,46 +727,47 @@ export default function ScanScreen() {
           })()}
         </div>
 
-        {/* Ticket and Profile Labels */}
-        {(attendee.ticketLabels?.length > 0 ||
-          attendee.profileLabels?.length > 0) && (
+        {/* Labels Section - VIP and Custom Labels */}
+        {attendee.labels && attendee.labels.length > 0 && (
           <div className="labels-section">
-            {attendee.ticketLabels?.length > 0 && (
-              <div className="label-group">
-                <div className="label-header">
-                  <FaTag size={16} color="hsl(81.8, 38.5%, 28%)" />
-                  <span className="label-title">Ticket Labels</span>
-                </div>
-                <div className="label-container">
-                  {attendee.ticketLabels.map((label, idx) => (
-                    <span key={idx} className="label-badge ticket-label">
-                      {label}
-                    </span>
-                  ))}
-                </div>
+            <div className="label-group">
+              <div className="label-header">
+                <FaTag size={16} color="hsl(81.8, 38.5%, 28%)" />
+                <span className="label-title">Labels</span>
               </div>
-            )}
-
-            {attendee.profileLabels?.length > 0 && (
-              <div className="label-group">
-                <div className="label-header">
-                  <FaUser size={16} color="hsl(81.8, 38.5%, 28%)" />
-                  <span className="label-title">Profile Labels</span>
-                </div>
-                <div className="label-container">
-                  {attendee.profileLabels.map((label, idx) => (
-                    <span key={idx} className="label-badge profile-label">
-                      {label}
-                    </span>
-                  ))}
-                </div>
+              <div className="label-container">
+                {attendee.labels.map((label, idx) => (
+                  <span 
+                    key={idx} 
+                    className={`label-badge ${label === 'VIP' ? 'ticket-label' : 'profile-label'}`}
+                    style={{
+                      backgroundColor: label === 'VIP' ? '#F59E0B' : '#2196F3',
+                      color: '#fff',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {label}
+                  </span>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        {/* Emergency Contact and Blood Type */}
+        {/* Emergency Contact, Phone Number, Nationality, and Blood Type */}
         <div className="info-section">
+          {attendee.phoneNumber && (
+            <div className="info-row">
+              <div className="info-icon">
+                <FaPhone size={16} color="hsl(81.8, 38.5%, 28%)" />
+              </div>
+              <span className="info-label">Phone Number</span>
+              <span className="info-value">
+                {attendee.phoneNumber}
+              </span>
+            </div>
+          )}
+
           <div className="info-row">
             <div className="info-icon">
               <FaPhone size={16} color="hsl(81.8, 38.5%, 28%)" />
@@ -620,15 +778,29 @@ export default function ScanScreen() {
             </span>
           </div>
 
-          <div className="info-row">
-            <div className="info-icon">
-              <FaTint size={16} color="hsl(81.8, 38.5%, 28%)" />
+          {attendee.nationality && (
+            <div className="info-row">
+              <div className="info-icon">
+                <FaUser size={16} color="hsl(81.8, 38.5%, 28%)" />
+              </div>
+              <span className="info-label">Nationality</span>
+              <span className="info-value">
+                {attendee.nationality}
+              </span>
             </div>
-            <span className="info-label">Blood Type</span>
-            <span className="info-value">
-              {attendee.bloodType || "Not provided"}
-            </span>
-          </div>
+          )}
+
+          {attendee.bloodType && (
+            <div className="info-row">
+              <div className="info-icon">
+                <FaTint size={16} color="hsl(81.8, 38.5%, 28%)" />
+              </div>
+              <span className="info-label">Blood Type</span>
+              <span className="info-value">
+                {attendee.bloodType}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Children Section */}
@@ -665,33 +837,35 @@ export default function ScanScreen() {
             </div>
           )}
 
-        {/* Action Buttons */}
-        <div className="action-buttons">
-          <button
-            className="action-button report-button"
-            onClick={handleReportUser}
-          >
-            <FaComment size={16} className="button-icon" />
-            Report User
-          </button>
-          {attendee.partTimeLeave ? (
+        {/* Action Buttons - Hide if invalid card */}
+        {attendee.ticketValid && (
+          <div className="action-buttons">
             <button
-              className="action-button leave-active"
-              onClick={handleCameBack}
+              className="action-button report-button"
+              onClick={handleReportUser}
             >
-              <FaCheckCircle size={16} className="button-icon" />
-              Came Back
+              <FaComment size={16} className="button-icon" />
+              Report User
             </button>
-          ) : (
-            <button
-              className="action-button leave-button"
-              onClick={handlePartTimeLeave}
-            >
-              <FaSignOutAlt size={16} className="button-icon" />
-              Part-Time Leave
-            </button>
-          )}
-        </div>
+            {attendee.partTimeLeave ? (
+              <button
+                className="action-button leave-active"
+                onClick={handleCameBack}
+              >
+                <FaCheckCircle size={16} className="button-icon" />
+                Came Back
+              </button>
+            ) : (
+              <button
+                className="action-button leave-button"
+                onClick={handlePartTimeLeave}
+              >
+                <FaSignOutAlt size={16} className="button-icon" />
+                Part-Time Leave
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Usher Comments */}
         {attendee.usherComments && (
@@ -745,6 +919,11 @@ export default function ScanScreen() {
           <h2 className="card-title">NFC Scanning System</h2>
           <p className="card-subtitle">
             {currentEvent ? `Event: ${currentEvent.title}` : "Scan NFC cards to verify attendees"}
+            {(isSupported || bridgeAvailable) && isConnected && (
+              <span style={{ display: 'block', marginTop: '8px', fontSize: '14px', color: '#4CAF50', fontWeight: 'bold' }}>
+                ✓ Auto-scanning active - Just tap a card
+              </span>
+            )}
           </p>
 
           <button 
@@ -846,17 +1025,17 @@ export default function ScanScreen() {
               </button>
             </div>
             
-            {/* Customer Photo */}
+            {/* Customer Photo - Much bigger for ushers */}
             <div style={{ textAlign: 'center', marginBottom: '20px' }}>
               {attendee.photo ? (
                 <img
                   src={attendee.photo}
                   alt={attendee.name}
-                  style={{ width: '300px', height: '300px', borderRadius: '0', objectFit: 'cover', border: '3px solid hsl(81.8, 38.5%, 28%)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}
+                  style={{ width: '500px', height: '500px', maxWidth: '100%', borderRadius: '0', objectFit: 'cover', border: '3px solid hsl(81.8, 38.5%, 28%)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}
                 />
               ) : (
-                <div style={{ width: '300px', height: '300px', borderRadius: '0', backgroundColor: 'hsl(81.8, 38.5%, 28%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: '3px solid hsl(81.8, 38.5%, 28%)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}>
-                  <FaUser size={80} color="#fff" />
+                <div style={{ width: '500px', height: '500px', maxWidth: '100%', borderRadius: '0', backgroundColor: 'hsl(81.8, 38.5%, 28%)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', border: '3px solid hsl(81.8, 38.5%, 28%)', boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)' }}>
+                  <FaUser size={120} color="#fff" />
                 </div>
               )}
             </div>
@@ -957,6 +1136,16 @@ export default function ScanScreen() {
             </div>
             
             {/* Additional Info */}
+            {attendee.phoneNumber && (
+              <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#F5F5F5', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                  <FaPhone size={16} color="hsl(81.8, 38.5%, 28%)" />
+                  <strong>Phone Number:</strong>
+                </div>
+                <p style={{ margin: 0, marginLeft: '26px', color: '#666' }}>{attendee.phoneNumber}</p>
+              </div>
+            )}
+
             {attendee.emergencyContact && (
               <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#F5F5F5', borderRadius: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
@@ -964,6 +1153,16 @@ export default function ScanScreen() {
                   <strong>Emergency Contact:</strong>
                 </div>
                 <p style={{ margin: 0, marginLeft: '26px', color: '#666' }}>{attendee.emergencyContact}</p>
+              </div>
+            )}
+
+            {attendee.nationality && (
+              <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#F5F5F5', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+                  <FaUser size={16} color="hsl(81.8, 38.5%, 28%)" />
+                  <strong>Nationality:</strong>
+                </div>
+                <p style={{ margin: 0, marginLeft: '26px', color: '#666' }}>{attendee.nationality}</p>
               </div>
             )}
             
@@ -1049,39 +1248,61 @@ export default function ScanScreen() {
               </div>
             )}
             
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexDirection: 'column' }}>
-              {attendee.partTimeLeave ? (
-                <button
-                  className="modal-button submit-button"
-                  onClick={async () => {
-                    await handleCameBack();
-                    setShowCustomerModal(false);
-                  }}
-                  style={{ width: '100%' }}
-                >
-                  <FaCheckCircle size={16} style={{ marginRight: '8px' }} />
-                  Mark as Came Back
-                </button>
-              ) : (
-                <button
-                  className="modal-button"
-                  onClick={async () => {
-                    await handlePartTimeLeave();
-                    setShowCustomerModal(false);
-                  }}
-                  style={{ 
-                    width: '100%',
-                    backgroundColor: '#FF9800',
-                    color: '#fff',
-                    border: 'none'
-                  }}
-                >
-                  <FaSignOutAlt size={16} style={{ marginRight: '8px' }} />
-                  Mark as Part-Time Leave
-                </button>
-              )}
-              <div style={{ display: 'flex', gap: '10px' }}>
+            {/* Action Buttons - Hide if invalid card */}
+            {attendee.ticketValid && (
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px', flexDirection: 'column' }}>
+                {attendee.partTimeLeave ? (
+                  <button
+                    className="modal-button submit-button"
+                    onClick={async () => {
+                      await handleCameBack();
+                      setShowCustomerModal(false);
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    <FaCheckCircle size={16} style={{ marginRight: '8px' }} />
+                    Mark as Came Back
+                  </button>
+                ) : (
+                  <button
+                    className="modal-button"
+                    onClick={async () => {
+                      await handlePartTimeLeave();
+                      setShowCustomerModal(false);
+                    }}
+                    style={{ 
+                      width: '100%',
+                      backgroundColor: '#FF9800',
+                      color: '#fff',
+                      border: 'none'
+                    }}
+                  >
+                    <FaSignOutAlt size={16} style={{ marginRight: '8px' }} />
+                    Mark as Part-Time Leave
+                  </button>
+                )}
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button
+                    className="modal-button cancel-button"
+                    onClick={() => setShowCustomerModal(false)}
+                    style={{ flex: 1 }}
+                  >
+                    Close
+                  </button>
+                  <button
+                    className="modal-button submit-button"
+                    onClick={() => {
+                      setShowCustomerModal(false);
+                    }}
+                    style={{ flex: 1 }}
+                  >
+                    Scan Another
+                  </button>
+                </div>
+              </div>
+            )}
+            {!attendee.ticketValid && (
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                 <button
                   className="modal-button cancel-button"
                   onClick={() => setShowCustomerModal(false)}
@@ -1099,7 +1320,7 @@ export default function ScanScreen() {
                   Scan Another
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}

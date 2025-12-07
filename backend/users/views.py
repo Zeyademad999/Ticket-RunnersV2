@@ -537,6 +537,52 @@ class UsherViewSet(viewsets.ModelViewSet):
             'usher': UsherSerializer(usher).data,
             'assigned_events': [e.id for e in usher.events.all()]
         }, status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        """
+        Override destroy to prevent deletion of team leaders unless replaced.
+        """
+        usher = self.get_object()
+        
+        # Check if usher is a team leader
+        if usher.is_team_leader:
+            # Check if there's a replacement usher ID provided
+            replacement_usher_id = request.data.get('replacement_usher_id')
+            
+            if not replacement_usher_id:
+                return Response({
+                    'error': {
+                        'code': 'TEAM_LEADER_CANNOT_DELETE',
+                        'message': f'Cannot delete team leader {usher.name}. Please assign a replacement usher first.',
+                        'usher_id': str(usher.id),
+                        'usher_name': usher.name
+                    }
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Verify replacement usher exists
+            try:
+                replacement_usher = Usher.objects.get(id=replacement_usher_id)
+            except Usher.DoesNotExist:
+                return Response({
+                    'error': {
+                        'code': 'REPLACEMENT_NOT_FOUND',
+                        'message': 'Replacement usher not found.'
+                    }
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Transfer team leader status and assignments to replacement
+            replacement_usher.is_team_leader = True
+            replacement_usher.events.set(usher.events.all())
+            replacement_usher.zones = usher.zones
+            replacement_usher.ticket_categories = usher.ticket_categories
+            replacement_usher.save()
+            
+            # Remove team leader status from current usher
+            usher.is_team_leader = False
+            usher.save()
+        
+        # Proceed with deletion
+        return super().destroy(request, *args, **kwargs)
 
 
 class AdminUserViewSet(viewsets.ModelViewSet):

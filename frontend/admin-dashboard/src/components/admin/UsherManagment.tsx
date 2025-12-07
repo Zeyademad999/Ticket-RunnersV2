@@ -101,6 +101,8 @@ interface Usher {
   totalHours: number;
   performance: "excellent" | "good" | "average" | "poor";
   isTeamLeader: boolean;
+  zones?: string[];
+  ticketCategories?: string[];
 }
 
 type EventType = {
@@ -111,6 +113,11 @@ type EventType = {
   status: "upcoming" | "ongoing" | "completed" | "cancelled";
   organizer: string;
   category: string;
+  ticket_categories?: Array<{
+    id: string | number;
+    name: string;
+    price: number;
+  }>;
 };
 
 const UsherManagement: React.FC = () => {
@@ -150,10 +157,14 @@ const UsherManagement: React.FC = () => {
     location: "",
     hourlyRate: 0,
     experience: 0,
+    zones: [] as string[],
+    ticketCategories: [] as string[],
+    isTeamLeader: false,
   });
   const [selectedEventsForNewUsher, setSelectedEventsForNewUsher] = useState<string[]>([]);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [usherToDelete, setUsherToDelete] = useState<Usher | null>(null);
+  const [replacementUsherId, setReplacementUsherId] = useState<string>("");
   const [credentialsForm, setCredentialsForm] = useState({
     username: "",
     password: "",
@@ -162,13 +173,16 @@ const UsherManagement: React.FC = () => {
 
   const queryClient = useQueryClient();
 
+  // Determine if we need to fetch all ushers for client-side filtering
+  const needsAllUshers = roleFilter !== "all" || performanceFilter !== "all";
+  
   // Fetch ushers from API
   const { data: ushersData, isLoading: ushersLoading, error: ushersError } = useQuery({
-    queryKey: ['ushers', searchTerm, statusFilter, roleFilter, performanceFilter, currentPage, ushersPerPage],
+    queryKey: ['ushers', searchTerm, statusFilter, roleFilter, performanceFilter, currentPage, ushersPerPage, needsAllUshers],
     queryFn: async () => {
       const params: any = {
-        page: currentPage,
-        page_size: ushersPerPage,
+        page: needsAllUshers ? 1 : currentPage, // Fetch first page if we need all for client-side filtering
+        page_size: needsAllUshers ? 1000 : ushersPerPage, // Fetch all if client-side filtering needed
       };
       
       if (searchTerm) params.search = searchTerm;
@@ -224,7 +238,9 @@ const UsherManagement: React.FC = () => {
         hourlyRate: parseFloat(item.hourly_rate || item.hourlyRate) || 0,
         totalHours: parseFloat(item.total_hours || item.totalHours) || 0,
         performance: (item.performance || 'average') as "excellent" | "good" | "average" | "poor",
-        isTeamLeader,
+        isTeamLeader: item.is_team_leader || isTeamLeader,
+        zones: Array.isArray(item.zones) ? item.zones : [],
+        ticketCategories: Array.isArray(item.ticket_categories) ? item.ticket_categories : [],
       };
     });
   }, [ushersData, eventsData]);
@@ -240,8 +256,69 @@ const UsherManagement: React.FC = () => {
       status: "upcoming" as const,
       organizer: event.organizer?.name || '',
       category: event.category || '',
+      ticket_categories: event.ticket_categories || event.ticket_categories_read || [],
     }));
   }, [eventsData]);
+
+  // Get available ticket categories from selected events with event information
+  const availableTicketCategories = useMemo(() => {
+    const selectedEventIds = newUsher.isTeamLeader 
+      ? events.map((e: EventType) => e.id)
+      : selectedEventsForNewUsher;
+    
+    const categoryMap = new Map<string, string[]>(); // category name -> array of event titles
+    events.forEach((event: EventType) => {
+      if (selectedEventIds.includes(event.id) && event.ticket_categories) {
+        event.ticket_categories.forEach((cat: any) => {
+          if (cat.name) {
+            if (!categoryMap.has(cat.name)) {
+              categoryMap.set(cat.name, []);
+            }
+            categoryMap.get(cat.name)!.push(event.title);
+          }
+        });
+      }
+    });
+    
+    // Convert to array of objects with category name and events
+    return Array.from(categoryMap.entries())
+      .map(([name, eventTitles]) => ({
+        name,
+        events: eventTitles,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [events, selectedEventsForNewUsher, newUsher.isTeamLeader]);
+
+  // Get available ticket categories for edit dialog with event information
+  const availableTicketCategoriesForEdit = useMemo(() => {
+    if (!selectedUsher) return [];
+    
+    const assignedEventIds = selectedUsher.isTeamLeader
+      ? events.map((e: EventType) => e.id)
+      : (tempAssignedEvents.length > 0 ? tempAssignedEvents : (selectedUsher.assignedEvents || []));
+    
+    const categoryMap = new Map<string, string[]>(); // category name -> array of event titles
+    events.forEach((event: EventType) => {
+      if (assignedEventIds.includes(event.id) && event.ticket_categories) {
+        event.ticket_categories.forEach((cat: any) => {
+          if (cat.name) {
+            if (!categoryMap.has(cat.name)) {
+              categoryMap.set(cat.name, []);
+            }
+            categoryMap.get(cat.name)!.push(event.title);
+          }
+        });
+      }
+    });
+    
+    // Convert to array of objects with category name and events
+    return Array.from(categoryMap.entries())
+      .map(([name, eventTitles]) => ({
+        name,
+        events: eventTitles,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [events, selectedUsher, tempAssignedEvents]);
 
   // Filter ushers based on search and filters (client-side for role and performance)
   const filteredUshers = useMemo(() => {
@@ -258,11 +335,29 @@ const UsherManagement: React.FC = () => {
     return filtered;
   }, [ushers, roleFilter, performanceFilter]);
 
-  // Pagination from API response
-  const totalPages = ushersData?.total_pages || 1;
-  const startIndex = ushersData?.page ? (ushersData.page - 1) * ushersData.page_size : 0;
-  const endIndex = startIndex + (ushersData?.page_size || ushersPerPage);
-  const paginatedUshers = filteredUshers;
+  // Pagination logic
+  // If we have client-side filters (role or performance), paginate the filtered results
+  // Otherwise, use API pagination
+  const hasClientSideFilters = roleFilter !== "all" || performanceFilter !== "all";
+  
+  let totalPages: number;
+  let startIndex: number;
+  let endIndex: number;
+  let paginatedUshers: Usher[];
+  
+  if (hasClientSideFilters) {
+    // Client-side pagination for filtered results
+    totalPages = Math.ceil(filteredUshers.length / ushersPerPage);
+    startIndex = (currentPage - 1) * ushersPerPage;
+    endIndex = startIndex + ushersPerPage;
+    paginatedUshers = filteredUshers.slice(startIndex, endIndex);
+  } else {
+    // API pagination
+    totalPages = ushersData?.total_pages || 1;
+    startIndex = ushersData?.page ? (ushersData.page - 1) * ushersData.page_size : 0;
+    endIndex = startIndex + (ushersData?.page_size || ushersPerPage);
+    paginatedUshers = filteredUshers;
+  }
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -289,6 +384,9 @@ const UsherManagement: React.FC = () => {
         location: "",
         hourlyRate: 0,
         experience: 0,
+        zones: [],
+        ticketCategories: [],
+        isTeamLeader: false,
       });
       setSelectedEventsForNewUsher([]);
     },
@@ -344,8 +442,8 @@ const UsherManagement: React.FC = () => {
   });
 
   const deleteUsherMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return await ushersApi.deleteUsher(id);
+    mutationFn: async ({ id, replacementUsherId }: { id: string; replacementUsherId?: string }) => {
+      return await ushersApi.deleteUsher(id, replacementUsherId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ushers'] });
@@ -496,6 +594,8 @@ const UsherManagement: React.FC = () => {
       hourlyRate: usher.hourlyRate,
       experience: usher.experience,
       performance: usher.performance,
+      zones: usher.zones || [],
+      ticketCategories: usher.ticketCategories || [],
     });
     setIsEditDialogOpen(true);
   };
@@ -578,7 +678,35 @@ const UsherManagement: React.FC = () => {
 
   const confirmDeleteUsher = () => {
     if (usherToDelete) {
-      deleteUsherMutation.mutate(usherToDelete.id);
+      // Check if usher is team leader
+      const usher = ushers.find((u) => String(u.id) === String(usherToDelete.id));
+      if (usher?.isTeamLeader && !replacementUsherId) {
+        toast({
+          title: t("admin.ushers.toast.teamLeaderCannotDelete") || "Cannot Delete Team Leader",
+          description: t("admin.ushers.toast.teamLeaderCannotDeleteDesc") || "Please select a replacement usher before deleting a team leader.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      deleteUsherMutation.mutate({
+        id: usherToDelete.id,
+        replacementUsherId: usher?.isTeamLeader ? replacementUsherId : undefined,
+      }, {
+        onSuccess: () => {
+          setReplacementUsherId("");
+        },
+        onError: (error: any) => {
+          const errorData = error.response?.data?.error;
+          if (errorData?.code === 'TEAM_LEADER_CANNOT_DELETE') {
+            toast({
+              title: t("admin.ushers.toast.teamLeaderCannotDelete") || "Cannot Delete Team Leader",
+              description: errorData.message || "Please select a replacement usher before deleting a team leader.",
+              variant: "destructive",
+            });
+          }
+        }
+      });
     }
   };
 
@@ -594,6 +722,36 @@ const UsherManagement: React.FC = () => {
     }
     setIsAssignEventsDialogOpen(true);
   };
+
+  // Update ticket categories when assigned events change in edit dialog
+  useEffect(() => {
+    if (selectedUsher && isEditDialogOpen) {
+      const assignedEventIds = selectedUsher.isTeamLeader
+        ? events.map((e: EventType) => e.id)
+        : tempAssignedEvents.length > 0 ? tempAssignedEvents : (selectedUsher.assignedEvents || []);
+      
+      const availableCategories = new Set<string>();
+      events.forEach((event: EventType) => {
+        if (assignedEventIds.includes(event.id) && event.ticket_categories) {
+          event.ticket_categories.forEach((cat: any) => {
+            if (cat.name) {
+              availableCategories.add(cat.name);
+            }
+          });
+        }
+      });
+      
+      // Remove ticket categories that are no longer available
+      const currentCategories = Array.isArray(editingUsher.ticketCategories) 
+        ? editingUsher.ticketCategories 
+        : (selectedUsher.ticketCategories || []);
+      const filteredCategories = currentCategories.filter(cat => availableCategories.has(cat));
+      
+      if (filteredCategories.length !== currentCategories.length) {
+        setEditingUsher({ ...editingUsher, ticketCategories: filteredCategories });
+      }
+    }
+  }, [tempAssignedEvents, selectedUsher, events, isEditDialogOpen]);
 
   const handleReactivateUsher = (usherId: string) => {
     updateUsherMutation.mutate({ id: usherId, data: { status: 'active' } });
@@ -658,6 +816,11 @@ const UsherManagement: React.FC = () => {
       return;
     }
 
+    // If team leader, assign to all events
+    const eventIds = newUsher.isTeamLeader 
+      ? events.map((event: EventType) => parseInt(event.id))
+      : selectedEventsForNewUsher.map((id: string) => parseInt(id));
+
     createUsherMutation.mutate({
       name: newUsher.name,
       email: newUsher.email,
@@ -667,8 +830,11 @@ const UsherManagement: React.FC = () => {
       hourly_rate: newUsher.hourlyRate,
       experience: newUsher.experience,
       status: 'active',
-      ...(selectedEventsForNewUsher.length > 0 && {
-        events: selectedEventsForNewUsher.map((id: string) => parseInt(id))
+      zones: newUsher.zones || [],
+      ticket_categories: newUsher.ticketCategories || [],
+      is_team_leader: newUsher.isTeamLeader || false,
+      ...(eventIds.length > 0 && {
+        events: eventIds
       }),
     });
   };
@@ -738,6 +904,12 @@ const UsherManagement: React.FC = () => {
     }
     if (editingUsher.performance) {
       updateData.performance = editingUsher.performance;
+    }
+    if (editingUsher.zones !== undefined) {
+      updateData.zones = editingUsher.zones;
+    }
+    if (editingUsher.ticketCategories !== undefined) {
+      updateData.ticket_categories = editingUsher.ticketCategories;
     }
 
     updateUsherMutation.mutate({ id: selectedUsher.id, data: updateData });
@@ -842,6 +1014,77 @@ const UsherManagement: React.FC = () => {
         </div>
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+              {t("admin.ushers.stats.totalUshers")}
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          </CardHeader>
+          <CardContent className="rtl:text-right">
+            <div className="text-2xl font-bold">{ushersData?.count || ushers.length}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+              {t("admin.ushers.stats.activeUshers")}
+            </CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent className="rtl:text-right">
+            <div className="text-2xl font-bold text-green-600">
+              {ushers.filter((usher) => usher.status === "active").length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+              {t("admin.ushers.stats.inactiveUshers")}
+            </CardTitle>
+            <XCircle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent className="rtl:text-right">
+            <div className="text-2xl font-bold text-yellow-600">
+              {ushers.filter((usher) => usher.status === "inactive").length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+              {t("admin.ushers.stats.onLeaveUshers") || "On Leave"}
+            </CardTitle>
+            <Clock className="h-4 w-4 text-orange-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent className="rtl:text-right">
+            <div className="text-2xl font-bold text-orange-600">
+              {ushers.filter((usher) => usher.status === "on_leave").length}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+              {t("admin.ushers.stats.teamLeaders") || "Team Leaders"}
+            </CardTitle>
+            <Users className="h-4 w-4 text-purple-600 flex-shrink-0" />
+          </CardHeader>
+          <CardContent className="rtl:text-right">
+            <div className="text-2xl font-bold text-purple-600">
+              {ushers.filter((usher) => usher.isTeamLeader).length}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -941,13 +1184,13 @@ const UsherManagement: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="rtl:text-right ltr:text-left">
-            {t("admin.ushers.table.ushers")} ({ushersData?.count || filteredUshers.length})
+            {t("admin.ushers.table.ushers")} ({hasClientSideFilters ? filteredUshers.length : (ushersData?.count || filteredUshers.length)})
           </CardTitle>
           <div className="flex items-center gap-2 rtl:flex-row-reverse">
             <span className="text-sm text-muted-foreground">
               {t("admin.ushers.pagination.showing")} {startIndex + 1}-
-              {Math.min(endIndex, ushersData?.count || filteredUshers.length)}{" "}
-              {t("admin.ushers.pagination.of")} {ushersData?.count || filteredUshers.length}
+              {Math.min(endIndex, hasClientSideFilters ? filteredUshers.length : (ushersData?.count || filteredUshers.length))}{" "}
+              {t("admin.ushers.pagination.of")} {hasClientSideFilters ? filteredUshers.length : (ushersData?.count || filteredUshers.length)}
             </span>
             <Select
               value={ushersPerPage.toString()}
@@ -1198,91 +1441,20 @@ const UsherManagement: React.FC = () => {
               showInfo={true}
               infoText={`${t("admin.ushers.pagination.showing")} ${
                 startIndex + 1
-              }-${Math.min(endIndex, ushersData?.count || 0)} ${t(
+              }-${Math.min(endIndex, hasClientSideFilters ? filteredUshers.length : (ushersData?.count || 0))} ${t(
                 "admin.ushers.pagination.of"
-              )} ${ushersData?.count || 0} ${t(
+              )} ${hasClientSideFilters ? filteredUshers.length : (ushersData?.count || 0)} ${t(
                 "admin.ushers.pagination.results"
               )}`}
               startIndex={startIndex}
               endIndex={endIndex}
-              totalItems={ushersData?.count || 0}
+              totalItems={hasClientSideFilters ? filteredUshers.length : (ushersData?.count || 0)}
               itemsPerPage={ushersPerPage}
               className="mt-4"
             />
           )}
         </CardContent>
       </Card>
-
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-              {t("admin.ushers.stats.totalUshers")}
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-          </CardHeader>
-          <CardContent className="rtl:text-right">
-            <div className="text-2xl font-bold">{ushersData?.count || ushers.length}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-              {t("admin.ushers.stats.activeUshers")}
-            </CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
-          </CardHeader>
-          <CardContent className="rtl:text-right">
-            <div className="text-2xl font-bold text-green-600">
-              {ushers.filter((usher) => usher.status === "active").length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-              {t("admin.ushers.stats.inactiveUshers")}
-            </CardTitle>
-            <XCircle className="h-4 w-4 text-yellow-600 flex-shrink-0" />
-          </CardHeader>
-          <CardContent className="rtl:text-right">
-            <div className="text-2xl font-bold text-yellow-600">
-              {ushers.filter((usher) => usher.status === "inactive").length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-              {t("admin.ushers.stats.onLeaveUshers") || "On Leave"}
-            </CardTitle>
-            <Clock className="h-4 w-4 text-blue-600 flex-shrink-0" />
-          </CardHeader>
-          <CardContent className="rtl:text-right">
-            <div className="text-2xl font-bold text-blue-600">
-              {ushers.filter((usher) => usher.status === "on_leave").length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-              {t("admin.ushers.stats.teamLeaders") || "Team Leaders"}
-            </CardTitle>
-            <Users className="h-4 w-4 text-purple-600 flex-shrink-0" />
-          </CardHeader>
-          <CardContent className="rtl:text-right">
-            <div className="text-2xl font-bold text-purple-600">
-              {ushers.filter((usher) => usher.isTeamLeader).length}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Edit Usher Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -1444,6 +1616,73 @@ const UsherManagement: React.FC = () => {
                   </Select>
                 </div>
               </div>
+              
+              {/* Zones and Ticket Categories */}
+              <div className="space-y-4 border-t pt-4">
+                <div>
+                  <label className="text-sm font-medium rtl:text-right mb-2 block">
+                    {t("admin.ushers.form.zones") || "Zones"} <span className="text-muted-foreground text-xs">({t("admin.ushers.form.zonesDescription") || "Comma-separated list of zones"})</span>
+                  </label>
+                  <Input
+                    placeholder={t("admin.ushers.form.zonesPlaceholder") || "e.g., Zone A, Zone B, Zone C"}
+                    value={Array.isArray(editingUsher.zones) ? editingUsher.zones.join(", ") : (selectedUsher.zones?.join(", ") || "")}
+                    onChange={(e) => {
+                      const zones = e.target.value.split(",").map(z => z.trim()).filter(z => z.length > 0);
+                      setEditingUsher({ ...editingUsher, zones });
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium rtl:text-right mb-2 block">
+                    {t("admin.ushers.form.ticketCategories") || "Ticket Categories"} <span className="text-muted-foreground text-xs">({t("admin.ushers.form.ticketCategoriesDescription") || "Select ticket categories this usher can scan from assigned events"})</span>
+                  </label>
+                  {availableTicketCategoriesForEdit.length === 0 ? (
+                    <div className="text-sm text-muted-foreground p-3 border rounded-md bg-gray-50">
+                      {(!selectedUsher.assignedEvents || selectedUsher.assignedEvents.length === 0) && (!tempAssignedEvents || tempAssignedEvents.length === 0)
+                        ? t("admin.ushers.form.selectEventsFirst") || "Please assign events first to see available ticket categories"
+                        : t("admin.ushers.form.noTicketCategories") || "No ticket categories available in assigned events"}
+                    </div>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                      {availableTicketCategoriesForEdit.map((categoryInfo) => {
+                        const currentCategories = Array.isArray(editingUsher.ticketCategories) 
+                          ? editingUsher.ticketCategories 
+                          : (selectedUsher.ticketCategories || []);
+                        return (
+                          <div key={categoryInfo.name} className="flex items-start space-x-2 rtl:space-x-reverse">
+                            <Checkbox
+                              id={`edit-ticket-category-${categoryInfo.name}`}
+                              checked={currentCategories.includes(categoryInfo.name)}
+                              onCheckedChange={(checked) => {
+                                const current = Array.isArray(editingUsher.ticketCategories) 
+                                  ? editingUsher.ticketCategories 
+                                  : (selectedUsher.ticketCategories || []);
+                                if (checked) {
+                                  setEditingUsher({ ...editingUsher, ticketCategories: [...current, categoryInfo.name] });
+                                } else {
+                                  setEditingUsher({ ...editingUsher, ticketCategories: current.filter(c => c !== categoryInfo.name) });
+                                }
+                              }}
+                              className="mt-0.5"
+                            />
+                            <label
+                              htmlFor={`edit-ticket-category-${categoryInfo.name}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                            >
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span>{categoryInfo.name}</span>
+                                <span className="text-[10px] text-muted-foreground font-normal">
+                                  ({categoryInfo.events.join(", ")})
+                                </span>
+                              </div>
+                            </label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter className="rtl:flex-row-reverse">
@@ -1474,7 +1713,7 @@ const UsherManagement: React.FC = () => {
         open={isAddUsherDialogOpen}
         onOpenChange={setIsAddUsherDialogOpen}
       >
-        <DialogContent className="rtl:text-right ltr:text-left">
+        <DialogContent className="rtl:text-right ltr:text-left max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="rtl:text-right ltr:text-left">
               {t("admin.ushers.dialogs.addUsher")}
@@ -1484,7 +1723,7 @@ const UsherManagement: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 rtl:space-x-reverse">
+            <div className="grid grid-cols-3 gap-3 rtl:space-x-reverse">
               <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.ushers.form.fullName")} *
@@ -1589,11 +1828,11 @@ const UsherManagement: React.FC = () => {
                   dir={i18n.language === "ar" ? "rtl" : "ltr"}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-3">
                 <label className="text-sm font-medium rtl:text-right mb-2 block">
                   {t("admin.ushers.form.assignEvents") || "Assign to Events"}
                 </label>
-                <div className="max-h-48 overflow-y-auto border rounded-md p-3 space-y-2">
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
                   {events.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       {t("admin.ushers.noEventsAvailable") || "No events available"}
@@ -1604,11 +1843,32 @@ const UsherManagement: React.FC = () => {
                         <Checkbox
                           id={`event-${event.id}`}
                           checked={selectedEventsForNewUsher.includes(event.id)}
+                          disabled={newUsher.isTeamLeader}
                           onCheckedChange={(checked) => {
-                            if (checked) {
-                              setSelectedEventsForNewUsher([...selectedEventsForNewUsher, event.id]);
-                            } else {
-                              setSelectedEventsForNewUsher(selectedEventsForNewUsher.filter(id => id !== event.id));
+                            if (!newUsher.isTeamLeader) {
+                              if (checked) {
+                                setSelectedEventsForNewUsher([...selectedEventsForNewUsher, event.id]);
+                              } else {
+                                const newSelectedEvents = selectedEventsForNewUsher.filter(id => id !== event.id);
+                                setSelectedEventsForNewUsher(newSelectedEvents);
+                                
+                                // Remove ticket categories that are no longer available
+                                const remainingEventIds = newSelectedEvents;
+                                const remainingCategories = new Set<string>();
+                                events.forEach((e: EventType) => {
+                                  if (remainingEventIds.includes(e.id) && e.ticket_categories) {
+                                    e.ticket_categories.forEach((cat: any) => {
+                                      if (cat.name) {
+                                        remainingCategories.add(cat.name);
+                                      }
+                                    });
+                                  }
+                                });
+                                
+                                const currentCategories = Array.isArray(newUsher.ticketCategories) ? newUsher.ticketCategories : [];
+                                const filteredCategories = currentCategories.filter(cat => remainingCategories.has(cat));
+                                setNewUsher({ ...newUsher, ticketCategories: filteredCategories });
+                              }
                             }
                           }}
                         />
@@ -1628,6 +1888,98 @@ const UsherManagement: React.FC = () => {
                   )}
                 </div>
               </div>
+              
+              {/* Zones and Ticket Categories */}
+              <div className="col-span-3 grid grid-cols-3 gap-3 border-t pt-3">
+                <div>
+                  <label className="text-sm font-medium rtl:text-right mb-1 block">
+                    {t("admin.ushers.form.zones")}
+                  </label>
+                  <Input
+                    placeholder={t("admin.ushers.form.zonesPlaceholder")}
+                    value={Array.isArray(newUsher.zones) ? newUsher.zones.join(", ") : ""}
+                    onChange={(e) => {
+                      const zones = e.target.value.split(",").map(z => z.trim()).filter(z => z.length > 0);
+                      setNewUsher({ ...newUsher, zones });
+                    }}
+                    className="text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">{t("admin.ushers.form.zonesDescription")}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium rtl:text-right mb-1 block">
+                    {t("admin.ushers.form.ticketCategories")}
+                  </label>
+                  {availableTicketCategories.length === 0 ? (
+                    <div className="text-xs text-muted-foreground p-2 border rounded-md bg-gray-50">
+                      {selectedEventsForNewUsher.length === 0 && !newUsher.isTeamLeader
+                        ? t("admin.ushers.form.selectEventsFirst") || "Please select events first to see available ticket categories"
+                        : t("admin.ushers.form.noTicketCategories") || "No ticket categories available in selected events"}
+                    </div>
+                  ) : (
+                    <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
+                      {availableTicketCategories.map((categoryInfo) => (
+                        <div key={categoryInfo.name} className="flex items-start space-x-2 rtl:space-x-reverse">
+                          <Checkbox
+                            id={`ticket-category-${categoryInfo.name}`}
+                            checked={Array.isArray(newUsher.ticketCategories) && newUsher.ticketCategories.includes(categoryInfo.name)}
+                            onCheckedChange={(checked) => {
+                              const currentCategories = Array.isArray(newUsher.ticketCategories) ? newUsher.ticketCategories : [];
+                              if (checked) {
+                                setNewUsher({ ...newUsher, ticketCategories: [...currentCategories, categoryInfo.name] });
+                              } else {
+                                setNewUsher({ ...newUsher, ticketCategories: currentCategories.filter(c => c !== categoryInfo.name) });
+                              }
+                            }}
+                            className="mt-0.5"
+                          />
+                          <label
+                            htmlFor={`ticket-category-${categoryInfo.name}`}
+                            className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                          >
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span>{categoryInfo.name}</span>
+                              <span className="text-[10px] text-muted-foreground font-normal">
+                                ({categoryInfo.events.join(", ")})
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-1">{t("admin.ushers.form.ticketCategoriesDescription")}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium rtl:text-right mb-1 block">
+                    {t("admin.ushers.form.teamLeaderStatus")}
+                  </label>
+                  <div className="flex items-center space-x-2 rtl:space-x-reverse mt-2">
+                    <Checkbox
+                      id="is-team-leader-new"
+                      checked={newUsher.isTeamLeader}
+                      onCheckedChange={(checked) => {
+                        const isTeamLeader = checked === true;
+                        setNewUsher({ ...newUsher, isTeamLeader });
+                        // If making team leader, automatically select all events
+                        if (isTeamLeader) {
+                          const allEventIds = events.map((event: EventType) => event.id);
+                          setSelectedEventsForNewUsher(allEventIds);
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="is-team-leader-new"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {t("admin.ushers.form.makeTeamLeader")}
+                    </label>
+                  </div>
+                  {newUsher.isTeamLeader && (
+                    <p className="text-xs text-purple-600 mt-1">{t("admin.ushers.form.teamLeaderNote")}</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter className="rtl:flex-row-reverse">
@@ -1643,6 +1995,9 @@ const UsherManagement: React.FC = () => {
                   location: "",
                   hourlyRate: 0,
                   experience: 0,
+                  zones: [],
+                  ticketCategories: [],
+                  isTeamLeader: false,
                 });
                 setSelectedEventsForNewUsher([]);
               }}
@@ -2437,20 +2792,57 @@ const UsherManagement: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           {usherToDelete && (
-            <div className="py-4">
-              <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left">
-                <strong>{t("admin.ushers.table.name")}:</strong> {usherToDelete.name}
-              </p>
-              {usherToDelete.email && (
-                <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
-                  <strong>{t("admin.ushers.table.email")}:</strong> {usherToDelete.email}
+            <div className="py-4 space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left">
+                  <strong>{t("admin.ushers.table.name")}:</strong> {usherToDelete.name}
                 </p>
-              )}
-              {usherToDelete.phone && (
-                <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
-                  <strong>{t("admin.ushers.table.phone")}:</strong> {usherToDelete.phone}
-                </p>
-              )}
+                {usherToDelete.email && (
+                  <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
+                    <strong>{t("admin.ushers.table.email")}:</strong> {usherToDelete.email}
+                  </p>
+                )}
+                {usherToDelete.phone && (
+                  <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
+                    <strong>{t("admin.ushers.table.phone")}:</strong> {usherToDelete.phone}
+                  </p>
+                )}
+              </div>
+              {(() => {
+                const usher = ushers.find((u) => String(u.id) === String(usherToDelete.id));
+                if (usher?.isTeamLeader) {
+                  return (
+                    <div className="border-t pt-4">
+                      <p className="text-sm font-medium text-amber-600 dark:text-amber-500 mb-2 rtl:text-right ltr:text-left">
+                        {t("admin.ushers.dialogs.teamLeaderWarning") || "⚠️ This usher is a team leader. You must select a replacement before deleting."}
+                      </p>
+                      <Select
+                        value={replacementUsherId}
+                        onValueChange={setReplacementUsherId}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={t("admin.ushers.dialogs.selectReplacement") || "Select replacement usher..."} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ushers
+                            .filter((u) => String(u.id) !== String(usherToDelete.id) && !u.isTeamLeader)
+                            .map((u) => (
+                              <SelectItem key={u.id} value={String(u.id)}>
+                                {u.name} ({u.email})
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                      {ushers.filter((u) => String(u.id) !== String(usherToDelete.id) && !u.isTeamLeader).length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-2 rtl:text-right ltr:text-left">
+                          {t("admin.ushers.dialogs.noReplacementAvailable") || "No other ushers available as replacement."}
+                        </p>
+                      )}
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
           )}
           <DialogFooter className="rtl:flex-row-reverse">
@@ -2459,6 +2851,7 @@ const UsherManagement: React.FC = () => {
               onClick={() => {
                 setIsDeleteDialogOpen(false);
                 setUsherToDelete(null);
+                setReplacementUsherId("");
               }}
             >
               {t("admin.ushers.dialogs.cancel") || "Cancel"}
@@ -2466,7 +2859,7 @@ const UsherManagement: React.FC = () => {
             <Button
               variant="destructive"
               onClick={confirmDeleteUsher}
-              disabled={deleteUsherMutation.isPending}
+              disabled={deleteUsherMutation.isPending || (usherToDelete && ushers.find((u) => String(u.id) === String(usherToDelete.id))?.isTeamLeader && !replacementUsherId)}
             >
               {deleteUsherMutation.isPending ? (
                 <>

@@ -88,6 +88,11 @@ export function FilteredEventsList() {
                 }
                 category={event.category_name}
                 isFeatured={event.featured}
+                ticketsAvailable={event.tickets_available}
+                ticketCategories={event.ticket_categories?.map((cat: any) => ({
+                  name: cat.name,
+                  ticketsAvailable: cat.tickets_available || 0,
+                })) || []}
               />
             ))}
           </div>

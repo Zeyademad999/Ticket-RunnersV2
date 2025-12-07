@@ -74,6 +74,8 @@ class AttendeeSerializer(serializers.Serializer):
     scan_status = serializers.CharField()
     emergency_contact = serializers.CharField(allow_null=True, required=False, help_text="Emergency contact mobile number")
     emergency_contact_name = serializers.CharField(allow_null=True, required=False, help_text="Emergency contact person name")
+    phone_number = serializers.CharField(allow_null=True, required=False, help_text="Customer phone number")
+    nationality = serializers.CharField(allow_null=True, required=False, help_text="Customer nationality")
     blood_type = serializers.CharField(allow_null=True, required=False)
     labels = serializers.ListField(child=serializers.CharField(), allow_empty=True, required=False)
     children = serializers.ListField(allow_empty=True, required=False)

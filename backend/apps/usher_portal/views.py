@@ -665,6 +665,8 @@ def usher_scan_attendee_by_card(request, card_id):
             'scan_status': scan_status,
             'emergency_contact': customer.emergency_contact_mobile if hasattr(customer, 'emergency_contact_mobile') and customer.emergency_contact_mobile else None,
             'emergency_contact_name': customer.emergency_contact_name if hasattr(customer, 'emergency_contact_name') and customer.emergency_contact_name else None,
+            'phone_number': customer.phone if hasattr(customer, 'phone') and customer.phone else (customer.mobile_number if hasattr(customer, 'mobile_number') and customer.mobile_number else None),
+            'nationality': customer.nationality if hasattr(customer, 'nationality') and customer.nationality else None,
             'blood_type': customer.blood_type if hasattr(customer, 'blood_type') and customer.blood_type else None,
             'labels': labels,
             'children': children,

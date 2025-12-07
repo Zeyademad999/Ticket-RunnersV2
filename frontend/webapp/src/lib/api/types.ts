@@ -661,6 +661,7 @@ export interface CustomerInfo {
   emergency_contact_name?: string;
   emergency_contact_mobile?: string;
   blood_type?: string;
+  labels?: string[]; // Customer labels (e.g., "VIP", "Black Card Customer")
 }
 
 export interface GetCurrentUserResponse {
@@ -806,6 +807,7 @@ export interface FilteredEvent {
   thumbnail_path: string;
   category_name: string;
   starting_price: string | null;
+  tickets_available?: number; // Number of tickets available (0 means sold out)
 }
 
 export interface FilterEventsResponse {

@@ -2362,6 +2362,8 @@
         "manageLabels": "إدارة العلامات",
         "setVIP": "تعيين كـ VIP",
         "removeVIP": "إزالة VIP",
+        "setBlackCard": "تعيين كعميل بطاقة سوداء",
+        "removeBlackCard": "إزالة عميل البطاقة السوداء",
         "deactivate": "إلغاء التفعيل",
         "reactivate": "إعادة التفعيل",
         "banCustomer": "حظر العميل",
@@ -2560,6 +2562,14 @@
         "setVIPSuccessDesc": "تم تحديد العميل كـ VIP بنجاح",
         "removeVIPSuccess": "تم إزالة حالة VIP",
         "removeVIPSuccessDesc": "تم إزالة حالة VIP من العميل"
+      },
+      "blackCard": {
+        "alreadyBlackCard": "عميل البطاقة السوداء بالفعل",
+        "alreadyBlackCardDesc": "هذا العميل لديه بالفعل علامة عميل البطاقة السوداء",
+        "setBlackCardSuccess": "تم تعيين عميل البطاقة السوداء",
+        "setBlackCardSuccessDesc": "تم تعيين العميل كعميل بطاقة سوداء",
+        "removeBlackCardSuccess": "تم إزالة عميل البطاقة السوداء",
+        "removeBlackCardSuccessDesc": "تم إزالة علامة عميل البطاقة السوداء"
       },
       "labels": {
         "manageLabels": "إدارة العلامات",
@@ -3119,7 +3129,15 @@
         "makeTeamLeaderDescription": "اجعل هذا المرشد قائد فريق لتعيينه لجميع الفعاليات دفعة واحدة",
         "removeTeamLeader": "إزالة قائد الفريق",
         "makeTeamLeader": "تعيين كقائد فريق",
-        "teamLeaderNote": "ملاحظة: يتم تعيين قادة الفريق تلقائياً لجميع الفعاليات ولا يمكن إلغاء تعيينهم يدوياً من الفعاليات الفردية."
+        "teamLeaderNote": "ملاحظة: يتم تعيين قادة الفريق تلقائياً لجميع الفعاليات ولا يمكن إلغاء تعيينهم يدوياً من الفعاليات الفردية.",
+        "zones": "المناطق",
+        "zonesDescription": "قائمة المناطق مفصولة بفواصل",
+        "zonesPlaceholder": "مثال: المنطقة أ، المنطقة ب، المنطقة ج",
+        "ticketCategories": "فئات التذاكر",
+        "ticketCategoriesDescription": "اختر فئات التذاكر التي يمكن لهذا المرشد مسحها من الفعاليات المعينة",
+        "ticketCategoriesPlaceholder": "مثال: VIP، قياسي، مميز",
+        "selectEventsFirst": "يرجى اختيار الفعاليات أولاً لرؤية فئات التذاكر المتاحة",
+        "noTicketCategories": "لا توجد فئات تذاكر متاحة في الفعاليات المحددة"
       },
       "noEventsAvailable": "لا توجد فعاليات متاحة",
       "noUshersFound": "لم يتم العثور على مرشدين",

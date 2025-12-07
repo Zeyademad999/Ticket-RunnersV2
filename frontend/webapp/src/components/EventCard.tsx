@@ -33,6 +33,8 @@ interface EventCardProps {
   category: string;
   isFeatured?: boolean;
   isLiked?: boolean;
+  ticketsAvailable?: number; // Number of tickets available (0 means sold out)
+  ticketCategories?: Array<{ name: string; ticketsAvailable: number }>; // Ticket categories to check if all are sold out
 }
 
 export function EventCard({
@@ -47,6 +49,8 @@ export function EventCard({
   category,
   isFeatured = false,
   isLiked = false,
+  ticketsAvailable,
+  ticketCategories,
 }: EventCardProps) {
   const [liked, setLiked] = useState(isLiked);
   const navigate = useNavigate();
@@ -63,6 +67,34 @@ export function EventCard({
     removeFromFavorites,
     loading: favoritesLoading,
   } = useFavorites();
+  
+  // Check if user is a Black Card Customer
+  const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+  
+  // Normalize ticketsAvailable to handle string "0", null, undefined, etc.
+  // Also handle the case where it might be passed as 0 explicitly
+  let normalizedTicketsAvailable: number | undefined;
+  if (ticketsAvailable === null || ticketsAvailable === undefined) {
+    normalizedTicketsAvailable = undefined;
+  } else {
+    const numValue = Number(ticketsAvailable);
+    normalizedTicketsAvailable = isNaN(numValue) ? undefined : numValue;
+  }
+  
+  // Check if event is sold out
+  // If ticketCategories are provided, check if ALL categories are sold out
+  // Otherwise, check if ticketsAvailable is 0
+  let isSoldOut = false;
+  if (ticketCategories && ticketCategories.length > 0) {
+    // Event is sold out if ALL categories have 0 tickets available
+    isSoldOut = ticketCategories.every(cat => {
+      const available = typeof cat.ticketsAvailable === 'number' ? cat.ticketsAvailable : (Number(cat.ticketsAvailable) || 0);
+      return available === 0;
+    });
+  } else {
+    // Fallback to event-level ticketsAvailable
+    isSoldOut = normalizedTicketsAvailable === 0;
+  }
 
   // Format date and time using our utilities
   const formattedDate = formatDate(date, currentLocale);
@@ -170,6 +202,15 @@ export function EventCard({
             {t(`tags.${normalizedCategory}`, normalizedCategory)}
           </Badge>
         </div>
+
+        {/* SOLD OUT Badge - Prominent overlay when tickets are sold out (only for non-Black Card customers) */}
+        {isSoldOut && !isBlackCardCustomer && (
+          <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+            <Badge className="bg-red-600 text-white text-lg font-bold px-6 py-3 border-2 border-white shadow-lg animate-pulse">
+              {t("eventCard.soldOut", "SOLD OUT !!")}
+            </Badge>
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -226,14 +267,31 @@ export function EventCard({
         </div>
 
         <div className="mt-auto">
-          <Button
-            variant="gradient"
-            className="w-full group/btn"
-            onClick={handleBooking}
-          >
-            <Ticket className="h-4 w-4 mr-2 rtl:mr-0 rtl:ml-2 transition-transform group-hover/btn:scale-110" />
-            {t("eventCard.bookNow")}
-          </Button>
+          {(() => {
+            // Check if sold out (parent total_tickets is 0) and user is NOT Black Card
+            if (isSoldOut && !isBlackCardCustomer) {
+              return (
+                <Button
+                  variant="gradient"
+                  className="w-full group/btn opacity-50 cursor-not-allowed"
+                  disabled
+                >
+                  <Ticket className="h-4 w-4 mr-2 rtl:mr-0 rtl:ml-2" />
+                  {t("eventCard.soldOut", "SOLD OUT")}
+                </Button>
+              );
+            }
+            return (
+              <Button
+                variant="gradient"
+                className="w-full group/btn"
+                onClick={handleBooking}
+              >
+                <Ticket className="h-4 w-4 mr-2 rtl:mr-0 rtl:ml-2 transition-transform group-hover/btn:scale-110" />
+                {t("eventCard.bookNow")}
+              </Button>
+            );
+          })()}
         </div>
       </div>
       <ShareModal

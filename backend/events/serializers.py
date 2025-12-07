@@ -45,6 +45,7 @@ class EventListSerializer(serializers.ModelSerializer):
     revenue = serializers.SerializerMethodField()
     commission = serializers.SerializerMethodField()
     commission_rate = serializers.SerializerMethodField()
+    ticket_categories = TicketCategorySerializer(many=True, read_only=True)
     
     class Meta:
         model = Event
@@ -54,7 +55,7 @@ class EventListSerializer(serializers.ModelSerializer):
             'tickets_available', 'created_at', 'thumbnail_path', 'image_url',
             'location', 'starting_price', 'revenue', 'commission', 'commission_rate',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
-            'child_eligibility_min_age', 'child_eligibility_max_age'
+            'child_eligibility_min_age', 'child_eligibility_max_age', 'ticket_categories'
         ]
         read_only_fields = ['id', 'tickets_sold', 'tickets_available', 'created_at']
     
@@ -142,7 +143,7 @@ class TicketCategoryCreateSerializer(serializers.Serializer):
     """Serializer for creating ticket categories within event creation."""
     name = serializers.CharField(max_length=100, required=True)
     price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, min_value=0)
-    total_tickets = serializers.IntegerField(required=True, min_value=1)
+    total_tickets = serializers.IntegerField(required=True, min_value=0)
     description = serializers.CharField(required=False, allow_blank=True)
     color = serializers.CharField(max_length=7, required=False, allow_blank=True, allow_null=True, default='#10B981')
 
@@ -257,7 +258,8 @@ class EventDetailSerializer(serializers.ModelSerializer):
             # Delete existing ticket categories
             TicketCategory.objects.filter(event=instance).delete()
             
-            # Create new ticket categories if list is not empty
+            # Create new ticket categories if list is not empty and calculate total_tickets
+            total_tickets_sum = 0
             min_price = None
             if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
                 for category_data in ticket_categories_data:
@@ -266,6 +268,9 @@ class EventDetailSerializer(serializers.ModelSerializer):
                         if not category_data.get('color') or category_data.get('color', '').strip() == '':
                             category_data['color'] = '#10B981'
                         TicketCategory.objects.create(event=instance, **category_data)
+                        
+                        # Sum up total tickets from all categories
+                        total_tickets_sum += category_data.get('total_tickets', 0)
                         
                         # Track minimum price for starting_price calculation
                         category_price = float(category_data.get('price', 0))
@@ -277,10 +282,20 @@ class EventDetailSerializer(serializers.ModelSerializer):
                         logger.error(f"Error creating ticket category: {e}, data: {category_data}")
                         raise
                 
+                # Auto-calculate total_tickets from sum of all category tickets
+                if total_tickets_sum > 0:
+                    instance.total_tickets = total_tickets_sum
+                    instance.save(update_fields=['total_tickets'])
+                    logger.info(f"Auto-calculated total_tickets to {total_tickets_sum} from ticket categories")
+                
                 # Update starting_price to the lowest ticket category price
                 if min_price is not None:
                     instance.starting_price = min_price
                     instance.save(update_fields=['starting_price'])
+            else:
+                # No categories, set total_tickets to 0
+                instance.total_tickets = 0
+                instance.save(update_fields=['total_tickets'])
         
         return instance
     
@@ -452,8 +467,8 @@ class EventCreateSerializer(serializers.ModelSerializer):
         return value
     
     def validate_total_tickets(self, value):
-        if value < 1:
-            raise serializers.ValidationError('Total tickets must be at least 1.')
+        if value < 0:
+            raise serializers.ValidationError('Total tickets cannot be negative.')
         return value
     
     def create(self, validated_data):
@@ -491,7 +506,8 @@ class EventCreateSerializer(serializers.ModelSerializer):
         if organizers_data:
             event.organizers.set(organizers_data)
         
-        # Create ticket categories
+        # Create ticket categories and calculate total_tickets
+        total_tickets_sum = 0
         if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
             min_price = None
             for category_data in ticket_categories_data:
@@ -502,6 +518,9 @@ class EventCreateSerializer(serializers.ModelSerializer):
                     TicketCategory.objects.create(event=event, **category_data)
                     logger.info(f"Created ticket category: {category_data.get('name')} with color {category_data.get('color')} for event {event.id}")
                     
+                    # Sum up total tickets from all categories
+                    total_tickets_sum += category_data.get('total_tickets', 0)
+                    
                     # Track minimum price for starting_price calculation
                     category_price = float(category_data.get('price', 0))
                     if min_price is None or category_price < min_price:
@@ -509,6 +528,12 @@ class EventCreateSerializer(serializers.ModelSerializer):
                 except Exception as e:
                     logger.error(f"Error creating ticket category: {e}, data: {category_data}")
                     raise
+            
+            # Auto-calculate total_tickets from sum of all category tickets
+            if total_tickets_sum > 0:
+                event.total_tickets = total_tickets_sum
+                event.save(update_fields=['total_tickets'])
+                logger.info(f"Auto-calculated total_tickets to {total_tickets_sum} from ticket categories")
             
             # Set starting_price to the lowest ticket category price
             if min_price is not None:
@@ -586,7 +611,8 @@ class EventCreateSerializer(serializers.ModelSerializer):
             # Delete existing ticket categories
             TicketCategory.objects.filter(event=instance).delete()
             
-            # Create new ticket categories if list is not empty
+            # Create new ticket categories if list is not empty and calculate total_tickets
+            total_tickets_sum = 0
             min_price = None
             if isinstance(ticket_categories_data, list) and len(ticket_categories_data) > 0:
                 for category_data in ticket_categories_data:
@@ -595,6 +621,9 @@ class EventCreateSerializer(serializers.ModelSerializer):
                         if not category_data.get('color') or category_data.get('color', '').strip() == '':
                             category_data['color'] = '#10B981'
                         TicketCategory.objects.create(event=instance, **category_data)
+                        
+                        # Sum up total tickets from all categories
+                        total_tickets_sum += category_data.get('total_tickets', 0)
                         
                         # Track minimum price for starting_price calculation
                         category_price = float(category_data.get('price', 0))
@@ -606,10 +635,20 @@ class EventCreateSerializer(serializers.ModelSerializer):
                         logger.error(f"Error creating ticket category: {e}, data: {category_data}")
                         raise
                 
+                # Auto-calculate total_tickets from sum of all category tickets
+                if total_tickets_sum > 0:
+                    instance.total_tickets = total_tickets_sum
+                    instance.save(update_fields=['total_tickets'])
+                    logger.info(f"Auto-calculated total_tickets to {total_tickets_sum} from ticket categories")
+                
                 # Update starting_price to the lowest ticket category price
                 if min_price is not None:
                     instance.starting_price = min_price
                     instance.save(update_fields=['starting_price'])
+            else:
+                # No categories, set total_tickets to 0
+                instance.total_tickets = 0
+                instance.save(update_fields=['total_tickets'])
         
         return instance
 

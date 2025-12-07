@@ -153,10 +153,19 @@ const Index = () => {
               id: eventId,
               title: event.title || "Untitled Event",
               date: formattedDate,
+              time: event.time || "00:00",
               image: imageUrl,
+              location: event.location || event.venue_name || "TBA",
               venue: event.location || event.venue_name || "TBA",
+              price: event.starting_price ? parseFloat(event.starting_price.toString()) : (event.price || 0),
+              category: event.category_name || event.category || "General",
               organizer: organizerName,
               bookNowLink: `/booking/${eventId}`,
+              ticketsAvailable: event.tickets_available,
+              ticketCategories: event.ticket_categories?.map((cat: any) => ({
+                name: cat.name,
+                ticketsAvailable: cat.tickets_available || 0,
+              })) || [],
             };
           });
           
@@ -223,10 +232,19 @@ const Index = () => {
                   id: eventId,
                   title: event.title || "Untitled Event",
                   date: formattedDate,
+                  time: event.time || "00:00",
                   image: imageUrl,
+                  location: event.location || event.venue_name || "TBA",
                   venue: event.location || event.venue_name || "TBA",
+                  price: event.starting_price ? parseFloat(event.starting_price.toString()) : (event.price || 0),
+                  category: event.category_name || event.category || "General",
                   organizer: organizerName,
                   bookNowLink: `/booking/${eventId}`,
+                  ticketsAvailable: event.tickets_available,
+                  ticketCategories: event.ticket_categories?.map((cat: any) => ({
+                    name: cat.name,
+                    ticketsAvailable: cat.tickets_available || 0,
+                  })) || [],
                 };
               });
               setFeaturedEvents(mappedEvents);
@@ -274,6 +292,11 @@ const Index = () => {
         price: event.starting_price ? parseFloat(event.starting_price.toString()) : (event.price || 0),
         category: event.category_name || event.category || "General",
         isFeatured: event.featured || false,
+        ticketsAvailable: event.tickets_available,
+        ticketCategories: event.ticket_categories?.map((cat: any) => ({
+          name: cat.name,
+          ticketsAvailable: cat.tickets_available || 0,
+        })) || [],
       };
     });
   };

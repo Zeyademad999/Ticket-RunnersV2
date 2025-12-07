@@ -66,6 +66,8 @@ class Ticket(models.Model):
     # Child information (for owner tickets)
     has_child = models.BooleanField(default=False, help_text="Ticket holder has a child")
     child_age = models.PositiveIntegerField(null=True, blank=True, help_text="Age of the child")
+    # Black Card Customer tickets - don't count towards capacity or organizer stats
+    is_black_card = models.BooleanField(default=False, db_index=True, help_text="Black Card Customer ticket - doesn't count towards event capacity or organizer dashboard")
     created_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
@@ -79,6 +81,7 @@ class Ticket(models.Model):
             models.Index(fields=['ticket_number']),
             models.Index(fields=['purchase_date']),
             models.Index(fields=['event', 'status']),
+            models.Index(fields=['is_black_card']),
         ]
         ordering = ['-purchase_date']
     

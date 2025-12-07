@@ -60,6 +60,11 @@ export default function AllEventsPage() {
       price: event.starting_price ? parseFloat(event.starting_price) : 0,
       category: event.category_name,
       isFeatured: event.featured,
+      ticketsAvailable: event.tickets_available,
+      ticketCategories: (event as any).ticket_categories?.map((cat: any) => ({
+        name: cat.name,
+        ticketsAvailable: cat.tickets_available || 0,
+      })) || [],
     }));
   }, [events]);
 

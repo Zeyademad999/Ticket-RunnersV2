@@ -690,6 +690,7 @@ export class AuthService {
           emergency_contact_name: data.emergency_contact_name || '',
           emergency_contact_mobile: data.emergency_contact_mobile || '',
           blood_type: data.blood_type || '',
+          labels: data.labels || [], // Customer labels
         },
       };
 

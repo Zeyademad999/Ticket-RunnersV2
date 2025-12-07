@@ -60,7 +60,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'id', 'name', 'email', 'phone', 'mobile_number', 'national_id', 'nationality',
             'gender', 'date_of_birth', 'status', 'total_bookings', 'total_spent', 'attended_events',
             'is_recurrent', 'registration_date', 'emergency_contact_name', 'emergency_contact_mobile',
-            'blood_type', 'profile_image'
+            'blood_type', 'profile_image', 'labels'
         ]
         read_only_fields = ['id', 'total_bookings', 'total_spent', 'attended_events', 'registration_date', 'national_id']
     
@@ -121,6 +121,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
     starting_price = serializers.SerializerMethodField()
     image = serializers.SerializerMethodField()
     venue_layout_image = serializers.SerializerMethodField()
+    tickets_available = serializers.IntegerField(read_only=True)
     
     class Meta:
         model = Event
@@ -131,6 +132,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
             'organizer_name', 'organizer_id', 'organizer', 'category_id', 'category_name', 'status',
             'featured', 'total_tickets', 'ticket_limit', 'ticket_transfer_enabled',
             'thumbnail_path', 'starting_price', 'image', 'venue_layout_image', 'ticket_categories',
+            'tickets_available',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
             'child_eligibility_min_age', 'child_eligibility_max_age'
         ]
@@ -230,7 +232,7 @@ class TicketBookingSerializer(serializers.Serializer):
     category = serializers.CharField(required=True)
     quantity = serializers.IntegerField(required=True, min_value=1)
     payment_method = serializers.ChoiceField(
-        choices=['credit_card', 'debit_card', 'nfc_card', 'digital_wallet'],
+        choices=['credit_card', 'debit_card', 'nfc_card', 'digital_wallet', 'black_card_free'],
         required=True
     )
     ticket_details = TicketDetailSerializer(many=True, required=False, allow_empty=True)

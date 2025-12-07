@@ -64,7 +64,13 @@ import { useTranslation } from "react-i18next";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { eventsApi, usersApi, venuesApi, ticketsApi, homePageSectionsApi } from "@/lib/api/adminApi";
+import {
+  eventsApi,
+  usersApi,
+  venuesApi,
+  ticketsApi,
+  homePageSectionsApi,
+} from "@/lib/api/adminApi";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatNumberForLocale, formatCurrencyForLocale } from "@/lib/utils";
 import i18n from "@/lib/i18n";
@@ -290,10 +296,10 @@ const EventsManagement: React.FC = () => {
       type: "percentage" as "percentage" | "flat",
       value: 5,
     },
-        imageUrl: "",
-        venueLayoutImageUrl: "",
-        gallery: [] as GalleryImage[],
-        homePageSectionIds: [] as number[],
+    imageUrl: "",
+    venueLayoutImageUrl: "",
+    gallery: [] as GalleryImage[],
+    homePageSectionIds: [] as number[],
     venueLayouts: [
       {
         id: "1",
@@ -519,7 +525,11 @@ const EventsManagement: React.FC = () => {
       ticketTransferEnabled: true, // Default, will be fetched from detail
       childrenAllowed: item.child_eligibility_enabled || false, // Use actual value from API
       childEligibilityEnabled: item.child_eligibility_enabled || false, // Use actual value from API
-      childEligibilityRuleType: (item.child_eligibility_rule_type || "") as "between" | "less_than" | "more_than" | "",
+      childEligibilityRuleType: (item.child_eligibility_rule_type || "") as
+        | "between"
+        | "less_than"
+        | "more_than"
+        | "",
       childEligibilityMinAge: item.child_eligibility_min_age || null,
       childEligibilityMaxAge: item.child_eligibility_max_age || null,
       ticketLimit: item.ticket_limit || 10,
@@ -1489,8 +1499,11 @@ const EventsManagement: React.FC = () => {
           .filter((id: string) => id);
       } else if (eventDetails.organizer) {
         // Old format: single organizer object or ID (for backward compatibility)
-        const orgId = eventDetails.organizer?.id?.toString() || 
-                     (typeof eventDetails.organizer === "string" ? eventDetails.organizer : null);
+        const orgId =
+          eventDetails.organizer?.id?.toString() ||
+          (typeof eventDetails.organizer === "string"
+            ? eventDetails.organizer
+            : null);
         if (orgId) organizerIds = [orgId];
       }
 
@@ -1575,14 +1588,19 @@ const EventsManagement: React.FC = () => {
             ? event.ticketTransferEnabled
             : false,
         childrenAllowed: eventDetails.child_eligibility_enabled || false, // Use child_eligibility_enabled from API
-        childEligibilityEnabled: eventDetails.child_eligibility_enabled || false,
-        childEligibilityRuleType: (eventDetails.child_eligibility_rule_type || "") as "between" | "less_than" | "more_than" | "",
+        childEligibilityEnabled:
+          eventDetails.child_eligibility_enabled || false,
+        childEligibilityRuleType: (eventDetails.child_eligibility_rule_type ||
+          "") as "between" | "less_than" | "more_than" | "",
         childEligibilityMinAge: eventDetails.child_eligibility_min_age || null,
         childEligibilityMaxAge: eventDetails.child_eligibility_max_age || null,
         commissionRate: commissionRate,
         transferFee: transferFee,
         imageUrl: eventDetails.image || event.imageUrl || "",
-        venueLayoutImageUrl: eventDetails.venue_layout_image_url || eventDetails.venue_layout_image || "",
+        venueLayoutImageUrl:
+          eventDetails.venue_layout_image_url ||
+          eventDetails.venue_layout_image ||
+          "",
         gallery: galleryImages,
         venueLayouts: eventDetails.venue_layouts || event.venueLayouts || [],
         ticketCategories: ticketCategories,
@@ -1616,7 +1634,8 @@ const EventsManagement: React.FC = () => {
             org.name === event.organizer ||
             org.id?.toString() === event.organizer?.toString()
         );
-        const orgId = foundOrganizer?.id?.toString() || event.organizer?.toString() || "";
+        const orgId =
+          foundOrganizer?.id?.toString() || event.organizer?.toString() || "";
         if (orgId) organizerIds = [orgId];
       }
 
@@ -1658,7 +1677,11 @@ const EventsManagement: React.FC = () => {
         childrenAllowed:
           event.childrenAllowed !== undefined ? event.childrenAllowed : true,
         childEligibilityEnabled: false,
-        childEligibilityRuleType: "" as "between" | "less_than" | "more_than" | "",
+        childEligibilityRuleType: "" as
+          | "between"
+          | "less_than"
+          | "more_than"
+          | "",
         childEligibilityMinAge: null,
         childEligibilityMaxAge: null,
         commissionRate: event.commissionRate || {
@@ -2014,13 +2037,21 @@ const EventsManagement: React.FC = () => {
         ? 1
         : parseInt(editEventData.ticketLimit?.toString() || "1");
     const ticketLimit = editEventData.isTicketLimitUnlimited
-      ? totalTickets || parsedTicketLimit || 1
+      ? totalTickets !== undefined && totalTickets !== null
+        ? totalTickets
+        : parsedTicketLimit !== undefined && parsedTicketLimit !== null
+        ? parsedTicketLimit
+        : 0
       : parsedTicketLimit;
 
-    if (!totalTickets || totalTickets < 1) {
+    if (
+      totalTickets === undefined ||
+      totalTickets === null ||
+      totalTickets < 0
+    ) {
       toast({
         title: "Validation Error",
-        description: "Total tickets must be at least 1",
+        description: "Total tickets cannot be negative",
         variant: "destructive",
       });
       return;
@@ -2039,6 +2070,7 @@ const EventsManagement: React.FC = () => {
     }
 
     // Prepare data for API
+    // Note: total_tickets is now auto-calculated from ticket categories, so we don't send it
     const updateData: any = {
       title: title,
       artist_name: (editEventData.artist_name || "").trim(),
@@ -2048,7 +2080,7 @@ const EventsManagement: React.FC = () => {
       terms_and_conditions: editEventData.termsAndConditions || "",
       date: date,
       time: timeValue,
-      total_tickets: totalTickets,
+      // total_tickets is auto-calculated from ticket categories, don't send it
       ticket_limit: ticketLimit,
       is_ticket_limit_unlimited: editEventData.isTicketLimitUnlimited,
       ticket_transfer_enabled:
@@ -2125,31 +2157,56 @@ const EventsManagement: React.FC = () => {
       updateData.commission_rate_type =
         editEventData.commissionRate.type || "percentage";
       // Handle empty string for commission_rate_value - default to 0
-      const commissionValue = editEventData.commissionRate.value === "" || editEventData.commissionRate.value === null || editEventData.commissionRate.value === undefined
-        ? 0
-        : (typeof editEventData.commissionRate.value === "string" ? parseFloat(editEventData.commissionRate.value) || 0 : editEventData.commissionRate.value);
+      const commissionValue =
+        editEventData.commissionRate.value === "" ||
+        editEventData.commissionRate.value === null ||
+        editEventData.commissionRate.value === undefined
+          ? 0
+          : typeof editEventData.commissionRate.value === "string"
+          ? parseFloat(editEventData.commissionRate.value) || 0
+          : editEventData.commissionRate.value;
       updateData.commission_rate_value = commissionValue;
     }
 
     // Add transfer fee fields
     if (editEventData.transferFee) {
-      updateData.transfer_fee_type = editEventData.transferFee.type || "percentage";
+      updateData.transfer_fee_type =
+        editEventData.transferFee.type || "percentage";
       // Handle empty string for transfer_fee_value - default to 0
-      const transferFeeValue = editEventData.transferFee.value === "" || editEventData.transferFee.value === null || editEventData.transferFee.value === undefined
-        ? 0
-        : (typeof editEventData.transferFee.value === "string" ? parseFloat(editEventData.transferFee.value) || 0 : editEventData.transferFee.value);
+      const transferFeeValue =
+        editEventData.transferFee.value === "" ||
+        editEventData.transferFee.value === null ||
+        editEventData.transferFee.value === undefined
+          ? 0
+          : typeof editEventData.transferFee.value === "string"
+          ? parseFloat(editEventData.transferFee.value) || 0
+          : editEventData.transferFee.value;
       updateData.transfer_fee_value = transferFeeValue;
     }
 
     // Add child eligibility fields - explicitly set to false if not enabled
-    updateData.child_eligibility_enabled = Boolean(editEventData.childEligibilityEnabled);
-    if (editEventData.childEligibilityEnabled && editEventData.childEligibilityRuleType) {
-      updateData.child_eligibility_rule_type = editEventData.childEligibilityRuleType;
-      if (editEventData.childEligibilityMinAge !== null && editEventData.childEligibilityMinAge !== undefined) {
-        updateData.child_eligibility_min_age = editEventData.childEligibilityMinAge;
+    updateData.child_eligibility_enabled = Boolean(
+      editEventData.childEligibilityEnabled
+    );
+    if (
+      editEventData.childEligibilityEnabled &&
+      editEventData.childEligibilityRuleType
+    ) {
+      updateData.child_eligibility_rule_type =
+        editEventData.childEligibilityRuleType;
+      if (
+        editEventData.childEligibilityMinAge !== null &&
+        editEventData.childEligibilityMinAge !== undefined
+      ) {
+        updateData.child_eligibility_min_age =
+          editEventData.childEligibilityMinAge;
       }
-      if (editEventData.childEligibilityMaxAge !== null && editEventData.childEligibilityMaxAge !== undefined) {
-        updateData.child_eligibility_max_age = editEventData.childEligibilityMaxAge;
+      if (
+        editEventData.childEligibilityMaxAge !== null &&
+        editEventData.childEligibilityMaxAge !== undefined
+      ) {
+        updateData.child_eligibility_max_age =
+          editEventData.childEligibilityMaxAge;
       }
     } else {
       // Clear eligibility rules when disabled
@@ -2159,35 +2216,37 @@ const EventsManagement: React.FC = () => {
     }
 
     // Add ticket categories - always send as array to avoid backend errors
-    updateData.ticket_categories = (editEventData.ticketCategories && editEventData.ticketCategories.length > 0)
-      ? editEventData.ticketCategories.map((cat: any) => {
-          // Ensure color is a valid hex color, default to green if invalid
-          let colorValue = cat.color || "#10B981";
-          // Validate hex color format
-          if (typeof colorValue === 'string') {
-            colorValue = colorValue.trim();
-            // If it doesn't start with #, add it
-            if (colorValue && !colorValue.startsWith('#')) {
-              colorValue = '#' + colorValue;
+    updateData.ticket_categories =
+      editEventData.ticketCategories &&
+      editEventData.ticketCategories.length > 0
+        ? editEventData.ticketCategories.map((cat: any) => {
+            // Ensure color is a valid hex color, default to green if invalid
+            let colorValue = cat.color || "#10B981";
+            // Validate hex color format
+            if (typeof colorValue === "string") {
+              colorValue = colorValue.trim();
+              // If it doesn't start with #, add it
+              if (colorValue && !colorValue.startsWith("#")) {
+                colorValue = "#" + colorValue;
+              }
+              // Validate hex color pattern
+              if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
+                colorValue = "#10B981"; // Default to green if invalid
+              }
+            } else {
+              colorValue = "#10B981";
             }
-            // Validate hex color pattern
-            if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
-              colorValue = "#10B981"; // Default to green if invalid
-            }
-          } else {
-            colorValue = "#10B981";
-          }
-          
-          return {
-            name: cat.name || "",
-            price: cat.price || 0,
-            total_tickets: cat.totalTickets || 0,
-            description: cat.description || "",
-            color: colorValue, // Include validated color
-          };
-        })
-      : [];
-    
+
+            return {
+              name: cat.name || "",
+              price: cat.price || 0,
+              total_tickets: cat.totalTickets || 0,
+              description: cat.description || "",
+              color: colorValue, // Include validated color
+            };
+          })
+        : [];
+
     console.log("Ticket categories being saved:", updateData.ticket_categories);
 
     // Add image files if provided - handle FormData separately
@@ -2196,8 +2255,12 @@ const EventsManagement: React.FC = () => {
       const formData = new FormData();
       Object.keys(updateData).forEach((key) => {
         // Skip child_eligibility fields - we'll add them separately to avoid duplication
-        if (key === "child_eligibility_enabled" || key === "child_eligibility_rule_type" || 
-            key === "child_eligibility_min_age" || key === "child_eligibility_max_age") {
+        if (
+          key === "child_eligibility_enabled" ||
+          key === "child_eligibility_rule_type" ||
+          key === "child_eligibility_min_age" ||
+          key === "child_eligibility_max_age"
+        ) {
           return;
         }
         if (key === "ticket_categories") {
@@ -2215,15 +2278,35 @@ const EventsManagement: React.FC = () => {
       });
       // Add child eligibility fields to FormData (only append once, not in the loop)
       // Make sure it's a string, not an array
-      const childEligibilityEnabled = editEventData.childEligibilityEnabled ? "true" : "false";
+      const childEligibilityEnabled = editEventData.childEligibilityEnabled
+        ? "true"
+        : "false";
       formData.append("child_eligibility_enabled", childEligibilityEnabled);
-      if (editEventData.childEligibilityEnabled && editEventData.childEligibilityRuleType) {
-        formData.append("child_eligibility_rule_type", editEventData.childEligibilityRuleType);
-        if (editEventData.childEligibilityMinAge !== null && editEventData.childEligibilityMinAge !== undefined) {
-          formData.append("child_eligibility_min_age", editEventData.childEligibilityMinAge.toString());
+      if (
+        editEventData.childEligibilityEnabled &&
+        editEventData.childEligibilityRuleType
+      ) {
+        formData.append(
+          "child_eligibility_rule_type",
+          editEventData.childEligibilityRuleType
+        );
+        if (
+          editEventData.childEligibilityMinAge !== null &&
+          editEventData.childEligibilityMinAge !== undefined
+        ) {
+          formData.append(
+            "child_eligibility_min_age",
+            editEventData.childEligibilityMinAge.toString()
+          );
         }
-        if (editEventData.childEligibilityMaxAge !== null && editEventData.childEligibilityMaxAge !== undefined) {
-          formData.append("child_eligibility_max_age", editEventData.childEligibilityMaxAge.toString());
+        if (
+          editEventData.childEligibilityMaxAge !== null &&
+          editEventData.childEligibilityMaxAge !== undefined
+        ) {
+          formData.append(
+            "child_eligibility_max_age",
+            editEventData.childEligibilityMaxAge.toString()
+          );
         }
       }
       // Add image files if provided
@@ -2231,7 +2314,10 @@ const EventsManagement: React.FC = () => {
         formData.append("image", editEventData.mainImageFile);
       }
       if (editEventData.venueLayoutImageFile) {
-        formData.append("venue_layout_image", editEventData.venueLayoutImageFile);
+        formData.append(
+          "venue_layout_image",
+          editEventData.venueLayoutImageFile
+        );
       }
       // Use FormData for update
       updateEventMutation.mutate({ id: selectedEvent.id, data: formData });
@@ -2254,7 +2340,8 @@ const EventsManagement: React.FC = () => {
               const allSections = homePageSections || [];
               await Promise.all(
                 allSections.map(async (section) => {
-                  const currentEventIds = section.events?.map((e) => e.id) || [];
+                  const currentEventIds =
+                    section.events?.map((e) => e.id) || [];
                   const shouldInclude = selectedSectionIds.includes(section.id);
                   const currentlyIncludes = currentEventIds.includes(eventId);
 
@@ -2275,11 +2362,19 @@ const EventsManagement: React.FC = () => {
               queryClient.invalidateQueries({ queryKey: ["homePageSections"] });
             } catch (error: any) {
               console.error("Error updating home page sections:", error);
-              const errorMessage = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Unknown error";
+              const errorMessage =
+                error?.response?.data?.detail ||
+                error?.response?.data?.message ||
+                error?.message ||
+                "Unknown error";
               console.error("Error details:", error?.response?.data);
               toast({
                 title: t("admin.events.toast.error"),
-                description: t("admin.events.toast.homePageSectionsUpdateError", "Event updated but failed to update home page sections") + `: ${errorMessage}`,
+                description:
+                  t(
+                    "admin.events.toast.homePageSectionsUpdateError",
+                    "Event updated but failed to update home page sections"
+                  ) + `: ${errorMessage}`,
                 variant: "destructive",
               });
             }
@@ -2698,11 +2793,15 @@ const EventsManagement: React.FC = () => {
 
     // Organizers are optional - no validation needed
 
-    // Validate total tickets
-    if (!newEvent.totalTickets || newEvent.totalTickets < 1) {
+    // Validate total tickets (allow 0 for sold out events)
+    if (
+      newEvent.totalTickets === undefined ||
+      newEvent.totalTickets === null ||
+      newEvent.totalTickets < 0
+    ) {
       toast({
         title: t("admin.events.toast.validationError"),
-        description: "Total tickets must be at least 1",
+        description: "Total tickets cannot be negative",
         variant: "destructive",
       });
       return;
@@ -2777,7 +2876,7 @@ const EventsManagement: React.FC = () => {
     if (categoryName) {
       formData.append("category", categoryName);
     }
-    formData.append("total_tickets", newEvent.totalTickets.toString());
+    // total_tickets is auto-calculated from ticket categories, don't send it
     // Handle empty string for ticketLimit - default to 1
     const parsedTicketLimit =
       newEvent.ticketLimit === "" ||
@@ -2788,7 +2887,11 @@ const EventsManagement: React.FC = () => {
         ? parseInt(newEvent.ticketLimit) || 1
         : newEvent.ticketLimit;
     const ticketLimitValue = newEvent.isTicketLimitUnlimited
-      ? newEvent.totalTickets || parsedTicketLimit || 1
+      ? newEvent.totalTickets !== undefined && newEvent.totalTickets !== null
+        ? newEvent.totalTickets
+        : parsedTicketLimit !== undefined && parsedTicketLimit !== null
+        ? parsedTicketLimit
+        : 0
       : parsedTicketLimit;
     formData.append("ticket_limit", ticketLimitValue.toString());
     formData.append(
@@ -2814,43 +2917,49 @@ const EventsManagement: React.FC = () => {
 
     // Add ticket categories as JSON string (FormData doesn't handle nested objects well)
     // Always send ticket_categories, even if empty, to avoid backend errors
-    const ticketCategoriesData = (newEvent.ticketCategories && newEvent.ticketCategories.length > 0)
-      ? newEvent.ticketCategories.map((cat: any) => {
-          // Ensure color is a valid hex color, default to green if invalid
-          let colorValue = cat.color || "#10B981";
-          // Validate hex color format
-          if (typeof colorValue === 'string') {
-            colorValue = colorValue.trim();
-            // If it doesn't start with #, add it
-            if (colorValue && !colorValue.startsWith('#')) {
-              colorValue = '#' + colorValue;
+    const ticketCategoriesData =
+      newEvent.ticketCategories && newEvent.ticketCategories.length > 0
+        ? newEvent.ticketCategories.map((cat: any) => {
+            // Ensure color is a valid hex color, default to green if invalid
+            let colorValue = cat.color || "#10B981";
+            // Validate hex color format
+            if (typeof colorValue === "string") {
+              colorValue = colorValue.trim();
+              // If it doesn't start with #, add it
+              if (colorValue && !colorValue.startsWith("#")) {
+                colorValue = "#" + colorValue;
+              }
+              // Validate hex color pattern
+              if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
+                colorValue = "#10B981"; // Default to green if invalid
+              }
+            } else {
+              colorValue = "#10B981";
             }
-            // Validate hex color pattern
-            if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
-              colorValue = "#10B981"; // Default to green if invalid
-            }
-          } else {
-            colorValue = "#10B981";
-          }
-          
-          return {
-            name: cat.name || "",
-            price: cat.price || 0,
-            total_tickets: cat.totalTickets || 0,
-            description: cat.description || "",
-            color: colorValue, // Include validated color
-          };
-        })
-      : [];
+
+            return {
+              name: cat.name || "",
+              price: cat.price || 0,
+              total_tickets: cat.totalTickets || 0,
+              description: cat.description || "",
+              color: colorValue, // Include validated color
+            };
+          })
+        : [];
     formData.append("ticket_categories", JSON.stringify(ticketCategoriesData));
 
     // Add commission rate fields
     if (newEvent.commissionRate) {
       formData.append("commission_rate_type", newEvent.commissionRate.type);
       // Handle empty string for commission_rate_value - default to 0
-      const commissionValue = newEvent.commissionRate.value === "" || newEvent.commissionRate.value === null || newEvent.commissionRate.value === undefined
-        ? 0
-        : (typeof newEvent.commissionRate.value === "string" ? parseFloat(newEvent.commissionRate.value) || 0 : newEvent.commissionRate.value);
+      const commissionValue =
+        newEvent.commissionRate.value === "" ||
+        newEvent.commissionRate.value === null ||
+        newEvent.commissionRate.value === undefined
+          ? 0
+          : typeof newEvent.commissionRate.value === "string"
+          ? parseFloat(newEvent.commissionRate.value) || 0
+          : newEvent.commissionRate.value;
       formData.append("commission_rate_value", commissionValue.toString());
     }
 
@@ -2858,21 +2967,44 @@ const EventsManagement: React.FC = () => {
     if (newEvent.transferFee) {
       formData.append("transfer_fee_type", newEvent.transferFee.type);
       // Handle empty string for transfer_fee_value - default to 0
-      const transferFeeValue = newEvent.transferFee.value === "" || newEvent.transferFee.value === null || newEvent.transferFee.value === undefined
-        ? 0
-        : (typeof newEvent.transferFee.value === "string" ? parseFloat(newEvent.transferFee.value) || 0 : newEvent.transferFee.value);
+      const transferFeeValue =
+        newEvent.transferFee.value === "" ||
+        newEvent.transferFee.value === null ||
+        newEvent.transferFee.value === undefined
+          ? 0
+          : typeof newEvent.transferFee.value === "string"
+          ? parseFloat(newEvent.transferFee.value) || 0
+          : newEvent.transferFee.value;
       formData.append("transfer_fee_value", transferFeeValue.toString());
     }
 
     // Add child eligibility fields
-    formData.append("child_eligibility_enabled", newEvent.childEligibilityEnabled.toString());
+    formData.append(
+      "child_eligibility_enabled",
+      newEvent.childEligibilityEnabled.toString()
+    );
     if (newEvent.childEligibilityEnabled && newEvent.childEligibilityRuleType) {
-      formData.append("child_eligibility_rule_type", newEvent.childEligibilityRuleType);
-      if (newEvent.childEligibilityMinAge !== null && newEvent.childEligibilityMinAge !== undefined) {
-        formData.append("child_eligibility_min_age", newEvent.childEligibilityMinAge.toString());
+      formData.append(
+        "child_eligibility_rule_type",
+        newEvent.childEligibilityRuleType
+      );
+      if (
+        newEvent.childEligibilityMinAge !== null &&
+        newEvent.childEligibilityMinAge !== undefined
+      ) {
+        formData.append(
+          "child_eligibility_min_age",
+          newEvent.childEligibilityMinAge.toString()
+        );
       }
-      if (newEvent.childEligibilityMaxAge !== null && newEvent.childEligibilityMaxAge !== undefined) {
-        formData.append("child_eligibility_max_age", newEvent.childEligibilityMaxAge.toString());
+      if (
+        newEvent.childEligibilityMaxAge !== null &&
+        newEvent.childEligibilityMaxAge !== undefined
+      ) {
+        formData.append(
+          "child_eligibility_max_age",
+          newEvent.childEligibilityMaxAge.toString()
+        );
       }
     }
 
@@ -2890,19 +3022,25 @@ const EventsManagement: React.FC = () => {
         if (selectedSectionIds.length > 0 && response?.id) {
           try {
             // Parse event ID - handle both string and number
-            const eventId = typeof response.id === 'string' ? parseInt(response.id) : response.id;
+            const eventId =
+              typeof response.id === "string"
+                ? parseInt(response.id)
+                : response.id;
             if (isNaN(eventId)) {
               console.error("Invalid event ID:", response.id);
               return;
             }
-            
+
             // Update each selected section to include this event
             await Promise.all(
               selectedSectionIds.map(async (sectionId) => {
-                const section = homePageSections.find((s) => s.id === sectionId);
+                const section = homePageSections.find(
+                  (s) => s.id === sectionId
+                );
                 if (section) {
                   // Get current event IDs and add the new event ID
-                  const currentEventIds = section.events?.map((e) => e.id) || [];
+                  const currentEventIds =
+                    section.events?.map((e) => e.id) || [];
                   if (!currentEventIds.includes(eventId)) {
                     const updatedEventIds = [...currentEventIds, eventId];
                     await homePageSectionsApi.updateSection(sectionId, {
@@ -2916,11 +3054,19 @@ const EventsManagement: React.FC = () => {
             queryClient.invalidateQueries({ queryKey: ["homePageSections"] });
           } catch (error: any) {
             console.error("Error updating home page sections:", error);
-            const errorMessage = error?.response?.data?.detail || error?.response?.data?.message || error?.message || "Unknown error";
+            const errorMessage =
+              error?.response?.data?.detail ||
+              error?.response?.data?.message ||
+              error?.message ||
+              "Unknown error";
             console.error("Error details:", error?.response?.data);
             toast({
               title: t("admin.events.toast.error"),
-              description: t("admin.events.toast.homePageSectionsUpdateError", "Event created but failed to update home page sections") + `: ${errorMessage}`,
+              description:
+                t(
+                  "admin.events.toast.homePageSectionsUpdateError",
+                  "Event created but failed to update home page sections"
+                ) + `: ${errorMessage}`,
               variant: "destructive",
             });
           }
@@ -3446,13 +3592,17 @@ const EventsManagement: React.FC = () => {
                         <div className="flex items-center justify-center">
                           <div
                             className={`w-3 h-3 rounded-full ${
-                              event.childEligibilityEnabled || event.childrenAllowed
+                              event.childEligibilityEnabled ||
+                              event.childrenAllowed
                                 ? "bg-green-500"
                                 : "bg-red-500"
                             }`}
                           ></div>
                           <span className="text-xs ml-2 rtl:mr-2 rtl:ml-0">
-                            {event.childEligibilityEnabled || event.childrenAllowed ? "Yes" : "No"}
+                            {event.childEligibilityEnabled ||
+                            event.childrenAllowed
+                              ? "Yes"
+                              : "No"}
                           </span>
                         </div>
                       </TableCell>
@@ -3683,14 +3833,20 @@ const EventsManagement: React.FC = () => {
                       <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
                         <div className="w-4 h-4 rounded-full bg-green-500"></div>
                         <span className="text-sm">
-                          {t("admin.events.childrenAllowed", "Children Allowed")}
+                          {t(
+                            "admin.events.childrenAllowed",
+                            "Children Allowed"
+                          )}
                         </span>
                       </div>
                     ) : (
                       <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
                         <div className="w-4 h-4 rounded-full bg-red-500"></div>
                         <span className="text-sm">
-                          {t("admin.events.childrenNotAllowed", "Children Not Allowed")}
+                          {t(
+                            "admin.events.childrenNotAllowed",
+                            "Children Not Allowed"
+                          )}
                         </span>
                       </div>
                     )}
@@ -3936,34 +4092,55 @@ const EventsManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right">
-                    {t("admin.events.form.organizers")} {t("admin.events.form.optional")}
+                    {t("admin.events.form.organizers")}{" "}
+                    {t("admin.events.form.optional")}
                   </label>
                   <div className="border rounded-md p-3 max-h-48 overflow-y-auto">
-                    {(organizersData?.results || organizersData || []).length === 0 ? (
+                    {(organizersData?.results || organizersData || [])
+                      .length === 0 ? (
                       <p className="text-sm text-muted-foreground">
-                        No organizers available. Please create an organizer first.
+                        No organizers available. Please create an organizer
+                        first.
                       </p>
                     ) : (
                       <div className="space-y-2">
                         {(organizersData?.results || organizersData || []).map(
                           (organizer: any) => (
-                            <div key={organizer.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                            <div
+                              key={organizer.id}
+                              className="flex items-center space-x-2 rtl:space-x-reverse"
+                            >
                               <Checkbox
                                 id={`organizer-${organizer.id}`}
-                                checked={editEventData.organizers.includes(organizer.id.toString())}
+                                checked={editEventData.organizers.includes(
+                                  organizer.id.toString()
+                                )}
                                 onCheckedChange={(checked) => {
-                                  const currentOrganizers = [...editEventData.organizers];
+                                  const currentOrganizers = [
+                                    ...editEventData.organizers,
+                                  ];
                                   if (checked) {
-                                    if (!currentOrganizers.includes(organizer.id.toString())) {
-                                      currentOrganizers.push(organizer.id.toString());
+                                    if (
+                                      !currentOrganizers.includes(
+                                        organizer.id.toString()
+                                      )
+                                    ) {
+                                      currentOrganizers.push(
+                                        organizer.id.toString()
+                                      );
                                     }
                                   } else {
-                                    const index = currentOrganizers.indexOf(organizer.id.toString());
+                                    const index = currentOrganizers.indexOf(
+                                      organizer.id.toString()
+                                    );
                                     if (index > -1) {
                                       currentOrganizers.splice(index, 1);
                                     }
                                   }
-                                  handleEditEventDataChange("organizers", currentOrganizers);
+                                  handleEditEventDataChange(
+                                    "organizers",
+                                    currentOrganizers
+                                  );
                                 }}
                               />
                               <label
@@ -4078,18 +4255,26 @@ const EventsManagement: React.FC = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium rtl:text-right">
-                    {t("admin.events.form.totalTickets")}
+                    {t("admin.events.form.totalTickets")} (Auto-calculated)
                   </label>
                   <Input
                     type="number"
-                    value={editEventData.totalTickets}
-                    onChange={(e) =>
-                      handleEditEventDataChange(
-                        "totalTickets",
-                        parseInt(e.target.value) || 0
-                      )
-                    }
+                    value={(() => {
+                      // Auto-calculate from ticket categories
+                      const calculatedTotal =
+                        editEventData.ticketCategories.reduce(
+                          (sum, cat) => sum + (cat.totalTickets || 0),
+                          0
+                        );
+                      return calculatedTotal.toString();
+                    })()}
+                    readOnly
+                    disabled
+                    className="bg-muted cursor-not-allowed"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Total is automatically calculated from ticket categories
+                  </p>
                 </div>
                 <div>
                   <div className="flex items-center justify-between gap-2">
@@ -4135,7 +4320,7 @@ const EventsManagement: React.FC = () => {
                       const val = e.target.value;
                       handleEditEventDataChange(
                         "ticketLimit",
-                        val === "" ? "" : (parseInt(val) || 1)
+                        val === "" ? "" : parseInt(val) || 1
                       );
                     }}
                     placeholder={
@@ -4280,7 +4465,10 @@ const EventsManagement: React.FC = () => {
                   onCheckedChange={(checked) => {
                     handleEditEventDataChange("childrenAllowed", checked);
                     // Also enable/disable child eligibility when "Allow Children" is toggled
-                    handleEditEventDataChange("childEligibilityEnabled", checked);
+                    handleEditEventDataChange(
+                      "childEligibilityEnabled",
+                      checked
+                    );
                     // Clear eligibility rules when disabled
                     if (!checked) {
                       handleEditEventDataChange("childEligibilityRuleType", "");
@@ -4301,7 +4489,10 @@ const EventsManagement: React.FC = () => {
                   <Switch
                     checked={editEventData.childEligibilityEnabled}
                     onCheckedChange={(checked) =>
-                      handleEditEventDataChange("childEligibilityEnabled", checked)
+                      handleEditEventDataChange(
+                        "childEligibilityEnabled",
+                        checked
+                      )
                     }
                   />
                   <span className="text-sm">
@@ -4317,16 +4508,25 @@ const EventsManagement: React.FC = () => {
                       <Select
                         value={editEventData.childEligibilityRuleType}
                         onValueChange={(value) =>
-                          handleEditEventDataChange("childEligibilityRuleType", value as "between" | "less_than" | "more_than" | "")
+                          handleEditEventDataChange(
+                            "childEligibilityRuleType",
+                            value as "between" | "less_than" | "more_than" | ""
+                          )
                         }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select rule type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="between">Between ages (min–max)</SelectItem>
-                          <SelectItem value="less_than">Less than (age &lt; X)</SelectItem>
-                          <SelectItem value="more_than">More than (age &gt; X)</SelectItem>
+                          <SelectItem value="between">
+                            Between ages (min–max)
+                          </SelectItem>
+                          <SelectItem value="less_than">
+                            Less than (age &lt; X)
+                          </SelectItem>
+                          <SelectItem value="more_than">
+                            More than (age &gt; X)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -4342,7 +4542,10 @@ const EventsManagement: React.FC = () => {
                             value={editEventData.childEligibilityMinAge || ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              handleEditEventDataChange("childEligibilityMinAge", val === "" ? null : parseInt(val) || null);
+                              handleEditEventDataChange(
+                                "childEligibilityMinAge",
+                                val === "" ? null : parseInt(val) || null
+                              );
                             }}
                             placeholder="0"
                           />
@@ -4357,7 +4560,10 @@ const EventsManagement: React.FC = () => {
                             value={editEventData.childEligibilityMaxAge || ""}
                             onChange={(e) => {
                               const val = e.target.value;
-                              handleEditEventDataChange("childEligibilityMaxAge", val === "" ? null : parseInt(val) || null);
+                              handleEditEventDataChange(
+                                "childEligibilityMaxAge",
+                                val === "" ? null : parseInt(val) || null
+                              );
                             }}
                             placeholder="18"
                           />
@@ -4375,7 +4581,10 @@ const EventsManagement: React.FC = () => {
                           value={editEventData.childEligibilityMaxAge || ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            handleEditEventDataChange("childEligibilityMaxAge", val === "" ? null : parseInt(val) || null);
+                            handleEditEventDataChange(
+                              "childEligibilityMaxAge",
+                              val === "" ? null : parseInt(val) || null
+                            );
                           }}
                           placeholder="12"
                         />
@@ -4392,7 +4601,10 @@ const EventsManagement: React.FC = () => {
                           value={editEventData.childEligibilityMinAge || ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            handleEditEventDataChange("childEligibilityMinAge", val === "" ? null : parseInt(val) || null);
+                            handleEditEventDataChange(
+                              "childEligibilityMinAge",
+                              val === "" ? null : parseInt(val) || null
+                            );
                           }}
                           placeholder="5"
                         />
@@ -4443,7 +4655,7 @@ const EventsManagement: React.FC = () => {
                         const val = e.target.value;
                         handleEditEventDataChange("commissionRate", {
                           ...editEventData.commissionRate,
-                          value: val === "" ? "" : (parseFloat(val) || 0),
+                          value: val === "" ? "" : parseFloat(val) || 0,
                         });
                       }}
                       placeholder={
@@ -4529,7 +4741,7 @@ const EventsManagement: React.FC = () => {
                         const val = e.target.value;
                         handleEditEventDataChange("transferFee", {
                           ...editEventData.transferFee,
-                          value: val === "" ? "" : (parseFloat(val) || 0),
+                          value: val === "" ? "" : parseFloat(val) || 0,
                         });
                       }}
                       placeholder={
@@ -4716,63 +4928,84 @@ const EventsManagement: React.FC = () => {
                         </CardContent>
                       </Card>
                     ))
+                  )}
+                </div>
+              </div>
+
+              {/* Home Page Sections */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                  {t(
+                    "admin.events.form.homePageSections",
+                    "Home Page Sections"
+                  )}
+                </h4>
+                <p className="text-sm text-muted-foreground mb-4 rtl:text-right">
+                  {t(
+                    "admin.events.form.homePageSectionsDescription",
+                    "Select which home page sections this event should appear in"
+                  )}
+                </p>
+                {homePageSections.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    {t(
+                      "admin.events.form.noHomePageSections",
+                      "No home page sections available. Create sections in the Home Page Sections management."
+                    )}
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {homePageSections.map((section) => (
+                      <div
+                        key={section.id}
+                        className="flex items-center space-x-2 rtl:space-x-reverse"
+                      >
+                        <Checkbox
+                          id={`edit-section-${section.id}`}
+                          checked={(
+                            editEventData.homePageSectionIds || []
+                          ).includes(section.id)}
+                          onCheckedChange={(checked) => {
+                            const currentIds =
+                              editEventData.homePageSectionIds || [];
+                            if (checked) {
+                              handleEditEventDataChange("homePageSectionIds", [
+                                ...currentIds,
+                                section.id,
+                              ]);
+                            } else {
+                              handleEditEventDataChange(
+                                "homePageSectionIds",
+                                currentIds.filter((id) => id !== section.id)
+                              );
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`edit-section-${section.id}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                        >
+                          {section.title}{" "}
+                          {section.subtitle && `(${section.subtitle})`}
+                        </label>
+                        <Badge
+                          variant={section.is_active ? "default" : "secondary"}
+                        >
+                          {section.is_active
+                            ? t("admin.events.form.active", "Active")
+                            : t("admin.events.form.inactive", "Inactive")}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Home Page Sections */}
-            <div className="border-t pt-4">
-              <h4 className="text-sm font-medium mb-3 rtl:text-right">
-                {t("admin.events.form.homePageSections", "Home Page Sections")}
-              </h4>
-              <p className="text-sm text-muted-foreground mb-4 rtl:text-right">
-                {t("admin.events.form.homePageSectionsDescription", "Select which home page sections this event should appear in")}
-              </p>
-              {homePageSections.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  {t("admin.events.form.noHomePageSections", "No home page sections available. Create sections in the Home Page Sections management.")}
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {homePageSections.map((section) => (
-                    <div key={section.id} className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <Checkbox
-                        id={`edit-section-${section.id}`}
-                        checked={(editEventData.homePageSectionIds || []).includes(section.id)}
-                        onCheckedChange={(checked) => {
-                          const currentIds = editEventData.homePageSectionIds || [];
-                          if (checked) {
-                            handleEditEventDataChange("homePageSectionIds", [
-                              ...currentIds,
-                              section.id,
-                            ]);
-                          } else {
-                            handleEditEventDataChange("homePageSectionIds", 
-                              currentIds.filter((id) => id !== section.id)
-                            );
-                          }
-                        }}
-                      />
-                      <label
-                        htmlFor={`edit-section-${section.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                      >
-                        {section.title} {section.subtitle && `(${section.subtitle})`}
-                      </label>
-                      <Badge variant={section.is_active ? "default" : "secondary"}>
-                        {section.is_active ? t("admin.events.form.active", "Active") : t("admin.events.form.inactive", "Inactive")}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Event Gallery */}
-            <div className="border-t pt-4">
-              <h4 className="text-sm font-medium mb-3 rtl:text-right">
-                Event Gallery
-              </h4>
+              {/* Event Gallery */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                  Event Gallery
+                </h4>
 
                 {/* Add Image Section */}
                 <Card className="mb-4">
@@ -5139,10 +5372,12 @@ const EventsManagement: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.organizers")} {t("admin.events.form.optional")}
+                  {t("admin.events.form.organizers")}{" "}
+                  {t("admin.events.form.optional")}
                 </label>
                 <div className="border rounded-md p-3 max-h-48 overflow-y-auto">
-                  {(organizersData?.results || organizersData || []).length === 0 ? (
+                  {(organizersData?.results || organizersData || []).length ===
+                  0 ? (
                     <p className="text-sm text-muted-foreground">
                       No organizers available. Please create an organizer first.
                     </p>
@@ -5150,23 +5385,41 @@ const EventsManagement: React.FC = () => {
                     <div className="space-y-2">
                       {(organizersData?.results || organizersData || []).map(
                         (organizer: any) => (
-                          <div key={organizer.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                          <div
+                            key={organizer.id}
+                            className="flex items-center space-x-2 rtl:space-x-reverse"
+                          >
                             <Checkbox
                               id={`new-organizer-${organizer.id}`}
-                              checked={newEvent.organizers.includes(organizer.id.toString())}
+                              checked={newEvent.organizers.includes(
+                                organizer.id.toString()
+                              )}
                               onCheckedChange={(checked) => {
-                                const currentOrganizers = [...newEvent.organizers];
+                                const currentOrganizers = [
+                                  ...newEvent.organizers,
+                                ];
                                 if (checked) {
-                                  if (!currentOrganizers.includes(organizer.id.toString())) {
-                                    currentOrganizers.push(organizer.id.toString());
+                                  if (
+                                    !currentOrganizers.includes(
+                                      organizer.id.toString()
+                                    )
+                                  ) {
+                                    currentOrganizers.push(
+                                      organizer.id.toString()
+                                    );
                                   }
                                 } else {
-                                  const index = currentOrganizers.indexOf(organizer.id.toString());
+                                  const index = currentOrganizers.indexOf(
+                                    organizer.id.toString()
+                                  );
                                   if (index > -1) {
                                     currentOrganizers.splice(index, 1);
                                   }
                                 }
-                                handleNewEventChange("organizers", currentOrganizers);
+                                handleNewEventChange(
+                                  "organizers",
+                                  currentOrganizers
+                                );
                               }}
                             />
                             <label
@@ -5205,51 +5458,26 @@ const EventsManagement: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.totalTickets")}
+                  {t("admin.events.form.totalTickets")} (Auto-calculated)
                 </label>
                 <Input
                   type="number"
-                  value={totalTicketsInput}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setTotalTicketsInput(value);
-                    // Only update the actual state if it's a valid number
-                    if (value !== "") {
-                      const numValue = parseInt(value, 10);
-                      if (!isNaN(numValue) && numValue >= 0) {
-                        handleNewEventChange("totalTickets", numValue);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    // Convert empty or invalid values to 0 when field loses focus
-                    const value = e.target.value;
-                    if (
-                      value === "" ||
-                      isNaN(parseInt(value, 10)) ||
-                      parseInt(value, 10) < 0
-                    ) {
-                      handleNewEventChange("totalTickets", 0);
-                      setTotalTicketsInput("");
-                    } else {
-                      const numValue = parseInt(value, 10);
-                      if (!isNaN(numValue) && numValue >= 0) {
-                        handleNewEventChange("totalTickets", numValue);
-                        setTotalTicketsInput(value);
-                      }
-                    }
-                  }}
-                  onFocus={() => {
-                    // When focusing, show empty if value is 0
-                    if (newEvent.totalTickets === 0) {
-                      setTotalTicketsInput("");
-                    } else {
-                      setTotalTicketsInput(newEvent.totalTickets.toString());
-                    }
-                  }}
+                  value={(() => {
+                    // Auto-calculate from ticket categories
+                    const calculatedTotal = newEvent.ticketCategories.reduce(
+                      (sum, cat) => sum + (cat.totalTickets || 0),
+                      0
+                    );
+                    return calculatedTotal.toString();
+                  })()}
+                  readOnly
+                  disabled
+                  className="bg-muted cursor-not-allowed"
                   placeholder="0"
-                  min="0"
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Total is automatically calculated from ticket categories
+                </p>
               </div>
               <div>
                 <div className="flex items-center justify-between gap-2">
@@ -5271,16 +5499,15 @@ const EventsManagement: React.FC = () => {
                       htmlFor="new-ticket-limit-unlimited"
                       className="cursor-pointer"
                     >
-                      {t(
-                        "admin.events.form.unlimitedTicketLimit",
-                        "Unlimited"
-                      )}
+                      {t("admin.events.form.unlimitedTicketLimit", "Unlimited")}
                     </label>
                   </div>
                 </div>
                 <Input
                   type="number"
-                  value={newEvent.isTicketLimitUnlimited ? "" : newEvent.ticketLimit}
+                  value={
+                    newEvent.isTicketLimitUnlimited ? "" : newEvent.ticketLimit
+                  }
                   disabled={newEvent.isTicketLimitUnlimited}
                   className={
                     newEvent.isTicketLimitUnlimited
@@ -5291,7 +5518,7 @@ const EventsManagement: React.FC = () => {
                     const val = e.target.value;
                     handleNewEventChange(
                       "ticketLimit",
-                      val === "" ? "" : (parseInt(val) || 1)
+                      val === "" ? "" : parseInt(val) || 1
                     );
                   }}
                   placeholder={
@@ -5496,9 +5723,7 @@ const EventsManagement: React.FC = () => {
                     handleNewEventChange("childEligibilityEnabled", checked)
                   }
                 />
-                <span className="text-sm">
-                  Enable Child Eligibility Rules
-                </span>
+                <span className="text-sm">Enable Child Eligibility Rules</span>
               </div>
               {newEvent.childEligibilityEnabled && (
                 <div className="space-y-4">
@@ -5509,16 +5734,25 @@ const EventsManagement: React.FC = () => {
                     <Select
                       value={newEvent.childEligibilityRuleType}
                       onValueChange={(value) =>
-                        handleNewEventChange("childEligibilityRuleType", value as "between" | "less_than" | "more_than" | "")
+                        handleNewEventChange(
+                          "childEligibilityRuleType",
+                          value as "between" | "less_than" | "more_than" | ""
+                        )
                       }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select rule type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="between">Between ages (min–max)</SelectItem>
-                        <SelectItem value="less_than">Less than (age &lt; X)</SelectItem>
-                        <SelectItem value="more_than">More than (age &gt; X)</SelectItem>
+                        <SelectItem value="between">
+                          Between ages (min–max)
+                        </SelectItem>
+                        <SelectItem value="less_than">
+                          Less than (age &lt; X)
+                        </SelectItem>
+                        <SelectItem value="more_than">
+                          More than (age &gt; X)
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -5534,7 +5768,10 @@ const EventsManagement: React.FC = () => {
                           value={newEvent.childEligibilityMinAge || ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            handleNewEventChange("childEligibilityMinAge", val === "" ? null : parseInt(val) || null);
+                            handleNewEventChange(
+                              "childEligibilityMinAge",
+                              val === "" ? null : parseInt(val) || null
+                            );
                           }}
                           placeholder="0"
                         />
@@ -5549,7 +5786,10 @@ const EventsManagement: React.FC = () => {
                           value={newEvent.childEligibilityMaxAge || ""}
                           onChange={(e) => {
                             const val = e.target.value;
-                            handleNewEventChange("childEligibilityMaxAge", val === "" ? null : parseInt(val) || null);
+                            handleNewEventChange(
+                              "childEligibilityMaxAge",
+                              val === "" ? null : parseInt(val) || null
+                            );
                           }}
                           placeholder="18"
                         />
@@ -5567,7 +5807,10 @@ const EventsManagement: React.FC = () => {
                         value={newEvent.childEligibilityMaxAge || ""}
                         onChange={(e) => {
                           const val = e.target.value;
-                          handleNewEventChange("childEligibilityMaxAge", val === "" ? null : parseInt(val) || null);
+                          handleNewEventChange(
+                            "childEligibilityMaxAge",
+                            val === "" ? null : parseInt(val) || null
+                          );
                         }}
                         placeholder="12"
                       />
@@ -5584,7 +5827,10 @@ const EventsManagement: React.FC = () => {
                         value={newEvent.childEligibilityMinAge || ""}
                         onChange={(e) => {
                           const val = e.target.value;
-                          handleNewEventChange("childEligibilityMinAge", val === "" ? null : parseInt(val) || null);
+                          handleNewEventChange(
+                            "childEligibilityMinAge",
+                            val === "" ? null : parseInt(val) || null
+                          );
                         }}
                         placeholder="5"
                       />
@@ -5637,7 +5883,7 @@ const EventsManagement: React.FC = () => {
                       const val = e.target.value;
                       handleNewEventChange("commissionRate", {
                         ...newEvent.commissionRate,
-                        value: val === "" ? "" : (parseFloat(val) || 0),
+                        value: val === "" ? "" : parseFloat(val) || 0,
                       });
                     }}
                     placeholder={
@@ -5705,7 +5951,7 @@ const EventsManagement: React.FC = () => {
                       const val = e.target.value;
                       handleNewEventChange("transferFee", {
                         ...newEvent.transferFee,
-                        value: val === "" ? "" : (parseFloat(val) || 0),
+                        value: val === "" ? "" : parseFloat(val) || 0,
                       });
                     }}
                     placeholder={
@@ -5887,29 +6133,45 @@ const EventsManagement: React.FC = () => {
                 {t("admin.events.form.homePageSections", "Home Page Sections")}
               </h4>
               <p className="text-sm text-muted-foreground mb-4 rtl:text-right">
-                {t("admin.events.form.homePageSectionsDescription", "Select which home page sections this event should appear in")}
+                {t(
+                  "admin.events.form.homePageSectionsDescription",
+                  "Select which home page sections this event should appear in"
+                )}
               </p>
               {homePageSections.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  {t("admin.events.form.noHomePageSections", "No home page sections available. Create sections in the Home Page Sections management.")}
+                  {t(
+                    "admin.events.form.noHomePageSections",
+                    "No home page sections available. Create sections in the Home Page Sections management."
+                  )}
                 </p>
               ) : (
                 <div className="space-y-3">
                   {homePageSections.map((section) => (
-                    <div key={section.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                    <div
+                      key={section.id}
+                      className="flex items-center space-x-2 rtl:space-x-reverse"
+                    >
                       <Checkbox
                         id={`section-${section.id}`}
-                        checked={(newEvent.homePageSectionIds || []).includes(section.id)}
+                        checked={(newEvent.homePageSectionIds || []).includes(
+                          section.id
+                        )}
                         onCheckedChange={(checked) => {
                           if (checked) {
                             setNewEvent((prev) => ({
                               ...prev,
-                              homePageSectionIds: [...(prev.homePageSectionIds || []), section.id],
+                              homePageSectionIds: [
+                                ...(prev.homePageSectionIds || []),
+                                section.id,
+                              ],
                             }));
                           } else {
                             setNewEvent((prev) => ({
                               ...prev,
-                              homePageSectionIds: (prev.homePageSectionIds || []).filter((id) => id !== section.id),
+                              homePageSectionIds: (
+                                prev.homePageSectionIds || []
+                              ).filter((id) => id !== section.id),
                             }));
                           }
                         }}
@@ -5918,10 +6180,15 @@ const EventsManagement: React.FC = () => {
                         htmlFor={`section-${section.id}`}
                         className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
                       >
-                        {section.title} {section.subtitle && `(${section.subtitle})`}
+                        {section.title}{" "}
+                        {section.subtitle && `(${section.subtitle})`}
                       </label>
-                      <Badge variant={section.is_active ? "default" : "secondary"}>
-                        {section.is_active ? t("admin.events.form.active", "Active") : t("admin.events.form.inactive", "Inactive")}
+                      <Badge
+                        variant={section.is_active ? "default" : "secondary"}
+                      >
+                        {section.is_active
+                          ? t("admin.events.form.active", "Active")
+                          : t("admin.events.form.inactive", "Inactive")}
                       </Badge>
                     </div>
                   ))}
@@ -7663,22 +7930,26 @@ const EventsManagement: React.FC = () => {
               {t("admin.events.dialogs.deleteEvent") || "Delete Event"}
             </DialogTitle>
             <DialogDescription className="rtl:text-right ltr:text-left">
-              {t("admin.events.dialogs.deleteEventConfirm") || "Are you sure you want to delete this event? This action cannot be undone."}
+              {t("admin.events.dialogs.deleteEventConfirm") ||
+                "Are you sure you want to delete this event? This action cannot be undone."}
             </DialogDescription>
           </DialogHeader>
           {eventToDelete && (
             <div className="py-4">
               <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left">
-                <strong>{t("admin.events.table.title")}:</strong> {eventToDelete.title}
+                <strong>{t("admin.events.table.title")}:</strong>{" "}
+                {eventToDelete.title}
               </p>
               {eventToDelete.organizer && (
                 <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
-                  <strong>{t("admin.events.table.organizer")}:</strong> {eventToDelete.organizer}
+                  <strong>{t("admin.events.table.organizer")}:</strong>{" "}
+                  {eventToDelete.organizer}
                 </p>
               )}
               {eventToDelete.date && (
                 <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
-                  <strong>{t("admin.events.table.date")}:</strong> {eventToDelete.date}
+                  <strong>{t("admin.events.table.date")}:</strong>{" "}
+                  {eventToDelete.date}
                 </p>
               )}
             </div>

@@ -28,6 +28,7 @@ import {
   KashierPaymentConfig,
 } from "@/lib/api/services/payments";
 import { NFCCardsService } from "@/lib/api/services/nfcCards";
+import { TicketsService } from "@/lib/api/services/tickets";
 import KashierPaymentModal from "@/components/KashierPaymentModal";
 import { useEventDetails } from "@/lib/api/hooks/useEventDetails";
 import {
@@ -522,6 +523,67 @@ const Booking = () => {
         });
       });
 
+      // Check if Black Card customer with free tickets (2 or fewer, total = 0)
+      // If totalAmount > 0, they have more than 2 tickets and need to pay for extras
+      const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+      const blackCardEligible = isBlackCardCustomer && totalTickets > 0 && totalAmount === 0;
+
+      if (blackCardEligible) {
+        // For Black Card customers with free tickets, book directly without payment
+        try {
+          const bookingResponse = await TicketsService.bookTickets({
+            event_id: parseInt(eventId!, 10),
+            category: categoryName,
+            quantity: totalTickets,
+            payment_method: "black_card_free", // Special payment method for Black Card free tickets
+            ticket_details: ticketDetails.length > 0 ? ticketDetails : undefined,
+          });
+
+          if (!bookingResponse.success) {
+            throw new Error(
+              bookingResponse.message ||
+                bookingResponse.errors?.[0] ||
+                "Failed to complete booking"
+            );
+          }
+
+          // Show success modal
+          toast({
+            title: t("booking.paymentSuccessTitle", "Payment Successful"),
+            description: t("booking.blackCardBookingSuccess", "Your booking has been completed successfully! Your free tickets have been reserved."),
+          });
+
+          // Navigate to success page
+          navigate("/payment-confirmation", {
+            state: {
+              eventTitle: eventData.title,
+              totalAmount: 0,
+              transactionId: bookingResponse.data?.transaction_id || "black_card_free",
+              isBlackCardBooking: true,
+            },
+          });
+          return;
+        } catch (error: any) {
+          console.error("Black Card booking error:", error);
+          let errorMessage = t("booking.bookingErrorDescription", "Failed to complete booking");
+          if (error.response?.data?.error?.message) {
+            errorMessage = error.response.data.error.message;
+          } else if (error.response?.data?.message) {
+            errorMessage = error.response.data.message;
+          } else if (error.message) {
+            errorMessage = error.message;
+          }
+
+          toast({
+            title: t("booking.bookingErrorTitle", "Booking Error"),
+            description: errorMessage,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
+      // Regular payment flow for non-Black Card customers or Black Card customers with more than 2 tickets
       // Initialize Kashier payment
       const paymentInitResponse = await PaymentsService.initializePayment({
         event_id: parseInt(eventId!, 10),
@@ -774,17 +836,157 @@ const Booking = () => {
     vipDiscount = freeTicketsValue;
   }
 
-  const totalTicketPrice = baseTicketPrice - freeChildrenDiscount - vipDiscount;
+  // Check if user is Black Card Customer and eligible for free tickets
+  const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+  const blackCardFreeTickets = isBlackCardCustomer ? Math.min(totalTickets, 2) : 0;
+  const paidTickets = isBlackCardCustomer ? Math.max(0, totalTickets - 2) : totalTickets;
+  
+  // Calculate original total (before Black Card discount) - for display purposes
+  const originalTotalTicketPrice = baseTicketPrice - freeChildrenDiscount - vipDiscount;
+  const originalVatAmount = originalTotalTicketPrice * 0.14;
+  const originalCardCost = needsCardFee ? 150 : 0;
+  const originalRenewalCost = needsRenewalCost ? 150 : 0;
+  const originalTotalAmount = originalTotalTicketPrice + originalVatAmount + originalCardCost + originalRenewalCost;
+  
+  // Calculate price for paid tickets only (tickets 3+ for Black Card customers)
+  // For Black Card customers: only charge for tickets beyond the first 2
+  let paidTicketPrice = 0;
+  let blackCardFreeTicketsValue = 0; // Value of free tickets for display
+  if (isBlackCardCustomer && totalTickets > 2) {
+    // Calculate price for tickets 3 and beyond
+    // We need to determine which tickets are free (first 2) and which are paid
+    let blackCardFreeValue = 0;
+    let paidTicketsValue = 0;
+    let freeCount = 0;
+    
+    // Sort tiers by price to give free tickets to cheapest ones
+    const sortedTiers = [...ticketTiers].sort((a, b) => a.price - b.price);
+    
+    for (const tier of sortedTiers) {
+      const tierQuantity = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
+        ? quantities[tier.key]
+        : 0;
+      
+      if (tierQuantity > 0) {
+        const remainingFree = 2 - freeCount;
+        if (remainingFree > 0) {
+          const freeInThisTier = Math.min(tierQuantity, remainingFree);
+          blackCardFreeValue += tier.price * freeInThisTier;
+          freeCount += freeInThisTier;
+          
+          const paidInThisTier = tierQuantity - freeInThisTier;
+          if (paidInThisTier > 0) {
+            paidTicketsValue += tier.price * paidInThisTier;
+          }
+        } else {
+          // All free tickets allocated, rest are paid
+          paidTicketsValue += tier.price * tierQuantity;
+        }
+      }
+    }
+    
+    paidTicketPrice = paidTicketsValue;
+    blackCardFreeTicketsValue = blackCardFreeValue;
+  } else if (!isBlackCardCustomer) {
+    // Regular customers pay for all tickets
+    paidTicketPrice = originalTotalTicketPrice;
+  } else if (isBlackCardCustomer && totalTickets <= 2) {
+    // Black Card customer with 2 or fewer tickets - all free
+    // Calculate value of free tickets for display
+    for (const tier of ticketTiers) {
+      const tierQuantity = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
+        ? quantities[tier.key]
+        : 0;
+      if (tierQuantity > 0) {
+        blackCardFreeTicketsValue += tier.price * tierQuantity;
+      }
+    }
+  }
+  
+  // Calculate final amounts
+  const totalTicketPrice = paidTicketPrice;
   const vatAmount = totalTicketPrice * 0.14;
-  const cardCost = needsCardFee ? 150 : 0; // Only charge if customer doesn't have NFC card and hasn't paid before
-  const renewalCost = needsRenewalCost ? 150 : 0; // Only charge renewal cost once per customer
+  const cardCost = needsCardFee ? 150 : 0; // Card cost applies to paid tickets
+  const renewalCost = needsRenewalCost ? 150 : 0; // Renewal cost applies to paid tickets
   const totalAmount = totalTicketPrice + vatAmount + cardCost + renewalCost;
+  
+  // Black Card eligible for free booking (2 or fewer tickets, total = 0)
+  const blackCardEligible = isBlackCardCustomer && totalTickets <= 2 && totalTickets > 0;
 
   const changeQty = (tier: TierKey, delta: number) => {
     setQuantities((prev) => {
       const currentQty =
         typeof prev[tier] === "number" && !isNaN(prev[tier]) ? prev[tier] : 0;
-      const newQty = Math.max(0, currentQty + delta);
+      
+      // Find the tier to check available tickets
+      const tierInfo = ticketTiers.find((t) => t.key === tier);
+      const ticketsAvailable = tierInfo?.ticketsAvailable || 0;
+      
+      // Check if user is a Black Card Customer
+      const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+      
+      // Calculate total tickets across all tiers
+      const totalTicketsAcrossAllTiers = ticketTiers.reduce((sum, t) => {
+        const qty = typeof prev[t.key] === "number" && !isNaN(prev[t.key]) ? prev[t.key] : 0;
+        return sum + qty;
+      }, 0);
+      
+      // Black Card customers can only add up to 2 tickets total (across all tiers)
+      if (delta > 0 && isBlackCardCustomer) {
+        if (totalTicketsAcrossAllTiers >= 2) {
+          toast({
+            title: t("booking.blackCardLimit", "Black Card Limit"),
+            description: t("booking.blackCardMaxTickets", "Black Card customers can book a maximum of 2 free tickets."),
+            variant: "destructive",
+          });
+          return prev;
+        }
+      }
+      
+      // If trying to add and no tickets available, show message and don't allow (unless Black Card customer)
+      if (delta > 0 && ticketsAvailable === 0 && !isBlackCardCustomer) {
+        toast({
+          title: t("booking.soldOut", "SOLD OUT"),
+          description: t("booking.eventSoldOut", "This event is completely sold out. No tickets are available."),
+          variant: "destructive",
+        });
+        return prev;
+      }
+      
+      // If trying to add and would exceed available tickets, show message
+      if (delta > 0 && !isBlackCardCustomer && currentQty >= ticketsAvailable) {
+        toast({
+          title: t("booking.limitedTickets", "Limited Tickets"),
+          description: t("booking.maxTicketsReached", "You have reached the maximum available tickets for this category."),
+          variant: "destructive",
+        });
+        return prev;
+      }
+      
+      // Black Card customers can add up to 2 tickets total (even when sold out)
+      // For non-Black Card customers, cap at available tickets
+      let newQty;
+      if (delta > 0) {
+        if (isBlackCardCustomer) {
+          // Black Card customers: limit to 2 tickets total across all tiers
+          const remainingSlots = 2 - totalTicketsAcrossAllTiers;
+          if (remainingSlots <= 0) {
+            toast({
+              title: t("booking.blackCardLimit", "Black Card Limit"),
+              description: t("booking.blackCardMaxTickets", "Black Card customers can book a maximum of 2 free tickets."),
+              variant: "destructive",
+            });
+            return prev;
+          }
+          newQty = Math.min(currentQty + delta, currentQty + remainingSlots);
+        } else {
+          // Regular customers capped at available tickets
+          newQty = Math.min(currentQty + delta, ticketsAvailable);
+        }
+      } else {
+        newQty = Math.max(0, currentQty + delta);
+      }
+      
       setAddOrder((prevOrder) => {
         if (delta > 0) {
           // Add ticket
@@ -1555,14 +1757,23 @@ const Booking = () => {
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  onClick={() => changeQty(tier.key, -1)}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const currentQty = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
+                                      ? quantities[tier.key]
+                                      : 0;
+                                    if (currentQty > 0) {
+                                      changeQty(tier.key, -1);
+                                    }
+                                  }}
                                   disabled={
                                     (typeof quantities[tier.key] === "number" &&
                                     !isNaN(quantities[tier.key])
                                       ? quantities[tier.key]
                                       : 0) === 0
                                   }
-                                  className="hover:bg-destructive hover:text-destructive-foreground"
+                                  className="hover:bg-destructive hover:text-destructive-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <Minus className="h-4 w-4" />
                                 </Button>
@@ -1575,12 +1786,99 @@ const Booking = () => {
                                 <Button
                                   variant="outline"
                                   size="icon"
-                                  onClick={() => changeQty(tier.key, 1)}
-                                  className="hover:bg-primary hover:text-primary-foreground"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    // Check if button should be disabled before allowing click
+                                    const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                                    const currentQty = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
+                                      ? quantities[tier.key]
+                                      : 0;
+                                    
+                                    // If disabled, show message and return early
+                                    if (tier.ticketsAvailable === 0 && !isBlackCardCustomer) {
+                                      toast({
+                                        title: t("booking.soldOut", "SOLD OUT"),
+                                        description: t("booking.categorySoldOut", "This ticket category is sold out."),
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    
+                                    // Calculate total tickets across all tiers
+                                    const totalTicketsAcrossAllTiers = ticketTiers.reduce((sum, t) => {
+                                      const qty = typeof quantities[t.key] === "number" && !isNaN(quantities[t.key])
+                                        ? quantities[t.key]
+                                        : 0;
+                                      return sum + qty;
+                                    }, 0);
+                                    
+                                    // Check if Black Card customer trying to add more than 2 tickets total
+                                    if (isBlackCardCustomer && totalTicketsAcrossAllTiers >= 2) {
+                                      toast({
+                                        title: t("booking.blackCardLimit", "Black Card Limit"),
+                                        description: t("booking.blackCardMaxTickets", "Black Card customers can book a maximum of 2 free tickets."),
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    
+                                    if (!isBlackCardCustomer && currentQty >= tier.ticketsAvailable) {
+                                      toast({
+                                        title: t("booking.limitedTickets", "Limited Tickets"),
+                                        description: t("booking.maxTicketsReached", "You have reached the maximum available tickets for this category."),
+                                        variant: "destructive",
+                                      });
+                                      return;
+                                    }
+                                    
+                                    // If not disabled, proceed with adding ticket
+                                    changeQty(tier.key, 1);
+                                  }}
+                                  disabled={
+                                    (() => {
+                                      const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                                      const currentQty = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
+                                        ? quantities[tier.key]
+                                        : 0;
+                                      
+                                      // Calculate total tickets across all tiers
+                                      const totalTicketsAcrossAllTiers = ticketTiers.reduce((sum, t) => {
+                                        const qty = typeof quantities[t.key] === "number" && !isNaN(quantities[t.key])
+                                          ? quantities[t.key]
+                                          : 0;
+                                        return sum + qty;
+                                      }, 0);
+                                      
+                                      // Black Card customers can only add up to 2 tickets total (across all tiers)
+                                      if (isBlackCardCustomer) {
+                                        return totalTicketsAcrossAllTiers >= 2;
+                                      }
+                                      
+                                      // Regular customers: disable if sold out or at max available
+                                      return tier.ticketsAvailable === 0 ||
+                                        currentQty >= tier.ticketsAvailable;
+                                    })()
+                                  }
+                                  className="hover:bg-primary hover:text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <Plus className="h-4 w-4" />
                                 </Button>
                               </div>
+                              {tier.ticketsAvailable === 0 && !(user?.labels?.includes("Black Card Customer")) && (
+                                <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+                                  <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                                    {t("booking.soldOut", "SOLD OUT")}
+                                  </p>
+                                </div>
+                              )}
+                              {tier.ticketsAvailable > 0 && tier.ticketsAvailable <= 5 && (
+                                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+                                  <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                                    {t("booking.limitedTickets", "Only {{count}} tickets left", { count: tier.ticketsAvailable })}
+                                  </p>
+                                </div>
+                              )}
                             </div>
 
                             <Accordion
@@ -1953,51 +2251,149 @@ const Booking = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span>
-                          {t("booking.ticketPrice", { count: totalTickets })}
-                        </span>
-                        <span>
-                          {numberFormat.format(baseTicketPrice)} {currency}
-                        </span>
-                      </div>
-                      {vipDiscount > 0 && (
-                        <div className="flex justify-between text-yellow-600 dark:text-yellow-400">
-                          <span>{t("booking.vipDiscount")}</span>
-                          <span>
-                            -{numberFormat.format(vipDiscount)} {currency}
-                          </span>
-                        </div>
+                      {/* Show pricing breakdown for Black Card customers */}
+                      {isBlackCardCustomer && totalTickets > 0 ? (
+                        <>
+                          {/* Show original prices with strikethrough for all Black Card customers */}
+                          <div className="flex justify-between">
+                            <span>
+                              {t("booking.ticketPrice", { count: totalTickets })}
+                            </span>
+                            <span className="line-through text-muted-foreground">
+                              {numberFormat.format(originalTotalTicketPrice)} {currency}
+                            </span>
+                          </div>
+                          {originalVatAmount > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.vat")}</span>
+                              <span className="line-through">
+                                {numberFormat.format(originalVatAmount)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          {originalCardCost > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.cardCost")}</span>
+                              <span className="line-through">
+                                {numberFormat.format(originalCardCost)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          {originalRenewalCost > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.renewalCost")}</span>
+                              <span className="line-through">
+                                {numberFormat.format(originalRenewalCost)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          <Separator />
+                          <div className="flex justify-between text-green-600 dark:text-green-400 font-semibold">
+                            <span>{t("booking.blackCardDiscount", "Black Card Customer Discount")}</span>
+                            <span>
+                              -{numberFormat.format(originalTotalAmount)} {currency}
+                            </span>
+                          </div>
+                          <Separator />
+                          {/* Show paid tickets breakdown (tickets 3+) */}
+                          {paidTickets > 0 && (
+                            <>
+                              <div className="flex justify-between">
+                                <span>
+                                  {t("booking.ticketPrice", { count: paidTickets })} ({t("booking.paidTickets", "Paid Tickets")})
+                                </span>
+                                <span>
+                                  {numberFormat.format(totalTicketPrice)} {currency}
+                                </span>
+                              </div>
+                              {vatAmount > 0 && (
+                                <div className="flex justify-between text-muted-foreground">
+                                  <span>{t("booking.vat")}</span>
+                                  <span>
+                                    {numberFormat.format(vatAmount)} {currency}
+                                  </span>
+                                </div>
+                              )}
+                            </>
+                          )}
+                          {cardCost > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.cardCost")}</span>
+                              <span>
+                                {numberFormat.format(cardCost)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          {renewalCost > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.renewalCost")}</span>
+                              <span>
+                                {numberFormat.format(renewalCost)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          <Separator />
+                          <div className={`flex justify-between font-semibold text-lg ${totalAmount === 0 ? 'text-green-600 dark:text-green-400' : ''}`}>
+                            <span>{t("booking.totalAmount")}</span>
+                            <span>
+                              {numberFormat.format(totalAmount)} {currency}
+                            </span>
+                          </div>
+                          {blackCardFreeTickets > 0 && (
+                            <div className="text-sm text-green-600 dark:text-green-400 mt-2">
+                              {t("booking.blackCardFreeTickets", "{{count}} free ticket(s) included", { count: blackCardFreeTickets })}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span>
+                              {t("booking.ticketPrice", { count: totalTickets })}
+                            </span>
+                            <span>
+                              {numberFormat.format(baseTicketPrice)} {currency}
+                            </span>
+                          </div>
+                          {vipDiscount > 0 && (
+                            <div className="flex justify-between text-yellow-600 dark:text-yellow-400">
+                              <span>{t("booking.vipDiscount")}</span>
+                              <span>
+                                -{numberFormat.format(vipDiscount)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-muted-foreground">
+                            <span>{t("booking.vat")}</span>
+                            <span>
+                              {numberFormat.format(vatAmount)} {currency}
+                            </span>
+                          </div>
+                          {cardCost > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.cardCost")}</span>
+                              <span>
+                                {numberFormat.format(cardCost)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          {renewalCost > 0 && (
+                            <div className="flex justify-between text-muted-foreground">
+                              <span>{t("booking.renewalCost")}</span>
+                              <span>
+                                {numberFormat.format(renewalCost)} {currency}
+                              </span>
+                            </div>
+                          )}
+                          <Separator />
+                          <div className="flex justify-between font-semibold text-lg">
+                            <span>{t("booking.totalAmount")}</span>
+                            <span>
+                              {numberFormat.format(totalAmount)} {currency}
+                            </span>
+                          </div>
+                        </>
                       )}
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>{t("booking.vat")}</span>
-                        <span>
-                          {numberFormat.format(vatAmount)} {currency}
-                        </span>
-                      </div>
-                      {cardCost > 0 && (
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>{t("booking.cardCost")}</span>
-                          <span>
-                            {numberFormat.format(cardCost)} {currency}
-                          </span>
-                        </div>
-                      )}
-                      {renewalCost > 0 && (
-                        <div className="flex justify-between text-muted-foreground">
-                          <span>{t("booking.renewalCost")}</span>
-                          <span>
-                            {numberFormat.format(renewalCost)} {currency}
-                          </span>
-                        </div>
-                      )}
-                      <Separator />
-                      <div className="flex justify-between font-semibold text-lg">
-                        <span>{t("booking.totalAmount")}</span>
-                        <span>
-                          {numberFormat.format(totalAmount)} {currency}
-                        </span>
-                      </div>
                     </div>
 
                     <div className="space-y-3 pt-4">
@@ -2012,11 +2408,41 @@ const Booking = () => {
                         size="lg"
                         className="w-full pt-1 pb-1"
                         onClick={onConfirmPayment}
-                        disabled={hasIncompleteTickets}
+                        disabled={
+                          (() => {
+                            const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                            // Black Card customers can proceed even when sold out (up to 2 tickets)
+                            if (isBlackCardCustomer) {
+                              return hasIncompleteTickets || totalTickets === 0;
+                            }
+                            // Regular customers cannot proceed when sold out
+                            return hasIncompleteTickets || totalTickets === 0 || ticketTiers.every(tier => tier.ticketsAvailable === 0);
+                          })()
+                        }
                       >
                         <CreditCard className="h-5 w-5 mr-2 rtl:mr-0 rtl:ml-2" />
-                        {t("booking.completePayment")}
+                        {(() => {
+                          const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                          if (!isBlackCardCustomer && ticketTiers.every(tier => tier.ticketsAvailable === 0)) {
+                            return t("booking.soldOut", "SOLD OUT");
+                          }
+                          if (blackCardEligible) {
+                            return t("booking.completeBooking", "Complete Booking");
+                          }
+                          return t("booking.completePayment");
+                        })()}
                       </Button>
+                      {(() => {
+                        const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                        if (!isBlackCardCustomer && ticketTiers.every(tier => tier.ticketsAvailable === 0)) {
+                          return (
+                            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg mt-2">
+                              {t("booking.eventSoldOut", "This event is completely sold out. No tickets are available.")}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
 
                       <div className="bg-primary/10 rounded-lg p-3">
                         <div className="flex items-start gap-2">

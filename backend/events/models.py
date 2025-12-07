@@ -75,13 +75,14 @@ class TicketCategory(models.Model):
     @property
     def sold_tickets(self):
         """
-        Get count of sold tickets for this category.
+        Get count of sold tickets for this category (excluding black card tickets).
         """
         from tickets.models import Ticket
         return Ticket.objects.filter(
             event=self.event,
             category=self.name,
-            status__in=['valid', 'used']
+            status__in=['valid', 'used'],
+            is_black_card=False
         ).count()
     
     @property
@@ -162,8 +163,9 @@ class Event(models.Model):
         verbose_name="Starting Ticket Price",
         help_text="Starting price for tickets (e.g., 100.00). This will be displayed on the web app."
     )
-    total_tickets = models.PositiveIntegerField(
-        validators=[MinValueValidator(1)]
+    total_tickets = models.IntegerField(
+        validators=[MinValueValidator(0)],
+        help_text="Total number of tickets for this event. Set to 0 to mark as sold out."
     )
     ticket_limit = models.PositiveIntegerField(
         default=10,
@@ -290,9 +292,9 @@ class Event(models.Model):
     @property
     def tickets_sold(self):
         """
-        Get count of sold tickets.
+        Get count of sold tickets (excluding black card tickets).
         """
-        return self.tickets.filter(status__in=['valid', 'used']).count()
+        return self.tickets.filter(status__in=['valid', 'used'], is_black_card=False).count()
     
     @property
     def tickets_available(self):

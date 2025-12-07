@@ -76,9 +76,11 @@ class OrganizerEventSerializer(serializers.ModelSerializer):
             ticket_categories = TicketCategory.objects.filter(event=obj)
             result = []
             for ticket_category in ticket_categories:
+                # Exclude black card tickets from counts
                 tickets = Ticket.objects.filter(
                     event=obj,
-                    category=ticket_category.name
+                    category=ticket_category.name,
+                    is_black_card=False
                 )
                 total = tickets.count()
                 sold = tickets.filter(status__in=['valid', 'used']).count()
@@ -117,7 +119,8 @@ class OrganizerEventSerializer(serializers.ModelSerializer):
     
     def get_tickets_sold(self, obj):
         try:
-            return obj.tickets.filter(status__in=['valid', 'used']).count()
+            # Exclude black card tickets from counts
+            return obj.tickets.filter(status__in=['valid', 'used'], is_black_card=False).count()
         except Exception:
             return 0
     
@@ -130,14 +133,16 @@ class OrganizerEventSerializer(serializers.ModelSerializer):
     
     def get_people_admitted(self, obj):
         try:
-            return obj.tickets.filter(status='used').count()
+            # Exclude black card tickets from counts
+            return obj.tickets.filter(status='used', is_black_card=False).count()
         except Exception:
             return 0
     
     def get_people_remaining(self, obj):
-        """Get remaining tickets (total tickets minus tickets sold)."""
+        """Get remaining tickets (total tickets minus tickets sold, excluding black card tickets)."""
         try:
-            tickets_sold = obj.tickets.filter(status__in=['valid', 'used']).count()
+            # Exclude black card tickets from counts
+            tickets_sold = obj.tickets.filter(status__in=['valid', 'used'], is_black_card=False).count()
             return obj.total_tickets - tickets_sold
         except Exception:
             return 0
@@ -224,10 +229,11 @@ class OrganizerEventAnalyticsSerializer(serializers.ModelSerializer):
             
             result = []
             for ticket_category in ticket_categories:
-                # Count tickets for this category
+                # Count tickets for this category (excluding black card tickets)
                 tickets = Ticket.objects.filter(
                     event=obj,
-                    category=ticket_category.name
+                    category=ticket_category.name,
+                    is_black_card=False
                 )
                 
                 total = tickets.count()
@@ -253,7 +259,8 @@ class OrganizerEventAnalyticsSerializer(serializers.ModelSerializer):
     
     def get_overall_stats(self, obj):
         from tickets.models import Ticket
-        tickets = Ticket.objects.filter(event=obj)
+        # Exclude black card tickets from counts
+        tickets = Ticket.objects.filter(event=obj, is_black_card=False)
         tickets_sold = tickets.filter(status__in=['valid', 'used']).count()
         return {
             'sold': tickets_sold,

@@ -1347,6 +1347,98 @@ const CustomerManagement: React.FC = () => {
     }
   };
 
+  const handleSetBlackCard = async (customer: Customer) => {
+    // Check if customer already has Black Card Customer label
+    const hasBlackCard = customer.labels.some((label) => label.name === "Black Card Customer");
+
+    if (hasBlackCard) {
+      toast({
+        title: t("admin.customers.blackCard.alreadyBlackCard") || "Already Black Card Customer",
+        description: t("admin.customers.blackCard.alreadyBlackCardDesc") || "This customer already has the Black Card Customer label",
+        variant: "default",
+      });
+      return;
+    }
+
+    try {
+      // Get current labels as array of strings
+      const currentLabels = customer.labels.map((label) => label.name);
+      
+      // Add Black Card Customer to labels array
+      const updatedLabels = [...currentLabels, "Black Card Customer"];
+
+      // Call API to update customer labels
+      await updateCustomerMutation.mutateAsync({
+        id: customer.id,
+        data: {
+          labels: updatedLabels,
+        },
+      });
+
+      // Update local state
+      const blackCardLabel: CustomerLabel = {
+        id: "black-card-label",
+        name: "Black Card Customer",
+        color: "#000000",
+        description: "Black Card Customer - Can buy max 2 tickets for free even if event is full",
+        icon: "CreditCard",
+      };
+      const updatedCustomer = {
+        ...customer,
+        labels: [...customer.labels, blackCardLabel],
+      };
+
+      // Update selected customer if it's the same one
+      if (selectedCustomer && selectedCustomer.id === customer.id) {
+        setSelectedCustomer(updatedCustomer);
+      }
+
+      toast({
+        title: t("admin.customers.blackCard.setBlackCardSuccess") || "Black Card Customer Set",
+        description: t("admin.customers.blackCard.setBlackCardSuccessDesc") || "Customer has been set as Black Card Customer",
+      });
+    } catch (error: any) {
+      // Error is already handled by the mutation's onError
+      console.error("Error setting Black Card Customer:", error);
+    }
+  };
+
+  const handleRemoveBlackCard = async (customer: Customer) => {
+    try {
+      // Get current labels as array of strings, excluding Black Card Customer
+      const updatedLabels = customer.labels
+        .filter((label) => label.name !== "Black Card Customer")
+        .map((label) => label.name);
+
+      // Call API to update customer labels
+      await updateCustomerMutation.mutateAsync({
+        id: customer.id,
+        data: {
+          labels: updatedLabels,
+        },
+      });
+
+      // Update local state
+      const updatedCustomer = {
+        ...customer,
+        labels: customer.labels.filter((label) => label.name !== "Black Card Customer"),
+      };
+
+      // Update selected customer if it's the same one
+      if (selectedCustomer && selectedCustomer.id === customer.id) {
+        setSelectedCustomer(updatedCustomer);
+      }
+
+      toast({
+        title: t("admin.customers.blackCard.removeBlackCardSuccess") || "Black Card Customer Removed",
+        description: t("admin.customers.blackCard.removeBlackCardSuccessDesc") || "Black Card Customer label has been removed",
+      });
+    } catch (error: any) {
+      // Error is already handled by the mutation's onError
+      console.error("Error removing Black Card Customer:", error);
+    }
+  };
+
   const handleAddLabel = () => {
     if (!newLabel.name.trim()) {
       toast({
@@ -1961,6 +2053,27 @@ const CustomerManagement: React.FC = () => {
                                     {t("admin.customers.actions.manageLabels")}
                                   </DropdownMenuItem>
                                 )}
+                                {hasPermission("customers_edit") && (
+                                  customer.labels.some(
+                                    (label) => label.name === "Black Card Customer"
+                                  ) ? (
+                                    <DropdownMenuItem
+                                      onClick={() => handleRemoveBlackCard(customer)}
+                                      className="text-gray-700"
+                                    >
+                                      <CreditCard className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                                      {t("admin.customers.actions.removeBlackCard") || "Remove Black Card Customer"}
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onClick={() => handleSetBlackCard(customer)}
+                                      className="text-black"
+                                    >
+                                      <CreditCard className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                                      {t("admin.customers.actions.setBlackCard") || "Set as Black Card Customer"}
+                                    </DropdownMenuItem>
+                                  )
+                                )}
                               </>
                             )}
                             {hasPermission("customers_view") &&
@@ -2080,6 +2193,14 @@ const CustomerManagement: React.FC = () => {
                         <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
                           <Crown className="h-3 w-3 mr-1 rtl:ml-1 rtl:mr-0" />
                           VIP
+                        </Badge>
+                      )}
+                      {selectedCustomer.labels.some(
+                        (label) => label.name === "Black Card Customer"
+                      ) && (
+                        <Badge className="bg-black text-white border-black">
+                          <CreditCard className="h-3 w-3 mr-1 rtl:ml-1 rtl:mr-0" />
+                          Black Card
                         </Badge>
                       )}
                     </div>

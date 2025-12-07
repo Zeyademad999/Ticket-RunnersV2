@@ -254,11 +254,11 @@ export class EventsService {
         }
         return undefined;
       })(),
-      totalTickets: apiData.venue?.capacity || 0,
-      ticketsSold: 0, // Not provided in API
-      ticketsAvailable: apiData.venue?.capacity || 0,
+      totalTickets: apiData.total_tickets || apiData.venue?.capacity || 0,
+      ticketsSold: apiData.tickets_sold || 0,
+      ticketsAvailable: apiData.tickets_available ?? (apiData.venue?.capacity || 0),
       peopleAdmitted: 0, // Not provided in API
-      peopleRemaining: apiData.venue?.capacity || 0,
+      peopleRemaining: apiData.tickets_available ?? (apiData.venue?.capacity || 0),
       totalPayoutPending: 0, // Not provided in API
       totalPayoutPaid: 0, // Not provided in API
       ticketCategories:

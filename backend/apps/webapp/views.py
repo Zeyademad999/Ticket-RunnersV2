@@ -1476,6 +1476,13 @@ def ticket_book(request):
     quantity = serializer.validated_data['quantity']
     payment_method = serializer.validated_data['payment_method']
     
+    # Check if customer is a Black Card Customer
+    is_black_card_customer = 'Black Card Customer' in (customer.labels or [])
+    black_card_tickets_count = 0
+    if is_black_card_customer:
+        # Black Card customers can get max 2 tickets for free even if event is full
+        black_card_tickets_count = min(quantity, 2)
+    
     try:
         # Get ticket category from event's ticket categories
         from events.models import TicketCategory
@@ -1483,9 +1490,15 @@ def ticket_book(request):
             ticket_category = TicketCategory.objects.get(event=event, name=category)
             price_per_ticket = Decimal(str(ticket_category.price))
             
-            # Check availability for this specific category
+            # Check availability for this specific category (only for non-black-card tickets)
             available_tickets = ticket_category.tickets_available
-            if available_tickets < quantity:
+            regular_tickets_needed = quantity - black_card_tickets_count
+            # Explicitly check if event is sold out (0 tickets available) for non-black-card customers
+            if regular_tickets_needed > 0 and available_tickets == 0:
+                return Response({
+                    'error': {'code': 'EVENT_SOLD_OUT', 'message': f'This event is sold out. No {category} tickets available.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            if regular_tickets_needed > 0 and available_tickets < regular_tickets_needed:
                 return Response({
                     'error': {'code': 'INSUFFICIENT_TICKETS', 'message': f'Not enough {category} tickets available. Only {available_tickets} tickets remaining.'}
                 }, status=status.HTTP_400_BAD_REQUEST)
@@ -1496,38 +1509,61 @@ def ticket_book(request):
             else:
                 price_per_ticket = Decimal('300.00')  # Default price when no categories configured
             
-            # Check overall ticket availability
+            # Check overall ticket availability (only for non-black-card tickets)
             available_tickets = event.tickets_available
-            if available_tickets < quantity:
+            regular_tickets_needed = quantity - black_card_tickets_count
+            # Explicitly check if event is sold out (0 tickets available) for non-black-card customers
+            if regular_tickets_needed > 0 and available_tickets == 0:
+                return Response({
+                    'error': {'code': 'EVENT_SOLD_OUT', 'message': 'This event is sold out. No tickets available.'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            if regular_tickets_needed > 0 and available_tickets < regular_tickets_needed:
                 return Response({
                     'error': {'code': 'INSUFFICIENT_TICKETS', 'message': f'Not enough tickets available. Only {available_tickets} tickets remaining.'}
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Check per-customer ticket limit
-        if (not event.is_ticket_limit_unlimited) and quantity > event.ticket_limit:
+        # Check per-customer ticket limit (only for non-black-card tickets)
+        regular_tickets_needed = quantity - black_card_tickets_count
+        if (not event.is_ticket_limit_unlimited) and regular_tickets_needed > event.ticket_limit:
             return Response({
                 'error': {'code': 'TICKET_LIMIT_EXCEEDED', 'message': f'Maximum {event.ticket_limit} tickets per booking allowed.'}
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        total_amount = price_per_ticket * Decimal(str(quantity))
+        # Calculate total amount: black card tickets are free, regular tickets are paid
+        total_amount = price_per_ticket * Decimal(str(regular_tickets_needed))
         
-        # Create payment transaction
-        transaction = PaymentTransaction.objects.create(
-            customer=customer,
-            amount=total_amount,
-            payment_method=payment_method,
-            status='pending',
-            transaction_id=str(uuid.uuid4())
-        )
+        # Create payment transaction (only if there are non-black-card tickets)
+        # For Black Card customers with free tickets (total_amount = 0), create a completed transaction
+        transaction = None
+        if total_amount > 0:
+            transaction = PaymentTransaction.objects.create(
+                customer=customer,
+                amount=total_amount,
+                payment_method=payment_method,
+                status='pending',
+                transaction_id=str(uuid.uuid4())
+            )
+        elif total_amount == 0 and is_black_card_customer and payment_method == 'black_card_free':
+            # Create a completed transaction for Black Card free tickets
+            transaction = PaymentTransaction.objects.create(
+                customer=customer,
+                amount=Decimal('0.00'),
+                payment_method='black_card_free',
+                status='completed',
+                transaction_id=f"BLACK_CARD_{uuid.uuid4().hex[:12].upper()}"
+            )
         
         # Create tickets with assignment details
         tickets = []
         ticket_details = serializer.validated_data.get('ticket_details', [])
         
         for i in range(quantity):
+            # Check if this is a black card ticket (first black_card_tickets_count tickets)
+            is_black_card_ticket = is_black_card_customer and i < black_card_tickets_count
+            
             # Start with default category and price from booking
             ticket_category = category
-            ticket_price = price_per_ticket
+            ticket_price = price_per_ticket if not is_black_card_ticket else Decimal('0.00')
             
             # If ticket details provided and this ticket has details, use specific category/price for this ticket
             if ticket_details and i < len(ticket_details):
@@ -1536,28 +1572,30 @@ def ticket_book(request):
                 # Use ticket-specific category if provided
                 if detail.get('category'):
                     ticket_category = detail.get('category')
-                    # Get price for this specific category
-                    try:
-                        from events.models import TicketCategory
-                        specific_category = TicketCategory.objects.get(event=event, name=ticket_category)
-                        ticket_price = Decimal(str(specific_category.price))
-                    except TicketCategory.DoesNotExist:
-                        # Fallback to default price if category not found
-                        if event.starting_price:
-                            ticket_price = Decimal(str(event.starting_price))
-                        else:
-                            ticket_price = Decimal('300.00')
-                # Use ticket-specific price if provided (overrides category price)
-                elif detail.get('price') is not None:
+                    # Get price for this specific category (but black card tickets are free)
+                    if not is_black_card_ticket:
+                        try:
+                            from events.models import TicketCategory
+                            specific_category = TicketCategory.objects.get(event=event, name=ticket_category)
+                            ticket_price = Decimal(str(specific_category.price))
+                        except TicketCategory.DoesNotExist:
+                            # Fallback to default price if category not found
+                            if event.starting_price:
+                                ticket_price = Decimal(str(event.starting_price))
+                            else:
+                                ticket_price = Decimal('300.00')
+                # Use ticket-specific price if provided (overrides category price, but black card tickets are free)
+                elif detail.get('price') is not None and not is_black_card_ticket:
                     ticket_price = Decimal(str(detail.get('price')))
             
             ticket_data = {
                 'event': event,
                 'buyer': customer,  # Original buyer (who paid)
                 'category': ticket_category,  # Use ticket-specific category
-                'price': ticket_price,  # Use ticket-specific price
+                'price': ticket_price,  # Use ticket-specific price (0 for black card tickets)
                 'status': 'valid',
-                'ticket_number': f"{event.id}-{customer.id}-{uuid.uuid4().hex[:8]}"
+                'ticket_number': f"{event.id}-{customer.id}-{uuid.uuid4().hex[:8]}",
+                'is_black_card': is_black_card_ticket,  # Mark black card tickets
             }
             
             # If ticket details provided and this ticket has details
@@ -1621,17 +1659,18 @@ def ticket_book(request):
             ticket = Ticket.objects.create(**ticket_data)
             tickets.append(ticket)
             
-            # Link ticket to payment transaction
-            # Create individual transaction for each ticket to track payment status
-            from payments.models import PaymentTransaction
-            PaymentTransaction.objects.create(
-                customer=customer,
-                ticket=ticket,
-                amount=ticket_price,
-                payment_method=payment_method,
-                status='pending',  # Will be updated to 'completed' below
-                transaction_id=f"{transaction.transaction_id}-T{i+1}"
-            )
+            # Link ticket to payment transaction (skip for black card tickets as they're free)
+            if not is_black_card_ticket and transaction:
+                # Create individual transaction for each ticket to track payment status
+                from payments.models import PaymentTransaction
+                PaymentTransaction.objects.create(
+                    customer=customer,
+                    ticket=ticket,
+                    amount=ticket_price,
+                    payment_method=payment_method,
+                    status='pending',  # Will be updated to 'completed' below
+                    transaction_id=f"{transaction.transaction_id}-T{i+1}"
+                )
             
             # Handle notifications for assigned tickets
             if ticket.assigned_mobile and ticket.assigned_mobile != customer.mobile_number:
@@ -1688,26 +1727,27 @@ def ticket_book(request):
                     # Email will be sent immediately for synchronous bookings
                     send_ticket_assignment_email(ticket, purchaser_name, registration_token=registration_token)
         
-        # Update transaction status
-        transaction.status = 'completed'
-        transaction.save()
+        # Update transaction status (only if transaction exists)
+        if transaction:
+            transaction.status = 'completed'
+            transaction.save()
+            
+            # Update all ticket payment transactions to completed
+            from payments.models import PaymentTransaction
+            PaymentTransaction.objects.filter(
+                customer=customer,
+                ticket__in=tickets,
+                status='pending'
+            ).update(status='completed')
         
-        # Update all ticket payment transactions to completed
-        from payments.models import PaymentTransaction
-        PaymentTransaction.objects.filter(
-            customer=customer,
-            ticket__in=tickets,
-            status='pending'
-        ).update(status='completed')
-        
-        # Update customer stats
+        # Update customer stats (only count non-black-card tickets and amounts)
         customer.total_bookings += quantity
         customer.total_spent += total_amount
         customer.save(update_fields=['total_bookings', 'total_spent'])
         
         return Response({
             'message': 'Tickets booked successfully',
-            'transaction_id': transaction.transaction_id,
+            'transaction_id': transaction.transaction_id if transaction else None,
             'tickets': TicketSerializer(tickets, many=True).data
         }, status=status.HTTP_201_CREATED)
     except Exception as e:
@@ -3075,7 +3115,7 @@ def public_events_featured(request):
     # Featured events are those marked as featured=True, or if none, show upcoming events
     events = Event.objects.filter(
         Q(featured=True) | Q(status__in=['upcoming', 'ongoing'])
-    ).exclude(status='cancelled').select_related('venue', 'category').prefetch_related('organizers')
+    ).exclude(status='cancelled').select_related('venue', 'category').prefetch_related('organizers', 'ticket_categories')
     
     # Order by featured first, then by date (upcoming first) and limit to 10
     events = events.order_by('-featured', 'date')[:10]

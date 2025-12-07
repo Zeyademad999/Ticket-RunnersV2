@@ -54,6 +54,7 @@ export function useEventFilters(): UseEventFiltersReturn {
         category_name: event.category_name,
         featured: event.featured || false,
         starting_price: event.starting_price || null,
+        tickets_available: event.tickets_available,
       }));
       
       // Apply pagination manually

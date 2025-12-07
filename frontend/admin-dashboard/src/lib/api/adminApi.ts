@@ -399,7 +399,8 @@ export const customersApi = {
    * Update customer
    */
   updateCustomer: async (id: string, data: any) => {
-    const response = await adminApi.put(`/customers/${id}/`, data);
+    // Use PATCH for partial updates (only send fields that need to be updated)
+    const response = await adminApi.patch(`/customers/${id}/`, data);
     return response.data;
   },
 
@@ -530,8 +531,12 @@ export const ushersApi = {
   /**
    * Delete usher
    */
-  deleteUsher: async (id: string) => {
-    const response = await adminApi.delete(`/ushers/${id}/`);
+  deleteUsher: async (id: string, replacementUsherId?: string) => {
+    const config: any = {};
+    if (replacementUsherId) {
+      config.data = { replacement_usher_id: replacementUsherId };
+    }
+    const response = await adminApi.delete(`/ushers/${id}/`, config);
     return response.data;
   },
 
@@ -804,8 +809,12 @@ export const usersApi = {
   /**
    * Delete usher
    */
-  deleteUsher: async (id: string) => {
-    const response = await adminApi.delete(`/ushers/${id}/`);
+  deleteUsher: async (id: string, replacementUsherId?: string) => {
+    const config: any = {};
+    if (replacementUsherId) {
+      config.data = { replacement_usher_id: replacementUsherId };
+    }
+    const response = await adminApi.delete(`/ushers/${id}/`, config);
     return response.data;
   },
 

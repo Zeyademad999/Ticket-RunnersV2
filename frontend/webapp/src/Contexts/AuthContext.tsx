@@ -48,6 +48,7 @@ export interface User {
   emergency_contact_name?: string;
   emergency_contact_mobile?: string;
   blood_type?: string;
+  labels?: string[]; // Customer labels (e.g., "VIP", "Black Card Customer")
 }
 
 type AuthContextType = {
@@ -107,25 +108,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.log("User authentication status on init:", isAuthenticated);
 
       if (isAuthenticated) {
-        const storedUser = await getSecureUserData();
-        if (storedUser) {
-          try {
-            const userData = JSON.parse(storedUser);
-            console.log("Restored user from storage:", userData.id);
-            setUser(userData);
-          } catch (error) {
-            console.error("Error parsing stored user data:", error);
-            clearSecureAuth();
-          }
-        } else {
-          // If we have valid tokens but no user data, try to fetch current user
-          console.log(
-            "Valid tokens found but no user data, fetching current user..."
-          );
-          try {
-            await getCurrentUser();
-          } catch (error) {
-            console.error("Failed to fetch current user:", error);
+        // Always fetch fresh user data from API to ensure labels and other data are up-to-date
+        // This prevents stale cached data (e.g., old Black Card labels) from persisting
+        console.log("User authenticated, fetching fresh user data from API...");
+        try {
+          await getCurrentUser();
+        } catch (error) {
+          console.error("Failed to fetch current user:", error);
+          // Fallback to stored data if API call fails
+          const storedUser = await getSecureUserData();
+          if (storedUser) {
+            try {
+              const userData = JSON.parse(storedUser);
+              console.log("Using stored user data as fallback:", userData.id);
+              setUser(userData);
+            } catch (parseError) {
+              console.error("Error parsing stored user data:", parseError);
+              clearSecureAuth();
+            }
+          } else {
             clearSecureAuth();
           }
         }
@@ -481,6 +482,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           false,
         vipCardNumber: undefined,
         vipExpiryDate: undefined,
+        labels: customer.labels || [], // Customer labels (e.g., "Black Card Customer")
       };
 
       login(userData);
@@ -947,6 +949,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         emergency_contact_name: customer.emergency_contact_name || "",
         emergency_contact_mobile: customer.emergency_contact_mobile || "",
         blood_type: customer.blood_type || "",
+        labels: customer.labels || [], // Customer labels
       };
 
       console.log("getCurrentUser - normalized profile_image:", userData.profile_image);

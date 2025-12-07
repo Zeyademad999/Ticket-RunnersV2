@@ -62,6 +62,8 @@ const EventDetail: React.FC = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
   const { isVip, user } = useAuth();
+  // Check if user is a Black Card Customer
+  const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
   const [showTerms, setShowTerms] = useState(true);
   const locale = i18n.language === "ar" ? "ar-EG" : i18n.language || "en-US";
   const [showLayout, setShowLayout] = useState(false);
@@ -1090,14 +1092,38 @@ const EventDetail: React.FC = () => {
                 </div>
 
                 {/* Book Button */}
-                <Button
-                  variant="gradient"
-                  className="w-full group/btn"
-                  onClick={handleBooking}
-                >
-                  <Ticket className="h-4 w-4 mx-2 transition-transform group-hover/btn:scale-110" />
-                  {t("buttons.book_now")}
-                </Button>
+                {(() => {
+                  // Check if ALL ticket categories are sold out (if categories exist)
+                  let allCategoriesSoldOut = false;
+                  if (event.ticketCategories && event.ticketCategories.length > 0) {
+                    allCategoriesSoldOut = event.ticketCategories.every(
+                      (cat: any) => (cat.ticketsAvailable || 0) === 0
+                    );
+                  } else {
+                    // Fallback to event-level ticketsAvailable
+                    allCategoriesSoldOut = event.ticketsAvailable === 0;
+                  }
+                  
+                  return allCategoriesSoldOut && !isBlackCardCustomer ? (
+                    <Button
+                      variant="gradient"
+                      className="w-full group/btn opacity-50 cursor-not-allowed"
+                      disabled
+                    >
+                      <Ticket className="h-4 w-4 mx-2" />
+                      {t("eventDetail.soldOut", "SOLD OUT")}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="gradient"
+                      className="w-full group/btn"
+                      onClick={handleBooking}
+                    >
+                      <Ticket className="h-4 w-4 mx-2 transition-transform group-hover/btn:scale-110" />
+                      {t("buttons.book_now")}
+                    </Button>
+                  );
+                })()}
 
                 {/* Organizers Card - Only show if organizers exist */}
                 {(() => {

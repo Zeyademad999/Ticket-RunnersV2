@@ -246,6 +246,21 @@ class Usher(models.Model):
         blank=True,
         help_text="Events this usher is assigned to"
     )
+    zones = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of zones this usher can work in (e.g., ['Zone A', 'Zone B'])"
+    )
+    ticket_categories = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of ticket categories this usher can scan (e.g., ['VIP', 'Standard', 'Premium'])"
+    )
+    is_team_leader = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this usher is a team leader"
+    )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -260,10 +260,11 @@ def organizer_dashboard_stats(request):
         organizer = request.organizer
         
         events = Event.objects.filter(organizers=organizer)
-        tickets_qs = Ticket.objects.filter(event__organizers=organizer)
+        # Exclude black card tickets from all counts
+        tickets_qs = Ticket.objects.filter(event__organizers=organizer, is_black_card=False)
         payouts = Payout.objects.filter(organizer=organizer)
         
-        # Calculate available tickets: total tickets - sold tickets
+        # Calculate available tickets: total tickets - sold tickets (excluding black card tickets)
         total_tickets = events.aggregate(total=Sum('total_tickets'))['total'] or 0
         tickets_sold = tickets_qs.filter(status__in=['valid', 'used']).count()
         available_tickets = total_tickets - tickets_sold
