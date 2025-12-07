@@ -1807,12 +1807,17 @@
         "results": "results"
       },
       "actions": {
-        "export": "Export"
+        "export": "Export",
+        "view": "View Details",
+        "markRefunded": "Mark as Refunded"
       },
       "toast": {
         "exportSuccess": "Export successful",
         "exportSuccessDesc": "Payments data exported successfully",
-        "error": "An error occurred"
+        "error": "An error occurred",
+        "refundSuccess": "Payment Refunded",
+        "refundSuccessDesc": "Payment has been marked as refunded successfully",
+        "onlyCompletedRefund": "Only completed payments can be marked as refunded"
       },
       "noPaymentsFound": "No payments found",
       "dialogs": {
@@ -2657,9 +2662,11 @@
         "status": "Status",
         "category": "Category",
         "location": "Location",
+        "verification": "Verification Status",
         "allStatus": "All Status",
         "allCategories": "All Categories",
         "allLocations": "All Locations",
+        "allVerification": "All Verification Status",
         "active": "Active",
         "inactive": "Inactive",
         "suspended": "Suspended",
@@ -3293,6 +3300,7 @@
         "homePageSections": "Home Page Sections",
         "organizers": "Organizers",
         "organizerRequests": "Organizer Requests",
+        "eventEditRequests": "Event Edit Requests",
         "ushers": "Ushers",
         "admins": "Admin Users",
         "merchants": "Merchants",
@@ -3626,6 +3634,14 @@
         "saveChanges": "Save Changes",
         "createEvent": "Create Event"
       },
+      "facilities": {
+        "title": "Venue Facilities",
+        "description": "Select which facilities are available at this event venue. All facilities will be displayed on the event page, with unavailable ones shown with a red slash.",
+        "wheelchairAccess": "Wheelchair Access",
+        "bathroom": "Bathroom",
+        "parking": "Parking",
+        "nonSmoking": "Non-Smoking"
+      },
       "form": {
         "eventTitle": "Event Title",
         "artistName": "Artist/Singer Name",
@@ -3658,6 +3674,8 @@
         "venueLayoutImageDescription": "Upload a layout image of the venue. This will be displayed in a popup when users click 'View Venue Layout' on the event page",
         "gatesOpenTime": "Gates Open Time",
         "gatesOpenTimePlaceholder": "18:00",
+        "closedDoorsTime": "Closed Doors Time",
+        "closedDoorsTimePlaceholder": "23:00",
         "aboutVenue": "About The Venue",
         "aboutVenuePlaceholder": "Enter information about the venue...",
         "termsAndConditions": "Event Terms and Conditions",

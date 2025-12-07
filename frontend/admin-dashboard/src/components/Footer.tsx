@@ -1,19 +1,15 @@
 import { Button } from "@/components/ui/button";
 import {
-  Facebook,
   Instagram,
-  Twitter,
   Mail,
   Phone,
   MapPin,
   ExternalLink,
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../hooks/useTheme";
 
 export function Footer() {
-  const { toast } = useToast();
   const { t, i18n } = useTranslation();
   const { isDark } = useTheme();
 

@@ -452,6 +452,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
         customer.name ||
         `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
 
+      // Check if customer is banned
+      if (customer.status === "banned") {
+        // Clear any existing auth data
+        clearSecureAuth();
+        setUser(null);
+        
+        // Show banned message
+        toast({
+          title: t("auth.accountBanned") || "Account Banned",
+          description: t("auth.accountBannedMessage") || "Your account has been banned. Please contact support for more information.",
+          variant: "destructive",
+        });
+        
+        // Dispatch event to show banned modal
+        window.dispatchEvent(new CustomEvent("account-banned"));
+        
+        throw new Error("ACCOUNT_BANNED");
+      }
+
       const userData: User = {
         id: customer.id,
         first_name: customer.first_name || customer.name?.split(" ")[0] || "",
@@ -522,6 +541,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const customerName =
         customer.name ||
         `${customer.first_name || ""} ${customer.last_name || ""}`.trim();
+
+      // Check if customer is banned
+      if (customer.status === "banned") {
+        // Clear any existing auth data
+        clearSecureAuth();
+        setUser(null);
+        
+        // Show banned message
+        toast({
+          title: t("auth.accountBanned") || "Account Banned",
+          description: t("auth.accountBannedMessage") || "Your account has been banned. Please contact support for more information.",
+          variant: "destructive",
+        });
+        
+        // Dispatch event to show banned modal
+        window.dispatchEvent(new CustomEvent("account-banned"));
+        
+        throw new Error("ACCOUNT_BANNED");
+      }
 
       const userData: User = {
         id: customer.id,
@@ -926,6 +964,25 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       console.log("getCurrentUser - customer.profile_image from API:", customer.profile_image);
+      
+      // Check if customer is banned
+      if (customer.status === "banned") {
+        // Clear any existing auth data
+        clearSecureAuth();
+        setUser(null);
+        
+        // Show banned message
+        toast({
+          title: t("auth.accountBanned") || "Account Banned",
+          description: t("auth.accountBannedMessage") || "Your account has been banned. Please contact support for more information.",
+          variant: "destructive",
+        });
+        
+        // Dispatch event to show banned modal
+        window.dispatchEvent(new CustomEvent("account-banned"));
+        
+        return;
+      }
       
       // Convert API user data to local User format
       const userData: User = {

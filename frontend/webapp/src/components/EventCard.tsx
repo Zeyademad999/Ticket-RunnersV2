@@ -69,7 +69,11 @@ export function EventCard({
   } = useFavorites();
   
   // Check if user is a Black Card Customer
-  const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+  // Handle both string format (legacy) and object format (new)
+  const isBlackCardCustomer = user?.labels?.some((label: any) => 
+    (typeof label === 'string' && label === 'Black Card Customer') ||
+    (typeof label === 'object' && label?.name === 'Black Card Customer')
+  ) || false;
   
   // Normalize ticketsAvailable to handle string "0", null, undefined, etc.
   // Also handle the case where it might be passed as 0 explicitly

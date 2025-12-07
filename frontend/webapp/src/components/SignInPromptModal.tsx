@@ -43,12 +43,12 @@ export const SignInPromptModal: React.FC<SignInPromptModalProps> = ({
             </div>
           </div>
           <DialogTitle className="text-center text-xl">
-            {t("booking.signInRequired", "Sign In Required")}
+            {t("marketplace.signInRequired", "Sign In Required")}
           </DialogTitle>
           <DialogDescription className="text-center">
             {t(
-              "booking.signInPrompt",
-              "Please sign in or create an account to book tickets for this event."
+              "marketplace.signInPrompt",
+              "Please sign in or create an account to view seller contact details and ticket information."
             )}
           </DialogDescription>
         </DialogHeader>

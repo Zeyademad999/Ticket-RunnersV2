@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { financesApi } from "@/lib/api/adminApi";
 import {
   Card,
@@ -58,6 +58,7 @@ import {
   Filter,
   Receipt,
   Info,
+  RotateCcw,
 } from "lucide-react";
 import {
   Tooltip,
@@ -87,6 +88,7 @@ interface Payment {
 const PaymentsManagement: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>("all");
@@ -218,6 +220,48 @@ const PaymentsManagement: React.FC = () => {
   const handleViewPayment = (payment: Payment) => {
     setSelectedPayment(payment);
     setIsViewDialogOpen(true);
+  };
+
+  // Mutation to mark payment as refunded
+  const markRefundedMutation = useMutation({
+    mutationFn: async (paymentId: string) => {
+      return await financesApi.markPaymentAsRefunded(paymentId);
+    },
+    onSuccess: (data, paymentId) => {
+      // Invalidate and refetch payments
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['payment-stats'] });
+      
+      toast({
+        title: t("admin.payments.toast.refundSuccess") || "Payment Refunded",
+        description: t("admin.payments.toast.refundSuccessDesc") || "Payment has been marked as refunded successfully",
+      });
+      
+      // Update selected payment if it's the one being refunded
+      if (selectedPayment && selectedPayment.id === paymentId) {
+        setSelectedPayment({ ...selectedPayment, status: 'refunded' });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: t("admin.payments.toast.error") || "Error",
+        description: error?.response?.data?.error?.message || error?.message || "Failed to mark payment as refunded",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleMarkAsRefunded = (payment: Payment) => {
+    if (payment.status !== 'completed') {
+      toast({
+        title: t("admin.payments.toast.error") || "Error",
+        description: t("admin.payments.toast.onlyCompletedRefund") || "Only completed payments can be marked as refunded",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    markRefundedMutation.mutate(payment.id);
   };
 
   const totalPages = paymentsData?.total_pages || 1;
@@ -594,13 +638,45 @@ const PaymentsManagement: React.FC = () => {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewPayment(payment)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleViewPayment(payment)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{t("admin.payments.actions.view") || "View Details"}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          {payment.status === 'completed' && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleMarkAsRefunded(payment)}
+                                    disabled={markRefundedMutation.isPending}
+                                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                                  >
+                                    <RotateCcw className="h-4 w-4 mr-1 rtl:ml-1 rtl:mr-0" />
+                                    <span className="text-xs">{t("admin.payments.actions.markRefunded") || "Refund"}</span>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{t("admin.payments.actions.markRefunded") || "Mark as Refunded"}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -749,6 +825,19 @@ const PaymentsManagement: React.FC = () => {
             </div>
           )}
           <DialogFooter className="rtl:flex-row-reverse">
+            {selectedPayment && selectedPayment.status === 'completed' && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  handleMarkAsRefunded(selectedPayment);
+                }}
+                disabled={markRefundedMutation.isPending}
+                className="text-orange-600 border-orange-600 hover:bg-orange-50"
+              >
+                <RotateCcw className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                {t("admin.payments.actions.markRefunded") || "Mark as Refunded"}
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
               {t("common.close") || "Close"}
             </Button>

@@ -130,6 +130,15 @@ export default function ScanScreen() {
         // Get attendee information from API
         const attendeeData = await scanAPI.getAttendee(idToLookup, eventId);
         
+        // Check if there's a category not allowed error
+        if (attendeeData.error && attendeeData.error.code === 'CATEGORY_NOT_ALLOWED') {
+          setError(attendeeData.error.message || 'You are not allowed to scan this ticket category. Please contact your team leader.');
+          setIsLoading(false);
+          setAttendee(null);
+          setScanResult(null);
+          return; // Stop processing, don't show scan results
+        }
+        
         // Map API response to component format
         let emergencyContactDisplay = "Not provided";
         if (attendeeData.emergency_contact_name || attendeeData.emergency_contact) {
@@ -221,14 +230,26 @@ export default function ScanScreen() {
       } catch (error) {
         console.error("Auto-scan lookup error:", error);
         setAttendee(null);
+        setScanResult(null);
         let errorMessage = "Error looking up attendee. Please try again.";
+        let isCategoryNotAllowed = false;
+        
         if (error.response?.data?.error) {
           const errorData = error.response.data.error;
           if (typeof errorData === 'string') {
             errorMessage = errorData;
           } else if (errorData && typeof errorData === 'object') {
-            errorMessage = errorData.message || errorData.detail || errorMessage;
+            // Check if this is a category not allowed error
+            if (errorData.code === 'CATEGORY_NOT_ALLOWED') {
+              isCategoryNotAllowed = true;
+              errorMessage = errorData.message || 'You are not allowed to scan this ticket category. Please contact your team leader.';
+            } else {
+              errorMessage = errorData.message || errorData.detail || errorMessage;
+            }
           }
+        } else if (error.response?.status === 403 && error.response?.data?.error?.code === 'CATEGORY_NOT_ALLOWED') {
+          isCategoryNotAllowed = true;
+          errorMessage = error.response.data.error.message || 'You are not allowed to scan this ticket category. Please contact your team leader.';
         } else if (error.response?.data?.message) {
           errorMessage = error.response.data.message;
         } else if (error.message) {
@@ -236,6 +257,13 @@ export default function ScanScreen() {
         }
         
         setError(errorMessage);
+        
+        // If category not allowed, don't set scan result and don't process
+        if (isCategoryNotAllowed) {
+          setIsLoading(false);
+          return; // Stop processing, don't show scan results, don't create log
+        }
+        
         setScanResult("not_found");
         
         try {
@@ -288,10 +316,18 @@ export default function ScanScreen() {
     setIsLoading(true);
     setAttendee(null);
     setScanResult(null);
+    setError("");
 
     try {
       // Get attendee information from API
       const attendeeData = await scanAPI.getAttendee(idToLookup, eventId);
+      
+      // Check if there's a category not allowed error
+      if (attendeeData.error && attendeeData.error.code === 'CATEGORY_NOT_ALLOWED') {
+        setError(attendeeData.error.message || 'You are not allowed to scan this ticket category. Please contact your team leader.');
+        setIsLoading(false);
+        return; // Stop processing, don't show scan results
+      }
       
       // Map API response to component format
       // Format emergency contact display
@@ -455,26 +491,44 @@ export default function ScanScreen() {
       });
       
       setAttendee(null);
+      setScanResult(null);
       
       // Extract error message properly
       let errorMessage = "Error looking up attendee. Please try again.";
+      let isCategoryNotAllowed = false;
+      
       if (error.response?.data?.error) {
         const errorData = error.response.data.error;
         if (typeof errorData === 'string') {
           errorMessage = errorData;
         } else if (errorData && typeof errorData === 'object') {
-          errorMessage = errorData.message || errorData.detail || errorMessage;
+          // Check if this is a category not allowed error
+          if (errorData.code === 'CATEGORY_NOT_ALLOWED') {
+            isCategoryNotAllowed = true;
+            errorMessage = errorData.message || 'You are not allowed to scan this ticket category. Please contact your team leader.';
+          } else {
+            errorMessage = errorData.message || errorData.detail || errorMessage;
+          }
         }
+      } else if (error.response?.status === 403 && error.response?.data?.error?.code === 'CATEGORY_NOT_ALLOWED') {
+        isCategoryNotAllowed = true;
+        errorMessage = error.response.data.error.message || 'You are not allowed to scan this ticket category. Please contact your team leader.';
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
         errorMessage = error.message;
       }
       
-      // Set error state and scan result
+      // Set error state
       setError(errorMessage);
       
-      // ALWAYS create a log entry for errors/not found cases
+      // If category not allowed, don't set scan result and don't process
+      if (isCategoryNotAllowed) {
+        setIsLoading(false);
+        return; // Stop processing, don't show scan results, don't create log
+      }
+      
+      // ALWAYS create a log entry for errors/not found cases (but not for category not allowed)
       setScanResult("not_found");
       const logEntry = {
         cardId: idToLookup,
@@ -736,19 +790,27 @@ export default function ScanScreen() {
                 <span className="label-title">Labels</span>
               </div>
               <div className="label-container">
-                {attendee.labels.map((label, idx) => (
-                  <span 
-                    key={idx} 
-                    className={`label-badge ${label === 'VIP' ? 'ticket-label' : 'profile-label'}`}
-                    style={{
-                      backgroundColor: label === 'VIP' ? '#F59E0B' : '#2196F3',
-                      color: '#fff',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    {label}
-                  </span>
-                ))}
+                {attendee.labels.map((label, idx) => {
+                  // Handle both old format (string) and new format (object)
+                  const labelName = typeof label === 'string' ? label : (label.name || '');
+                  const labelColor = typeof label === 'object' && label.color 
+                    ? label.color 
+                    : (labelName === 'VIP' ? '#F59E0B' : '#2196F3');
+                  
+                  return (
+                    <span 
+                      key={idx} 
+                      className={`label-badge ${labelName === 'VIP' ? 'ticket-label' : 'profile-label'}`}
+                      style={{
+                        backgroundColor: labelColor,
+                        color: '#fff',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      {labelName}
+                    </span>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -989,11 +1051,19 @@ export default function ScanScreen() {
           </button>
         </div>
 
-        {/* Error Message */}
+        {/* Error Message / Warning */}
         {error && (
-          <div className="error-card">
-            <FaExclamationTriangle size={24} color="#E53935" />
-            <p className="error-text">
+          <div className={`error-card ${error.includes('not allowed') || error.includes('contact your team leader') ? 'warning-card' : ''}`} style={
+            error.includes('not allowed') || error.includes('contact your team leader') 
+              ? { 
+                  backgroundColor: '#FFF3E0', 
+                  border: '2px solid #FF9800',
+                  color: '#E65100'
+                } 
+              : {}
+          }>
+            <FaExclamationTriangle size={24} color={error.includes('not allowed') || error.includes('contact your team leader') ? "#FF9800" : "#E53935"} />
+            <p className="error-text" style={{ fontWeight: error.includes('not allowed') || error.includes('contact your team leader') ? 'bold' : 'normal' }}>
               {typeof error === 'string' ? error : 'An error occurred'}
             </p>
           </div>
@@ -1113,26 +1183,45 @@ export default function ScanScreen() {
                 );
               })()}
               {/* Labels Badges - Show VIP and other labels */}
-              {attendee.labels && attendee.labels.length > 0 && attendee.labels.map((label, index) => (
-                <div
-                  key={index}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '20px',
-                    backgroundColor: label === 'VIP' ? '#FFF3E0' : '#E8F5E8',
-                    color: label === 'VIP' ? '#F59E0B' : '#10B981',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    border: label === 'VIP' ? '1px solid #FCD34D' : '1px solid #86EFAC'
-                  }}
-                >
-                  {label === 'VIP' && <FaTag size={14} />}
-                  {label}
-                </div>
-              ))}
+              {attendee.labels && attendee.labels.length > 0 && attendee.labels.map((label, index) => {
+                // Handle both old format (string) and new format (object)
+                const labelName = typeof label === 'string' ? label : (label.name || '');
+                const labelColor = typeof label === 'object' && label.color 
+                  ? label.color 
+                  : (labelName === 'VIP' ? '#F59E0B' : '#10B981');
+                
+                // Convert hex color to rgba for background with opacity
+                const hexToRgba = (hex, alpha = 0.2) => {
+                  const r = parseInt(hex.slice(1, 3), 16);
+                  const g = parseInt(hex.slice(3, 5), 16);
+                  const b = parseInt(hex.slice(5, 7), 16);
+                  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                };
+                
+                const backgroundColor = hexToRgba(labelColor, 0.15);
+                const borderColor = hexToRgba(labelColor, 0.5);
+                
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '20px',
+                      backgroundColor: backgroundColor,
+                      color: labelColor,
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      border: `1px solid ${borderColor}`
+                    }}
+                  >
+                    {labelName === 'VIP' && <FaTag size={14} />}
+                    {labelName}
+                  </div>
+                );
+              })}
             </div>
             
             {/* Additional Info */}

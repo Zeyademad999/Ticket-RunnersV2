@@ -43,6 +43,9 @@ import {
   X,
   Camera,
   Lock,
+  Edit,
+  Plus,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, parseISO } from "date-fns";
@@ -55,6 +58,17 @@ import InvoiceModal from "@/components/InvoiceModal";
 import { useQuery } from "@tanstack/react-query";
 import organizerApi from "@/lib/api/organizerApi";
 import { useAuth } from "@/Contexts/AuthContext";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 
 // Types
@@ -75,6 +89,42 @@ interface Event {
   totalPayoutPaid: number;
   ticketCategories: TicketCategory[];
   startingPrice?: number;
+  gender_distribution?: {
+    male: number;
+    female: number;
+    prefer_not_to_say: number;
+    other: number;
+    unknown: number;
+    total: number;
+    percentages: {
+      male: number;
+      female: number;
+      prefer_not_to_say: number;
+      other: number;
+      unknown: number;
+    };
+  };
+  age_distribution?: {
+    '0-17': number;
+    '18-24': number;
+    '25-34': number;
+    '35-44': number;
+    '45-54': number;
+    '55-64': number;
+    '65+': number;
+    unknown: number;
+    total: number;
+    percentages: {
+      '0-17': number;
+      '18-24': number;
+      '25-34': number;
+      '35-44': number;
+      '45-54': number;
+      '55-64': number;
+      '65+': number;
+      unknown: number;
+    };
+  };
 }
 
 interface TicketCategory {
@@ -88,6 +138,7 @@ interface TicketCategory {
 interface DashboardStats {
   total_events: number;
   running_events: number;
+  live_events: number;
   completed_events: number;
   available_tickets: number;
   total_tickets_sold: number;
@@ -157,6 +208,24 @@ const OrganizerDashboard: React.FC = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceData, setInvoiceData] = useState<any>(null);
   const [changePasswordSuccess, setChangePasswordSuccess] = useState("");
+  
+  // Event edit request modal state
+  const [showEditRequestModal, setShowEditRequestModal] = useState(false);
+  const [editRequestType, setEditRequestType] = useState<string>("");
+  const [editRequestData, setEditRequestData] = useState<any>({
+    event_name: "",
+    total_tickets: "",
+    ticket_category_name: "",
+    ticket_category_price: "",
+    ticket_category_total: "",
+    mark_sold_out_category: "",
+    ticket_price: "",
+    ticket_category_for_price: "",
+    description: "",
+  });
+  const [editRequestImage, setEditRequestImage] = useState<File | null>(null);
+  const [editRequestImagePreview, setEditRequestImagePreview] = useState<string | null>(null);
+  const [isSubmittingEditRequest, setIsSubmittingEditRequest] = useState(false);
 
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -538,6 +607,134 @@ const OrganizerDashboard: React.FC = () => {
     setChangePasswordSuccess("");
   };
 
+  // Event edit request handlers
+  const handleOpenEditRequest = (type: string) => {
+    setEditRequestType(type);
+    setShowEditRequestModal(true);
+    // Reset form data
+    setEditRequestData({
+      event_name: selectedEvent?.title || "",
+      total_tickets: selectedEvent?.totalTickets.toString() || "",
+      ticket_category_name: "",
+      ticket_category_price: "",
+      ticket_category_total: "",
+      mark_sold_out_category: "",
+      ticket_price: "",
+      ticket_category_for_price: "",
+      description: "",
+    });
+    setEditRequestImage(null);
+    setEditRequestImagePreview(null);
+  };
+
+  const handleCloseEditRequest = () => {
+    setShowEditRequestModal(false);
+    setEditRequestType("");
+    setEditRequestData({
+      event_name: "",
+      total_tickets: "",
+      ticket_category_name: "",
+      ticket_category_price: "",
+      ticket_category_total: "",
+      mark_sold_out_category: "",
+      ticket_price: "",
+      ticket_category_for_price: "",
+      description: "",
+    });
+    setEditRequestImage(null);
+    setEditRequestImagePreview(null);
+  };
+
+  const handleEditRequestImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith("image/")) {
+        toast({
+          title: t("dashboard.profile.invalidFileType") || "Invalid File Type",
+          description: t("dashboard.profile.onlyImagesAllowed") || "Only image files are allowed.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setEditRequestImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setEditRequestImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmitEditRequest = async () => {
+    if (!selectedEvent) return;
+
+    if (!editRequestData.description && editRequestType !== "change_image") {
+      toast({
+        title: t("editEvent.descriptionRequired") || "Description Required",
+        description: t("editEvent.pleaseProvideDescription") || "Please provide a description of the changes you want to make.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmittingEditRequest(true);
+    try {
+      const requestedData: any = {
+        edit_type: editRequestType,
+      };
+
+      // Add type-specific data
+      switch (editRequestType) {
+        case "edit_event_name":
+          requestedData.new_event_name = editRequestData.event_name;
+          break;
+        case "edit_total_tickets":
+          requestedData.new_total_tickets = parseInt(editRequestData.total_tickets);
+          break;
+        case "add_ticket_category":
+          requestedData.category_name = editRequestData.ticket_category_name;
+          requestedData.category_price = parseFloat(editRequestData.ticket_category_price);
+          requestedData.category_total_tickets = parseInt(editRequestData.ticket_category_total);
+          break;
+        case "mark_category_sold_out":
+          requestedData.category_name = editRequestData.mark_sold_out_category;
+          break;
+        case "change_event_image":
+          // Image will be handled separately
+          break;
+        case "edit_ticket_price":
+          requestedData.category_name = editRequestData.ticket_category_for_price;
+          requestedData.new_price = parseFloat(editRequestData.ticket_price);
+          break;
+      }
+
+      const formData = new FormData();
+      formData.append("requested_changes", editRequestData.description || `Request to ${editRequestType.replace(/_/g, " ")}`);
+      formData.append("requested_data", JSON.stringify(requestedData));
+      
+      if (editRequestImage) {
+        formData.append("new_event_image", editRequestImage);
+      }
+
+      await organizerApi.submitEventEditRequest(selectedEvent.id, formData);
+
+      toast({
+        title: t("editEvent.submitted") || "Edit Request Submitted",
+        description: t("editEvent.submittedDesc") || "Your edit request has been submitted and is pending admin approval.",
+      });
+
+      handleCloseEditRequest();
+    } catch (error: any) {
+      toast({
+        title: t("common.error") || "Error",
+        description: error.response?.data?.error?.message || error.message || "Failed to submit edit request",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingEditRequest(false);
+    }
+  };
+
   // Fetch events from API
   const {
     data: eventsData,
@@ -626,6 +823,8 @@ const OrganizerDashboard: React.FC = () => {
       totalPayoutPaid: payoutInfo.paid,
       ticketCategories,
       startingPrice: selectedEventAnalytics.starting_price || selectedEventAnalytics.price || undefined,
+      gender_distribution: selectedEventAnalytics.gender_distribution,
+      age_distribution: selectedEventAnalytics.age_distribution,
     };
   }, [selectedEvent, selectedEventAnalytics]);
 
@@ -654,6 +853,7 @@ const OrganizerDashboard: React.FC = () => {
   const defaultStats: DashboardStats = {
     total_events: 0,
     running_events: 0,
+    live_events: 0,
     completed_events: 0,
     available_tickets: 0,
     total_tickets_sold: 0,
@@ -664,8 +864,20 @@ const OrganizerDashboard: React.FC = () => {
     total_pending_payouts: 0,
   };
 
-  // Use API stats or default
-  const stats = dashboardStats || defaultStats;
+  // Use API stats or default - ensure stats is always defined
+  const stats: DashboardStats = dashboardStats ? {
+    total_events: dashboardStats.total_events ?? 0,
+    running_events: dashboardStats.running_events ?? 0,
+    live_events: dashboardStats.live_events ?? 0,
+    completed_events: dashboardStats.completed_events ?? 0,
+    available_tickets: dashboardStats.available_tickets ?? 0,
+    total_tickets_sold: dashboardStats.total_tickets_sold ?? 0,
+    total_attendees: dashboardStats.total_attendees ?? 0,
+    total_revenues: dashboardStats.total_revenues ?? 0,
+    net_revenues: dashboardStats.net_revenues ?? 0,
+    total_processed_payouts: dashboardStats.total_processed_payouts ?? 0,
+    total_pending_payouts: dashboardStats.total_pending_payouts ?? 0,
+  } : defaultStats;
 
   // Filter events based on search and filters
   const filteredEvents = useMemo(() => {
@@ -880,6 +1092,14 @@ const OrganizerDashboard: React.FC = () => {
     return total > 0 ? (sold / total) * 100 : 0;
   };
 
+  const formatPercentage = (percentage: number): string => {
+    // Show exact precise percentage with up to 15 decimal places
+    // Remove trailing zeros but keep significant digits
+    const formatted = percentage.toFixed(15);
+    // Remove trailing zeros and decimal point if not needed
+    return formatted.replace(/\.?0+$/, '') || '0';
+  };
+
   // Show loading state while checking authentication
   if (authLoading) {
     return (
@@ -995,7 +1215,7 @@ const OrganizerDashboard: React.FC = () => {
         </div>
 
         {/* Overall Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center space-y-0 pb-2">
               <div className="flex-1 rtl:text-right">
@@ -1035,6 +1255,28 @@ const OrganizerDashboard: React.FC = () => {
                   <div className="text-sm text-red-500">{t("common.errorLoadingData")}</div>
                 ) : (
                   stats.running_events
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center space-y-0 pb-2">
+              <div className="flex-1 rtl:text-right">
+                <CardTitle className="text-sm font-medium">
+                  {t("dashboard.stats.liveEvents")}
+                </CardTitle>
+              </div>
+              <Activity className="h-4 w-4 text-green-500 flex-shrink-0" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold rtl:text-right text-green-600">
+                {statsLoading ? (
+                  <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+                ) : statsError ? (
+                  <div className="text-sm text-red-500">{t("common.errorLoadingData")}</div>
+                ) : (
+                  stats.live_events || 0
                 )}
               </div>
             </CardContent>
@@ -1437,10 +1679,12 @@ const OrganizerDashboard: React.FC = () => {
                         <div className="flex justify-between text-sm rtl:flex-row-reverse">
                           <span>{t("dashboard.event.salesProgress")}</span>
                           <span>
-                            {calculatePercentage(
-                              event.ticketsSold,
-                              event.totalTickets
-                            ).toFixed(1)}
+                            {formatPercentage(
+                              calculatePercentage(
+                                event.ticketsSold,
+                                event.totalTickets
+                              )
+                            )}
                             %
                           </span>
                         </div>
@@ -1585,18 +1829,18 @@ const OrganizerDashboard: React.FC = () => {
                                   <div className="flex justify-between text-sm text-muted-foreground rtl:flex-row-reverse">
                                     <span>
                                       {t("dashboard.analytics.sold")}:{" "}
-                                      <span className="font-medium text-foreground">{category.ticketsSold}</span>
+                                      <span className="font-medium text-foreground">{category.ticketsSold ?? category.sold ?? 0}</span>
                                     </span>
                                     <span>
                                       {t("dashboard.analytics.available")}:{" "}
-                                      <span className="font-medium text-foreground">{category.ticketsAvailable}</span>
+                                      <span className="font-medium text-foreground">{category.ticketsAvailable ?? category.available ?? 0}</span>
                                     </span>
                                   </div>
                                   <div className="rtl:transform rtl:scale-x-[-1]">
                                     <Progress
                                       value={calculatePercentage(
-                                        category.ticketsSold,
-                                        category.totalTickets
+                                        category.ticketsSold ?? category.sold ?? 0,
+                                        category.totalTickets ?? category.total_tickets ?? category.total ?? 0
                                       )}
                                     />
                                   </div>
@@ -1697,10 +1941,12 @@ const OrganizerDashboard: React.FC = () => {
                               {t("dashboard.analytics.soldPercentage")}
                             </span>
                             <span>
-                              {calculatePercentage(
-                                eventWithAnalytics.ticketsSold,
-                                eventWithAnalytics.totalTickets
-                              ).toFixed(1)}
+                              {formatPercentage(
+                                calculatePercentage(
+                                  eventWithAnalytics.ticketsSold,
+                                  eventWithAnalytics.totalTickets
+                                )
+                              )}
                               %
                             </span>
                           </div>
@@ -1719,10 +1965,12 @@ const OrganizerDashboard: React.FC = () => {
                               {t("dashboard.analytics.remainingPercentage")}
                             </span>
                             <span>
-                              {calculatePercentage(
-                                eventWithAnalytics.totalTickets - eventWithAnalytics.ticketsSold,
-                                eventWithAnalytics.totalTickets
-                              ).toFixed(1)}
+                              {formatPercentage(
+                                calculatePercentage(
+                                  eventWithAnalytics.totalTickets - eventWithAnalytics.ticketsSold,
+                                  eventWithAnalytics.totalTickets
+                                )
+                              )}
                               %
                             </span>
                           </div>
@@ -1737,18 +1985,466 @@ const OrganizerDashboard: React.FC = () => {
                         </div>
                       </CardContent>
                     </Card>
+
+                    {/* Gender Distribution */}
+                    {eventWithAnalytics.gender_distribution && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2 rtl:flex-row-reverse">
+                            <Users className="h-5 w-5" />
+                            {t("dashboard.analytics.genderDistribution", "Gender Distribution")}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ChartContainer
+                            config={{
+                              male: { label: t("dashboard.analytics.male", "Male"), color: "#3b82f6" },
+                              female: { label: t("dashboard.analytics.female", "Female"), color: "#ec4899" },
+                              prefer_not_to_say: { label: t("dashboard.analytics.preferNotToSay", "Prefer Not to Say"), color: "#8b5cf6" },
+                              other: { label: t("dashboard.analytics.other", "Other"), color: "#10b981" },
+                              unknown: { label: t("dashboard.analytics.unknown", "Unknown"), color: "#6b7280" },
+                            }}
+                            className="h-[300px]"
+                          >
+                            <PieChart>
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Pie
+                                data={[
+                                  { name: t("dashboard.analytics.male", "Male"), value: eventWithAnalytics.gender_distribution.male, fill: "#3b82f6" },
+                                  { name: t("dashboard.analytics.female", "Female"), value: eventWithAnalytics.gender_distribution.female, fill: "#ec4899" },
+                                  { name: t("dashboard.analytics.preferNotToSay", "Prefer Not to Say"), value: eventWithAnalytics.gender_distribution.prefer_not_to_say, fill: "#8b5cf6" },
+                                  { name: t("dashboard.analytics.other", "Other"), value: eventWithAnalytics.gender_distribution.other, fill: "#10b981" },
+                                  { name: t("dashboard.analytics.unknown", "Unknown"), value: eventWithAnalytics.gender_distribution.unknown, fill: "#6b7280" },
+                                ].filter(item => item.value > 0)}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {[
+                                  { fill: "#3b82f6" },
+                                  { fill: "#ec4899" },
+                                  { fill: "#8b5cf6" },
+                                  { fill: "#10b981" },
+                                  { fill: "#6b7280" },
+                                ].map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                              </Pie>
+                            </PieChart>
+                          </ChartContainer>
+                          <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
+                            <div className="text-center">
+                              <div className="font-semibold">{eventWithAnalytics.gender_distribution.male}</div>
+                              <div className="text-muted-foreground">{t("dashboard.analytics.male", "Male")}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {eventWithAnalytics.gender_distribution.percentages.male.toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold">{eventWithAnalytics.gender_distribution.female}</div>
+                              <div className="text-muted-foreground">{t("dashboard.analytics.female", "Female")}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {eventWithAnalytics.gender_distribution.percentages.female.toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold">{eventWithAnalytics.gender_distribution.prefer_not_to_say}</div>
+                              <div className="text-muted-foreground">{t("dashboard.analytics.preferNotToSay", "Prefer Not to Say")}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {eventWithAnalytics.gender_distribution.percentages.prefer_not_to_say.toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold">{eventWithAnalytics.gender_distribution.other}</div>
+                              <div className="text-muted-foreground">{t("dashboard.analytics.other", "Other")}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {eventWithAnalytics.gender_distribution.percentages.other.toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="font-semibold">{eventWithAnalytics.gender_distribution.unknown}</div>
+                              <div className="text-muted-foreground">{t("dashboard.analytics.unknown", "Unknown")}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {eventWithAnalytics.gender_distribution.percentages.unknown.toFixed(1)}%
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Age Distribution */}
+                    {eventWithAnalytics.age_distribution && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2 rtl:flex-row-reverse">
+                            <BarChart3 className="h-5 w-5" />
+                            {t("dashboard.analytics.ageDistribution", "Age Distribution")}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <ChartContainer
+                            config={{
+                              '0-17': { label: "0-17", color: "#3b82f6" },
+                              '18-24': { label: "18-24", color: "#8b5cf6" },
+                              '25-34': { label: "25-34", color: "#ec4899" },
+                              '35-44': { label: "35-44", color: "#f59e0b" },
+                              '45-54': { label: "45-54", color: "#10b981" },
+                              '55-64': { label: "55-64", color: "#06b6d4" },
+                              '65+': { label: "65+", color: "#6366f1" },
+                              unknown: { label: t("dashboard.analytics.unknown", "Unknown"), color: "#6b7280" },
+                            }}
+                            className="h-[300px]"
+                          >
+                            <PieChart>
+                              <ChartTooltip content={<ChartTooltipContent />} />
+                              <Pie
+                                data={[
+                                  { name: "0-17", value: eventWithAnalytics.age_distribution['0-17'], fill: "#3b82f6" },
+                                  { name: "18-24", value: eventWithAnalytics.age_distribution['18-24'], fill: "#8b5cf6" },
+                                  { name: "25-34", value: eventWithAnalytics.age_distribution['25-34'], fill: "#ec4899" },
+                                  { name: "35-44", value: eventWithAnalytics.age_distribution['35-44'], fill: "#f59e0b" },
+                                  { name: "45-54", value: eventWithAnalytics.age_distribution['45-54'], fill: "#10b981" },
+                                  { name: "55-64", value: eventWithAnalytics.age_distribution['55-64'], fill: "#06b6d4" },
+                                  { name: "65+", value: eventWithAnalytics.age_distribution['65+'], fill: "#6366f1" },
+                                  { name: t("dashboard.analytics.unknown", "Unknown"), value: eventWithAnalytics.age_distribution.unknown, fill: "#6b7280" },
+                                ].filter(item => item.value > 0)}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {[
+                                  { fill: "#3b82f6" },
+                                  { fill: "#8b5cf6" },
+                                  { fill: "#ec4899" },
+                                  { fill: "#f59e0b" },
+                                  { fill: "#10b981" },
+                                  { fill: "#06b6d4" },
+                                  { fill: "#6366f1" },
+                                  { fill: "#6b7280" },
+                                ].map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                              </Pie>
+                            </PieChart>
+                          </ChartContainer>
+                          <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                            {[
+                              { key: '0-17', label: "0-17" },
+                              { key: '18-24', label: "18-24" },
+                              { key: '25-34', label: "25-34" },
+                              { key: '35-44', label: "35-44" },
+                              { key: '45-54', label: "45-54" },
+                              { key: '55-64', label: "55-64" },
+                              { key: '65+', label: "65+" },
+                              { key: 'unknown', label: t("dashboard.analytics.unknown", "Unknown") },
+                            ].map(({ key, label }) => (
+                              eventWithAnalytics.age_distribution![key as keyof typeof eventWithAnalytics.age_distribution] > 0 && (
+                                <div key={key} className="text-center">
+                                  <div className="font-semibold">
+                                    {eventWithAnalytics.age_distribution![key as keyof typeof eventWithAnalytics.age_distribution]}
+                                  </div>
+                                  <div className="text-muted-foreground">{label}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {eventWithAnalytics.age_distribution!.percentages[key as keyof typeof eventWithAnalytics.age_distribution.percentages].toFixed(1)}%
+                                  </div>
+                                </div>
+                              )
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </div>
 
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedEvent(null);
-                      setActiveTab("events");
-                    }}
-                    className="w-full"
-                  >
-                    {t("dashboard.analytics.backToEvents")}
-                  </Button>
+                  <div className="flex gap-4 rtl:flex-row-reverse">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedEvent(null);
+                        setActiveTab("events");
+                      }}
+                      className="flex-1"
+                    >
+                      {t("dashboard.analytics.backToEvents")}
+                    </Button>
+                    <Dialog open={showEditRequestModal} onOpenChange={setShowEditRequestModal}>
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="default"
+                          onClick={() => handleOpenEditRequest("")}
+                          className="flex-1"
+                        >
+                          <Edit className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                          {t("editEvent.editEvent", "Request Event Edit")}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader>
+                          <DialogTitle>{t("editEvent.title", "Edit Event Request")}</DialogTitle>
+                          <DialogDescription>
+                            {t("editEvent.description", "Select the type of edit you want to request. All changes require admin approval.")}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          {/* Edit Type Selection */}
+                          {!editRequestType && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <Button
+                                variant="outline"
+                                className="h-auto p-4 flex flex-col items-start"
+                                onClick={() => setEditRequestType("edit_event_name")}
+                              >
+                                <div className="font-semibold mb-1">{t("editEvent.editEventName", "Edit Event Name")}</div>
+                                <div className="text-sm text-muted-foreground">{t("editEvent.editEventNameDesc", "Change the event title")}</div>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-auto p-4 flex flex-col items-start"
+                                onClick={() => setEditRequestType("edit_total_tickets")}
+                              >
+                                <div className="font-semibold mb-1">{t("editEvent.editTotalTickets", "Edit Total Tickets")}</div>
+                                <div className="text-sm text-muted-foreground">{t("editEvent.editTotalTicketsDesc", "Change available tickets number")}</div>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-auto p-4 flex flex-col items-start"
+                                onClick={() => setEditRequestType("add_ticket_category")}
+                              >
+                                <div className="font-semibold mb-1">{t("editEvent.addTicketCategory", "Add Ticket Category")}</div>
+                                <div className="text-sm text-muted-foreground">{t("editEvent.addTicketCategoryDesc", "Add a new ticket category")}</div>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-auto p-4 flex flex-col items-start"
+                                onClick={() => setEditRequestType("mark_category_sold_out")}
+                              >
+                                <div className="font-semibold mb-1">{t("editEvent.markSoldOut", "Mark Category Sold Out")}</div>
+                                <div className="text-sm text-muted-foreground">{t("editEvent.markSoldOutDesc", "Mark a category as sold out")}</div>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-auto p-4 flex flex-col items-start"
+                                onClick={() => setEditRequestType("change_event_image")}
+                              >
+                                <div className="font-semibold mb-1">{t("editEvent.changeImage", "Change Event Image")}</div>
+                                <div className="text-sm text-muted-foreground">{t("editEvent.changeImageDesc", "Upload a new event image")}</div>
+                              </Button>
+                              <Button
+                                variant="outline"
+                                className="h-auto p-4 flex flex-col items-start"
+                                onClick={() => setEditRequestType("edit_ticket_price")}
+                              >
+                                <div className="font-semibold mb-1">{t("editEvent.editTicketPrice", "Edit Ticket Price")}</div>
+                                <div className="text-sm text-muted-foreground">{t("editEvent.editTicketPriceDesc", "Change price for unsold tickets")}</div>
+                              </Button>
+                            </div>
+                          )}
+
+                          {/* Edit Forms */}
+                          {editRequestType && (
+                            <div className="space-y-4">
+                              {/* Edit Event Name */}
+                              {editRequestType === "edit_event_name" && (
+                                <div className="space-y-2">
+                                  <Label>{t("editEvent.newEventName", "New Event Name")}</Label>
+                                  <Input
+                                    value={editRequestData.event_name}
+                                    onChange={(e) => setEditRequestData({ ...editRequestData, event_name: e.target.value })}
+                                    placeholder={t("editEvent.enterNewName", "Enter new event name")}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Edit Total Tickets */}
+                              {editRequestType === "edit_total_tickets" && (
+                                <div className="space-y-2">
+                                  <Label>{t("editEvent.newTotalTickets", "New Total Tickets")}</Label>
+                                  <Input
+                                    type="number"
+                                    value={editRequestData.total_tickets}
+                                    onChange={(e) => setEditRequestData({ ...editRequestData, total_tickets: e.target.value })}
+                                    placeholder={t("editEvent.enterTotalTickets", "Enter new total tickets number")}
+                                  />
+                                </div>
+                              )}
+
+                              {/* Add Ticket Category */}
+                              {editRequestType === "add_ticket_category" && (
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label>{t("editEvent.categoryName", "Category Name")}</Label>
+                                    <Input
+                                      value={editRequestData.ticket_category_name}
+                                      onChange={(e) => setEditRequestData({ ...editRequestData, ticket_category_name: e.target.value })}
+                                      placeholder={t("editEvent.enterCategoryName", "Enter category name")}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>{t("editEvent.categoryPrice", "Category Price (E£)")}</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={editRequestData.ticket_category_price}
+                                      onChange={(e) => setEditRequestData({ ...editRequestData, ticket_category_price: e.target.value })}
+                                      placeholder={t("editEvent.enterPrice", "Enter price")}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>{t("editEvent.categoryTotalTickets", "Total Tickets")}</Label>
+                                    <Input
+                                      type="number"
+                                      value={editRequestData.ticket_category_total}
+                                      onChange={(e) => setEditRequestData({ ...editRequestData, ticket_category_total: e.target.value })}
+                                      placeholder={t("editEvent.enterTotalTickets", "Enter total tickets")}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Mark Category Sold Out */}
+                              {editRequestType === "mark_category_sold_out" && (
+                                <div className="space-y-2">
+                                  <Label>{t("editEvent.selectCategory", "Select Category")}</Label>
+                                  <Select
+                                    value={editRequestData.mark_sold_out_category}
+                                    onValueChange={(value) => setEditRequestData({ ...editRequestData, mark_sold_out_category: value })}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder={t("editEvent.chooseCategory", "Choose a category")} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {(() => {
+                                        const categories = eventWithAnalytics?.ticketCategories || selectedEvent?.ticketCategories || [];
+                                        return categories.length > 0 ? (
+                                          categories.map((cat: any) => (
+                                            <SelectItem key={cat.name} value={cat.name}>
+                                              {cat.name}
+                                            </SelectItem>
+                                          ))
+                                        ) : (
+                                          <SelectItem value="" disabled>
+                                            {t("editEvent.noCategories", "No categories available")}
+                                          </SelectItem>
+                                        );
+                                      })()}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              )}
+
+                              {/* Change Event Image */}
+                              {editRequestType === "change_event_image" && (
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label>{t("editEvent.newEventImage", "New Event Image")}</Label>
+                                    <div className="flex items-center gap-4">
+                                      <Input
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleEditRequestImageChange}
+                                        className="flex-1"
+                                      />
+                                      {editRequestImagePreview && (
+                                        <img
+                                          src={editRequestImagePreview}
+                                          alt="Preview"
+                                          className="w-24 h-24 object-cover rounded"
+                                        />
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Edit Ticket Price */}
+                              {editRequestType === "edit_ticket_price" && (
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label>{t("editEvent.selectCategory", "Select Category")}</Label>
+                                    <Select
+                                      value={editRequestData.ticket_category_for_price}
+                                      onValueChange={(value) => setEditRequestData({ ...editRequestData, ticket_category_for_price: value })}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder={t("editEvent.chooseCategory", "Choose a category")} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {(() => {
+                                          const categories = eventWithAnalytics?.ticketCategories || selectedEvent?.ticketCategories || [];
+                                          return categories.length > 0 ? (
+                                            categories.map((cat: any) => (
+                                              <SelectItem key={cat.name} value={cat.name}>
+                                                {cat.name} - Current: E£ {cat.price?.toLocaleString() || 0}
+                                              </SelectItem>
+                                            ))
+                                          ) : (
+                                            <SelectItem value="" disabled>
+                                              {t("editEvent.noCategories", "No categories available")}
+                                            </SelectItem>
+                                          );
+                                        })()}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>{t("editEvent.newPrice", "New Price (E£)")}</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={editRequestData.ticket_price}
+                                      onChange={(e) => setEditRequestData({ ...editRequestData, ticket_price: e.target.value })}
+                                      placeholder={t("editEvent.enterNewPrice", "Enter new price")}
+                                    />
+                                    <p className="text-sm text-muted-foreground">
+                                      {t("editEvent.priceNote", "Note: Price can only be changed for unsold tickets")}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Description */}
+                              <div className="space-y-2">
+                                <Label>{t("editEvent.descriptionLabel", "Description")} *</Label>
+                                <Textarea
+                                  value={editRequestData.description}
+                                  onChange={(e) => setEditRequestData({ ...editRequestData, description: e.target.value })}
+                                  placeholder={t("editEvent.descriptionPlaceholder", "Please describe the changes you want to make...")}
+                                  rows={4}
+                                />
+                              </div>
+
+                              {/* Action Buttons */}
+                              <div className="flex gap-4 rtl:flex-row-reverse pt-4">
+                                <Button
+                                  variant="outline"
+                                  onClick={handleCloseEditRequest}
+                                  className="flex-1"
+                                >
+                                  {t("common.cancel")}
+                                </Button>
+                                <Button
+                                  onClick={handleSubmitEditRequest}
+                                  disabled={isSubmittingEditRequest}
+                                  className="flex-1"
+                                >
+                                  {isSubmittingEditRequest ? t("editEvent.submitting", "Submitting...") : t("editEvent.submitRequest", "Submit Request")}
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </div>
               ) : (
                 <Card>

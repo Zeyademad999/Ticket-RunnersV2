@@ -2,7 +2,6 @@ import React, { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -31,7 +30,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -52,13 +50,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
   ResponsivePagination,
 } from "@/components/ui/pagination";
 import {
@@ -70,27 +61,18 @@ import {
   Eye,
   Download,
   User,
-  Mail,
-  Phone,
-  Calendar,
   DollarSign,
   MoreHorizontal,
   UserCheck,
-  UserX,
-  Lock,
   Unlock,
   RefreshCw,
   AlertCircle,
   CheckCircle,
   XCircle,
-  Clock,
-  TrendingUp,
   CreditCard,
   Ticket,
   FileText,
-  MapPin,
   Star,
-  StarOff,
   Repeat,
   Activity,
   Ban,
@@ -263,7 +245,6 @@ const CustomerManagement: React.FC = () => {
   );
 
   // Label management state
-  const [showLabelDialog, setShowLabelDialog] = useState(false);
   const [showManageLabelsDialog, setShowManageLabelsDialog] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState<CustomerLabel[]>([]);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -317,8 +298,8 @@ const CustomerManagement: React.FC = () => {
     }
   };
 
-  // Format time for current locale
-  const formatTimeForLocale = (
+  // Format time for current locale (unused but kept for future use)
+  const _formatTimeForLocale = (
     dateString: string,
     formatString: string = "HH:mm"
   ) => {
@@ -399,20 +380,28 @@ const CustomerManagement: React.FC = () => {
       location: "", // Not in backend model
       profileImage: item.profile_image || undefined, // Use actual profile image from backend
       labels: (() => {
-        // Convert backend labels (array of strings) to frontend CustomerLabel structure
+        // Convert backend labels (array of strings or objects) to frontend CustomerLabel structure
         if (item.labels && Array.isArray(item.labels)) {
-          return item.labels.map((labelName: string, index: number) => {
-            // Check if it's already an object (for backward compatibility)
-            if (typeof labelName === 'object' && labelName !== null) {
-              return labelName as CustomerLabel;
+          return item.labels.map((label: any, index: number) => {
+            // Check if it's already an object with all required fields
+            if (typeof label === 'object' && label !== null && label.name) {
+              return {
+                id: label.id || `label-${index}-${label.name}`,
+                name: label.name,
+                color: label.color || '#3B82F6',
+                description: label.description || label.name,
+                icon: label.icon || 'Tag',
+              } as CustomerLabel;
             }
-            // Convert string to CustomerLabel object
+            // Legacy format: string, convert to CustomerLabel object with default colors
+            const labelName = typeof label === 'string' ? label : '';
             const labelColors: { [key: string]: string } = {
               'VIP': '#F59E0B',
               'Premium': '#8B5CF6',
               'Regular': '#3B82F6',
               'Student': '#06B6D4',
               'Early Bird': '#10B981',
+              'Black Card Customer': '#000000',
             };
             const labelIcons: { [key: string]: string } = {
               'VIP': 'Crown',
@@ -420,6 +409,7 @@ const CustomerManagement: React.FC = () => {
               'Regular': 'Tag',
               'Student': 'Shield',
               'Early Bird': 'Star',
+              'Black Card Customer': 'CreditCard',
             };
             return {
               id: `label-${index}-${labelName}`,
@@ -827,13 +817,23 @@ const CustomerManagement: React.FC = () => {
     mutationFn: async ({ id, data }: { id: string; data: any }) => {
       return await customersApi.updateCustomer(id, data);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // Only invalidate queries, don't show toast or close dialog here
+      // Individual handlers (like handleSaveLabels) will handle their own UI updates
       queryClient.invalidateQueries({ queryKey: ["customers"] });
-      toast({
-        title: t("admin.customers.toast.customerUpdated"),
-        description: t("admin.customers.toast.customerUpdatedDesc"),
-      });
-      setIsEditDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["customer", variables.id] });
+      
+      // Only show toast and close edit dialog if this is not a labels-only update
+      // Check if only labels field is being updated
+      const isLabelsOnlyUpdate = Object.keys(variables.data).length === 1 && 'labels' in variables.data;
+      
+      if (!isLabelsOnlyUpdate) {
+        toast({
+          title: t("admin.customers.toast.customerUpdated"),
+          description: t("admin.customers.toast.customerUpdatedDesc"),
+        });
+        setIsEditDialogOpen(false);
+      }
     },
     onError: (error: any) => {
       toast({
@@ -949,18 +949,19 @@ const CustomerManagement: React.FC = () => {
   };
 
 
-  const handleExportCustomers = () => {
+  // Unused handlers - kept for future use
+  const _handleExportCustomers = () => {
     toast({
       title: t("admin.customers.toast.exportSuccess"),
       description: t("admin.customers.toast.exportSuccessDesc"),
     });
   };
 
-  const handleDeactivateCustomer = (customerId: string) => {
+  const _handleDeactivateCustomer = (customerId: string) => {
     updateCustomerStatusMutation.mutate({ id: customerId, status: "inactive" });
   };
 
-  const handleReactivateCustomer = (customerId: string) => {
+  const _handleReactivateCustomer = (customerId: string) => {
     updateCustomerStatusMutation.mutate({ id: customerId, status: "active" });
   };
 
@@ -992,7 +993,8 @@ const CustomerManagement: React.FC = () => {
     }
   };
 
-  const handleForcePasswordReset = (customerId: string) => {
+  // Unused handler - kept for future use
+  const _handleForcePasswordReset = (_customerId: string) => {
     toast({
       title: t("admin.customers.toast.passwordReset"),
       description: t("admin.customers.toast.passwordResetDesc"),
@@ -1059,7 +1061,8 @@ const CustomerManagement: React.FC = () => {
     }
   };
 
-  const handleViewActivity = (customerId: string) => {
+  // Unused handler - kept for future use
+  const _handleViewActivity = (customerId: string) => {
     const customer = customers.find((c) => c.id === customerId);
     if (customer) {
       setSelectedCustomer(customer);
@@ -1234,14 +1237,14 @@ const CustomerManagement: React.FC = () => {
     setSelectedBooking(null);
   };
 
-  const handleCancelBooking = (bookingId: string) => {
+  const handleCancelBooking = (_bookingId: string) => {
     toast({
       title: t("admin.customers.toast.bookingCancelled"),
       description: t("admin.customers.toast.bookingCancelledDesc"),
     });
   };
 
-  const handleRefundBooking = (bookingId: string) => {
+  const handleRefundBooking = (_bookingId: string) => {
     toast({
       title: t("admin.customers.toast.bookingRefunded"),
       description: t("admin.customers.toast.bookingRefundedDesc"),
@@ -1269,11 +1272,17 @@ const CustomerManagement: React.FC = () => {
     }
 
     try {
-      // Get current labels as array of strings
-      const currentLabels = customer.labels.map((label) => label.name);
+      // Get current labels (already objects with name, color, icon)
+      const currentLabels = customer.labels || [];
       
-      // Add VIP to labels array
-      const updatedLabels = [...currentLabels, "VIP"];
+      // Add VIP as an object to labels array
+      const newVipLabel = {
+        name: "VIP",
+        color: "#F59E0B",
+        icon: "Crown",
+        description: "VIP Customer"
+      };
+      const updatedLabels = [...currentLabels, newVipLabel];
 
       // Call API to update customer labels
       await updateCustomerMutation.mutateAsync({
@@ -1313,10 +1322,10 @@ const CustomerManagement: React.FC = () => {
 
   const handleRemoveVIP = async (customer: Customer) => {
     try {
-      // Get current labels as array of strings, excluding VIP
-      const updatedLabels = customer.labels
-        .filter((label) => label.name !== "VIP")
-        .map((label) => label.name);
+      // Get current labels, excluding VIP (keep as objects)
+      const updatedLabels = customer.labels.filter(
+        (label) => label.name !== "VIP"
+      );
 
       // Call API to update customer labels
       await updateCustomerMutation.mutateAsync({
@@ -1361,11 +1370,17 @@ const CustomerManagement: React.FC = () => {
     }
 
     try {
-      // Get current labels as array of strings
-      const currentLabels = customer.labels.map((label) => label.name);
+      // Get current labels (already objects with name, color, icon)
+      const currentLabels = customer.labels || [];
       
-      // Add Black Card Customer to labels array
-      const updatedLabels = [...currentLabels, "Black Card Customer"];
+      // Add Black Card Customer as an object to labels array
+      const newBlackCardLabel = {
+        name: "Black Card Customer",
+        color: "#000000",
+        icon: "CreditCard",
+        description: "Black Card Customer - Can buy max 2 tickets for free even if event is full"
+      };
+      const updatedLabels = [...currentLabels, newBlackCardLabel];
 
       // Call API to update customer labels
       await updateCustomerMutation.mutateAsync({
@@ -1376,7 +1391,7 @@ const CustomerManagement: React.FC = () => {
       });
 
       // Update local state
-      const blackCardLabel: CustomerLabel = {
+      const blackCardLabelObj: CustomerLabel = {
         id: "black-card-label",
         name: "Black Card Customer",
         color: "#000000",
@@ -1385,7 +1400,7 @@ const CustomerManagement: React.FC = () => {
       };
       const updatedCustomer = {
         ...customer,
-        labels: [...customer.labels, blackCardLabel],
+        labels: [...customer.labels, blackCardLabelObj],
       };
 
       // Update selected customer if it's the same one
@@ -1405,10 +1420,10 @@ const CustomerManagement: React.FC = () => {
 
   const handleRemoveBlackCard = async (customer: Customer) => {
     try {
-      // Get current labels as array of strings, excluding Black Card Customer
-      const updatedLabels = customer.labels
-        .filter((label) => label.name !== "Black Card Customer")
-        .map((label) => label.name);
+      // Get current labels, excluding Black Card Customer (keep as objects)
+      const updatedLabels = customer.labels.filter(
+        (label) => label.name !== "Black Card Customer"
+      );
 
       // Call API to update customer labels
       await updateCustomerMutation.mutateAsync({
@@ -1505,23 +1520,83 @@ const CustomerManagement: React.FC = () => {
     }
 
     try {
-      // Convert CustomerLabel objects to array of strings for backend
-      const labelsArray = selectedLabels.map((label) => label.name);
+      // Send full label objects (with name, color, icon) to backend
+      const labelsArray = selectedLabels.map((label) => ({
+        name: label.name,
+        color: label.color,
+        icon: label.icon || 'Tag',
+        description: label.description || label.name,
+      }));
 
       // Call API to update customer labels
-      await updateCustomerMutation.mutateAsync({
+      const response = await updateCustomerMutation.mutateAsync({
         id: selectedCustomer.id,
         data: {
           labels: labelsArray,
         },
       });
 
-      // Update local state
-      const updatedSelectedCustomer = {
-        ...selectedCustomer,
-        labels: selectedLabels,
-      };
-      setSelectedCustomer(updatedSelectedCustomer);
+      // Force refresh of customer list to show updated labels
+      // Use refetchQueries to immediately refetch instead of just invalidating
+      await queryClient.refetchQueries({ queryKey: ["customers"] });
+      
+      // Also refresh the specific customer if it's being viewed
+      await queryClient.refetchQueries({ queryKey: ["customer", selectedCustomer.id] });
+
+      // Update local state with the response data if available
+      if (response && response.labels) {
+        // Transform backend labels to frontend format
+        const transformedLabels = response.labels.map((label: any, index: number) => {
+          // Handle both object format (new) and string format (legacy)
+          if (typeof label === 'object' && label !== null && label.name) {
+            return {
+              id: label.id || `label-${index}-${label.name}`,
+              name: label.name,
+              color: label.color || '#3B82F6',
+              description: label.description || label.name,
+              icon: label.icon || 'Tag',
+            };
+          }
+          // Legacy string format
+          const labelName = typeof label === 'string' ? label : '';
+          const labelColors: { [key: string]: string } = {
+            'VIP': '#F59E0B',
+            'Premium': '#8B5CF6',
+            'Regular': '#3B82F6',
+            'Student': '#06B6D4',
+            'Early Bird': '#10B981',
+            'Black Card Customer': '#000000',
+          };
+          const labelIcons: { [key: string]: string } = {
+            'VIP': 'Crown',
+            'Premium': 'Award',
+            'Regular': 'Tag',
+            'Student': 'Shield',
+            'Early Bird': 'Star',
+            'Black Card Customer': 'CreditCard',
+          };
+          return {
+            id: `label-${index}-${labelName}`,
+            name: labelName,
+            color: labelColors[labelName] || '#3B82F6',
+            description: labelName,
+            icon: labelIcons[labelName] || 'Tag',
+          };
+        });
+        
+        const updatedSelectedCustomer = {
+          ...selectedCustomer,
+          labels: transformedLabels,
+        };
+        setSelectedCustomer(updatedSelectedCustomer);
+      } else {
+        // Fallback to using selectedLabels if response doesn't have labels
+        const updatedSelectedCustomer = {
+          ...selectedCustomer,
+          labels: selectedLabels,
+        };
+        setSelectedCustomer(updatedSelectedCustomer);
+      }
 
       toast({
         title: t("admin.customers.labels.toast.labelsSaved"),
@@ -1565,7 +1640,7 @@ const CustomerManagement: React.FC = () => {
               location: locationFilter,
               vip: vipFilter,
             }}
-            onExport={(format) => {
+            onExport={(_format) => {
               toast({
                 title: t("admin.customers.toast.exportSuccess"),
                 description: t("admin.customers.toast.exportSuccessDesc"),
@@ -3076,15 +3151,7 @@ const CustomerManagement: React.FC = () => {
               onClick={() => {
                 setIsAddDialogOpen(false);
                 // Reset form when closing
-                setNewCustomer({
-                  name: "",
-                  email: "",
-                  phone: "",
-                  mobile_number: "",
-                  password: "",
-                  confirmPassword: "",
-                  status: "active",
-                });
+                resetNewCustomerForm();
               }}
             >
               {t("admin.customers.dialogs.cancel")}

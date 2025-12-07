@@ -1788,12 +1788,17 @@
         "results": "نتيجة"
       },
       "actions": {
-        "export": "تصدير"
+        "export": "تصدير",
+        "view": "عرض التفاصيل",
+        "markRefunded": "تعيين كمسترد"
       },
       "toast": {
         "exportSuccess": "تم التصدير بنجاح",
         "exportSuccessDesc": "تم تصدير بيانات المدفوعات بنجاح",
-        "error": "حدث خطأ"
+        "error": "حدث خطأ",
+        "refundSuccess": "تم استرداد الدفع",
+        "refundSuccessDesc": "تم تعيين الدفع كمسترد بنجاح",
+        "onlyCompletedRefund": "يمكن فقط تعيين المدفوعات المكتملة كمستردة"
       },
       "noPaymentsFound": "لم يتم العثور على مدفوعات",
       "dialogs": {
@@ -2625,9 +2630,11 @@
         "status": "الحالة",
         "category": "الفئة",
         "location": "الموقع",
+        "verification": "حالة التحقق",
         "allStatus": "جميع الحالات",
         "allCategories": "جميع الفئات",
         "allLocations": "جميع المواقع",
+        "allVerification": "جميع حالات التحقق",
         "active": "نشط",
         "inactive": "غير نشط",
         "suspended": "معلق",
@@ -3274,6 +3281,7 @@
         "homePageSections": "أقسام الصفحة الرئيسية",
         "organizers": "المنظمون",
         "organizerRequests": "طلبات المنظمين",
+        "eventEditRequests": "طلبات تعديل الفعاليات",
         "ushers": "المرشدون",
         "admins": "مستخدمي المدير",
         "merchants": "التجار",
@@ -3597,6 +3605,14 @@
         "saveChanges": "حفظ التغييرات",
         "createEvent": "إنشاء الفعالية"
       },
+      "facilities": {
+        "title": "مرافق المكان",
+        "description": "اختر المرافق المتاحة في مكان هذه الفعالية. ستُعرض جميع المرافق على صفحة الفعالية، مع إظهار غير المتاحة بخط أحمر.",
+        "wheelchairAccess": "إمكانية الوصول للكراسي المتحركة",
+        "bathroom": "حمام",
+        "parking": "موقف سيارات",
+        "nonSmoking": "منطقة غير مدخنين"
+      },
       "form": {
         "eventTitle": "عنوان الفعالية",
         "category": "الفئة",
@@ -3623,6 +3639,8 @@
         "mainEventImageDescription": "ستُعرض هذه الصورة كصورة الفعالية الرئيسية في التطبيق",
         "gatesOpenTime": "وقت فتح البوابات",
         "gatesOpenTimePlaceholder": "18:00",
+        "closedDoorsTime": "وقت إغلاق الأبواب",
+        "closedDoorsTimePlaceholder": "23:00",
         "aboutVenue": "حول المكان",
         "aboutVenuePlaceholder": "أدخل معلومات حول المكان...",
         "termsAndConditions": "شروط وأحكام الفعالية",

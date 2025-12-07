@@ -82,6 +82,7 @@ export interface EventData {
   date: string;
   time: string;
   gatesOpenTime?: string;
+  closedDoorsTime?: string;
   location: string;
   price: number;
   startingPrice?: number; // Default ticket price from event form

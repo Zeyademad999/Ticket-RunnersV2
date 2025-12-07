@@ -525,7 +525,11 @@ const Booking = () => {
 
       // Check if Black Card customer with free tickets (2 or fewer, total = 0)
       // If totalAmount > 0, they have more than 2 tickets and need to pay for extras
-      const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+      // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
       const blackCardEligible = isBlackCardCustomer && totalTickets > 0 && totalAmount === 0;
 
       if (blackCardEligible) {
@@ -843,10 +847,9 @@ const Booking = () => {
   
   // Calculate original total (before Black Card discount) - for display purposes
   const originalTotalTicketPrice = baseTicketPrice - freeChildrenDiscount - vipDiscount;
-  const originalVatAmount = originalTotalTicketPrice * 0.14;
   const originalCardCost = needsCardFee ? 150 : 0;
   const originalRenewalCost = needsRenewalCost ? 150 : 0;
-  const originalTotalAmount = originalTotalTicketPrice + originalVatAmount + originalCardCost + originalRenewalCost;
+  const originalTotalAmount = originalTotalTicketPrice + originalCardCost + originalRenewalCost;
   
   // Calculate price for paid tickets only (tickets 3+ for Black Card customers)
   // For Black Card customers: only charge for tickets beyond the first 2
@@ -905,10 +908,9 @@ const Booking = () => {
   
   // Calculate final amounts
   const totalTicketPrice = paidTicketPrice;
-  const vatAmount = totalTicketPrice * 0.14;
   const cardCost = needsCardFee ? 150 : 0; // Card cost applies to paid tickets
   const renewalCost = needsRenewalCost ? 150 : 0; // Renewal cost applies to paid tickets
-  const totalAmount = totalTicketPrice + vatAmount + cardCost + renewalCost;
+  const totalAmount = totalTicketPrice + cardCost + renewalCost;
   
   // Black Card eligible for free booking (2 or fewer tickets, total = 0)
   const blackCardEligible = isBlackCardCustomer && totalTickets <= 2 && totalTickets > 0;
@@ -923,7 +925,11 @@ const Booking = () => {
       const ticketsAvailable = tierInfo?.ticketsAvailable || 0;
       
       // Check if user is a Black Card Customer
-      const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+      // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
       
       // Calculate total tickets across all tiers
       const totalTicketsAcrossAllTiers = ticketTiers.reduce((sum, t) => {
@@ -1790,7 +1796,11 @@ const Booking = () => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     // Check if button should be disabled before allowing click
-                                    const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                                    // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
                                     const currentQty = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
                                       ? quantities[tier.key]
                                       : 0;
@@ -1837,7 +1847,11 @@ const Booking = () => {
                                   }}
                                   disabled={
                                     (() => {
-                                      const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                                      // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
                                       const currentQty = typeof quantities[tier.key] === "number" && !isNaN(quantities[tier.key])
                                         ? quantities[tier.key]
                                         : 0;
@@ -1865,7 +1879,10 @@ const Booking = () => {
                                   <Plus className="h-4 w-4" />
                                 </Button>
                               </div>
-                              {tier.ticketsAvailable === 0 && !(user?.labels?.includes("Black Card Customer")) && (
+                              {tier.ticketsAvailable === 0 && !(user?.labels?.some((label: any) => 
+                                (typeof label === 'string' && label === 'Black Card Customer') ||
+                                (typeof label === 'object' && label?.name === 'Black Card Customer')
+                              )) && (
                                 <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg">
                                   <p className="text-sm text-red-600 dark:text-red-400 font-medium">
                                     {t("booking.soldOut", "SOLD OUT")}
@@ -2263,14 +2280,6 @@ const Booking = () => {
                               {numberFormat.format(originalTotalTicketPrice)} {currency}
                             </span>
                           </div>
-                          {originalVatAmount > 0 && (
-                            <div className="flex justify-between text-muted-foreground">
-                              <span>{t("booking.vat")}</span>
-                              <span className="line-through">
-                                {numberFormat.format(originalVatAmount)} {currency}
-                              </span>
-                            </div>
-                          )}
                           {originalCardCost > 0 && (
                             <div className="flex justify-between text-muted-foreground">
                               <span>{t("booking.cardCost")}</span>
@@ -2306,14 +2315,6 @@ const Booking = () => {
                                   {numberFormat.format(totalTicketPrice)} {currency}
                                 </span>
                               </div>
-                              {vatAmount > 0 && (
-                                <div className="flex justify-between text-muted-foreground">
-                                  <span>{t("booking.vat")}</span>
-                                  <span>
-                                    {numberFormat.format(vatAmount)} {currency}
-                                  </span>
-                                </div>
-                              )}
                             </>
                           )}
                           {cardCost > 0 && (
@@ -2363,12 +2364,6 @@ const Booking = () => {
                               </span>
                             </div>
                           )}
-                          <div className="flex justify-between text-muted-foreground">
-                            <span>{t("booking.vat")}</span>
-                            <span>
-                              {numberFormat.format(vatAmount)} {currency}
-                            </span>
-                          </div>
                           {cardCost > 0 && (
                             <div className="flex justify-between text-muted-foreground">
                               <span>{t("booking.cardCost")}</span>
@@ -2410,7 +2405,11 @@ const Booking = () => {
                         onClick={onConfirmPayment}
                         disabled={
                           (() => {
-                            const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                            // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
                             // Black Card customers can proceed even when sold out (up to 2 tickets)
                             if (isBlackCardCustomer) {
                               return hasIncompleteTickets || totalTickets === 0;
@@ -2422,7 +2421,11 @@ const Booking = () => {
                       >
                         <CreditCard className="h-5 w-5 mr-2 rtl:mr-0 rtl:ml-2" />
                         {(() => {
-                          const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                          // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
                           if (!isBlackCardCustomer && ticketTiers.every(tier => tier.ticketsAvailable === 0)) {
                             return t("booking.soldOut", "SOLD OUT");
                           }
@@ -2433,7 +2436,11 @@ const Booking = () => {
                         })()}
                       </Button>
                       {(() => {
-                        const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+                        // Check if user is a Black Card Customer - handle both string and object formats
+      const isBlackCardCustomer = user?.labels?.some((label: any) => 
+        (typeof label === 'string' && label === 'Black Card Customer') ||
+        (typeof label === 'object' && label?.name === 'Black Card Customer')
+      ) || false;
                         if (!isBlackCardCustomer && ticketTiers.every(tier => tier.ticketsAvailable === 0)) {
                           return (
                             <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-lg mt-2">

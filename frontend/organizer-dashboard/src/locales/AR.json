@@ -660,6 +660,7 @@
     "stats": {
       "totalEvents": "إجمالي الفعاليات",
       "runningEvents": "الفعاليات الجارية",
+      "liveEvents": "الفعاليات المباشرة",
       "completedEvents": "الفعاليات المكتملة",
       "availableTickets": "التذاكر المتاحة",
       "totalTicketsSold": "التذاكر المباعة",

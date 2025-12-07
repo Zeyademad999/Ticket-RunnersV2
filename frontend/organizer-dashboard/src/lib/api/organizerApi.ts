@@ -175,7 +175,9 @@ export interface EventAnalytics {
     price?: number;
     total?: number;
     total_tickets?: number;
+    ticketsSold?: number;
     sold?: number;
+    ticketsAvailable?: number;
     available?: number;
   }>;
   overall_stats?: {
@@ -187,6 +189,42 @@ export interface EventAnalytics {
   payout_info?: {
     pending: number;
     paid: number;
+  };
+  gender_distribution?: {
+    male: number;
+    female: number;
+    prefer_not_to_say: number;
+    other: number;
+    unknown: number;
+    total: number;
+    percentages: {
+      male: number;
+      female: number;
+      prefer_not_to_say: number;
+      other: number;
+      unknown: number;
+    };
+  };
+  age_distribution?: {
+    '0-17': number;
+    '18-24': number;
+    '25-34': number;
+    '35-44': number;
+    '45-54': number;
+    '55-64': number;
+    '65+': number;
+    unknown: number;
+    total: number;
+    percentages: {
+      '0-17': number;
+      '18-24': number;
+      '25-34': number;
+      '35-44': number;
+      '45-54': number;
+      '55-64': number;
+      '65+': number;
+      unknown: number;
+    };
   };
 }
 
@@ -352,8 +390,10 @@ class OrganizerApiService {
    */
   async submitEventEditRequest(
     eventId: string,
-    data: EventEditRequest
+    data: EventEditRequest | FormData
   ): Promise<EventEditRequest> {
+    // Don't set Content-Type header for FormData - axios will automatically set it with boundary
+    // For FormData, axios/browser handles the Content-Type header automatically
     const response = await api.post(`/events/${eventId}/edit-request/`, data);
     return response.data;
   }

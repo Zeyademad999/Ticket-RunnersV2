@@ -59,6 +59,11 @@ import {
   Image as ImageIcon,
   RefreshCw,
   Loader2,
+  Accessibility,
+  ShowerHead,
+  ParkingCircle,
+  Ban,
+  Calculator,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
@@ -70,6 +75,7 @@ import {
   venuesApi,
   ticketsApi,
   homePageSectionsApi,
+  financesApi,
 } from "@/lib/api/adminApi";
 import { usePermissions } from "@/hooks/usePermissions";
 import { formatNumberForLocale, formatCurrencyForLocale } from "@/lib/utils";
@@ -77,6 +83,7 @@ import i18n from "@/lib/i18n";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { commonColumns } from "@/lib/exportUtils";
 import * as XLSX from "xlsx";
+import { EventFinancesReport } from "./EventFinancesReport";
 import {
   LineChart as RechartsLineChart,
   Line,
@@ -125,8 +132,10 @@ interface Event {
   imageUrl: string;
   venueLayoutImageUrl?: string;
   description: string;
+  homePageSectionIds?: number[];
   aboutVenue?: string;
   gatesOpenTime?: string;
+  closedDoorsTime?: string;
   termsAndConditions?: string;
   startingPrice?: string | number;
   gallery?: GalleryImage[];
@@ -209,12 +218,14 @@ const EventsManagement: React.FC = () => {
     useState(false);
   const [isTicketManagementDialogOpen, setIsTicketManagementDialogOpen] =
     useState(false);
+  const [isViewFinancesDialogOpen, setIsViewFinancesDialogOpen] = useState(false);
   const [selectedEventForAnalytics, setSelectedEventForAnalytics] =
     useState<Event | null>(null);
   const [selectedEventForUshers, setSelectedEventForUshers] =
     useState<Event | null>(null);
   const [selectedEventForTickets, setSelectedEventForTickets] =
     useState<Event | null>(null);
+  const [selectedEventForFinances, setSelectedEventForFinances] = useState<Event | null>(null);
   const [totalTicketsInput, setTotalTicketsInput] = useState<string>("");
   const [newEvent, setNewEvent] = useState({
     title: "",
@@ -227,10 +238,10 @@ const EventsManagement: React.FC = () => {
     totalTickets: 0,
     ticketLimit: 1,
     isTicketLimitUnlimited: false,
-    isTicketLimitUnlimited: false,
     description: "",
     aboutVenue: "",
     gatesOpenTime: "",
+    closedDoorsTime: "",
     termsAndConditions: "",
     startingPrice: "" as string,
     mainImageFile: null as File | null,
@@ -241,6 +252,10 @@ const EventsManagement: React.FC = () => {
     childEligibilityRuleType: "" as "between" | "less_than" | "more_than" | "",
     childEligibilityMinAge: null as number | null,
     childEligibilityMaxAge: null as number | null,
+    wheelchairAccess: false,
+    bathroom: false,
+    parking: false,
+    nonSmoking: false,
     commissionRate: {
       type: "percentage" as "percentage" | "flat",
       value: 10,
@@ -250,6 +265,7 @@ const EventsManagement: React.FC = () => {
       value: 5,
     },
     imageUrl: "",
+    venueLayoutImageUrl: "",
     gallery: [] as GalleryImage[],
     ticketCategories: [] as Array<{
       id: string;
@@ -278,6 +294,7 @@ const EventsManagement: React.FC = () => {
     description: "",
     aboutVenue: "",
     gatesOpenTime: "",
+    closedDoorsTime: "",
     termsAndConditions: "",
     startingPrice: "",
     mainImageFile: null as File | null,
@@ -288,6 +305,10 @@ const EventsManagement: React.FC = () => {
     childEligibilityRuleType: "" as "between" | "less_than" | "more_than" | "",
     childEligibilityMinAge: null as number | null,
     childEligibilityMaxAge: null as number | null,
+    wheelchairAccess: false,
+    bathroom: false,
+    parking: false,
+    nonSmoking: false,
     commissionRate: {
       type: "percentage" as "percentage" | "flat",
       value: 10,
@@ -414,6 +435,8 @@ const EventsManagement: React.FC = () => {
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [eventToCancel, setEventToCancel] = useState<Event | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch organizers and venues for form dropdowns
@@ -538,6 +561,7 @@ const EventsManagement: React.FC = () => {
       description: item.description || "",
       aboutVenue: item.about_venue || "",
       gatesOpenTime: item.gates_open_time || "",
+      closedDoorsTime: item.closed_doors_time || "",
       termsAndConditions: item.terms_and_conditions || "",
       gallery: [],
     }));
@@ -707,6 +731,31 @@ const EventsManagement: React.FC = () => {
         title: t("common.error"),
         description:
           error.response?.data?.error?.message ||
+          error.message ||
+          t("admin.events.toast.error"),
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Cancel event mutation
+  const cancelEventMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await eventsApi.cancelEvent(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["events"] });
+      toast({
+        title: t("admin.events.toast.eventCancelled") || "Event Cancelled",
+        description: t("admin.events.toast.eventCancelledDesc") || "Event has been cancelled successfully",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: t("common.error"),
+        description:
+          error.response?.data?.error?.message ||
+          error.response?.data?.error ||
           error.message ||
           t("admin.events.toast.error"),
         variant: "destructive",
@@ -1417,6 +1466,11 @@ const EventsManagement: React.FC = () => {
     }
   };
 
+  const handleViewFinances = (event: Event) => {
+    setSelectedEventForFinances(event);
+    setIsViewFinancesDialogOpen(true);
+  };
+
   const handleEditEvent = async (event: Event) => {
     if (!requirePermission("events_edit")) {
       return;
@@ -1574,6 +1628,8 @@ const EventsManagement: React.FC = () => {
         aboutVenue: eventDetails.about_venue || event.aboutVenue || "",
         gatesOpenTime:
           eventDetails.gates_open_time || event.gatesOpenTime || "",
+        closedDoorsTime:
+          eventDetails.closed_doors_time || event.closedDoorsTime || "",
         termsAndConditions:
           eventDetails.terms_and_conditions || event.termsAndConditions || "",
         startingPrice:
@@ -1581,6 +1637,7 @@ const EventsManagement: React.FC = () => {
           (event.startingPrice ? event.startingPrice.toString() : null) ||
           "",
         mainImageFile: null,
+        venueLayoutImageFile: null,
         ticketTransferEnabled:
           eventDetails.ticket_transfer_enabled !== undefined
             ? eventDetails.ticket_transfer_enabled
@@ -1594,6 +1651,10 @@ const EventsManagement: React.FC = () => {
           "") as "between" | "less_than" | "more_than" | "",
         childEligibilityMinAge: eventDetails.child_eligibility_min_age || null,
         childEligibilityMaxAge: eventDetails.child_eligibility_max_age || null,
+        wheelchairAccess: eventDetails.wheelchair_access || false,
+        bathroom: eventDetails.bathroom || false,
+        parking: eventDetails.parking || false,
+        nonSmoking: eventDetails.non_smoking || false,
         commissionRate: commissionRate,
         transferFee: transferFee,
         imageUrl: eventDetails.image || event.imageUrl || "",
@@ -1609,8 +1670,8 @@ const EventsManagement: React.FC = () => {
         homePageSectionIds: (() => {
           const eventId = parseInt(event.id);
           return (homePageSections || [])
-            .filter((section) => section.events?.some((e) => e.id === eventId))
-            .map((section) => section.id);
+            .filter((section: any) => section.events?.some((e: any) => e.id === eventId))
+            .map((section: any) => section.id);
         })(),
       });
 
@@ -1659,6 +1720,7 @@ const EventsManagement: React.FC = () => {
 
       setEditEventData({
         title: event.title || "",
+        artist_name: event.artist_name || "",
         organizers: organizerIds,
         date: event.date || "",
         time: event.time || "",
@@ -1670,9 +1732,11 @@ const EventsManagement: React.FC = () => {
         description: event.description || "",
         aboutVenue: event.aboutVenue || "",
         gatesOpenTime: event.gatesOpenTime || "",
+        closedDoorsTime: event.closedDoorsTime || "",
         termsAndConditions: event.termsAndConditions || "",
         startingPrice: event.startingPrice?.toString() || "",
         mainImageFile: null,
+        venueLayoutImageFile: null,
         ticketTransferEnabled: event.ticketTransferEnabled || false,
         childrenAllowed:
           event.childrenAllowed !== undefined ? event.childrenAllowed : true,
@@ -1684,6 +1748,10 @@ const EventsManagement: React.FC = () => {
           | "",
         childEligibilityMinAge: null,
         childEligibilityMaxAge: null,
+        wheelchairAccess: false,
+        bathroom: false,
+        parking: false,
+        nonSmoking: false,
         commissionRate: event.commissionRate || {
           type: "percentage" as "percentage" | "flat",
           value: 10,
@@ -1693,10 +1761,12 @@ const EventsManagement: React.FC = () => {
           value: 5,
         },
         imageUrl: event.imageUrl || "",
+        venueLayoutImageUrl: event.venueLayoutImageUrl || "",
         gallery: event.gallery || [],
         venueLayouts: event.venueLayouts || [],
         ticketCategories: [], // Empty if fetch fails
         discounts: event.discounts || [],
+        homePageSectionIds: event.homePageSectionIds || [],
       });
       toast({
         title: "Warning",
@@ -1759,7 +1829,9 @@ const EventsManagement: React.FC = () => {
       setEventToDelete({
         id: event.id,
         title: event.title || event.name || "",
+        artist_name: event.artist_name || "",
         organizer: event.organizer?.name || "",
+        organizers: [],
         date: event.date || "",
         time: event.time || "",
         location: event.venue?.name || event.location || "",
@@ -1774,6 +1846,10 @@ const EventsManagement: React.FC = () => {
         transferFee: { type: "percentage" as const, value: 0 },
         ticketTransferEnabled: false,
         childrenAllowed: false,
+        childEligibilityEnabled: false,
+        childEligibilityRuleType: "",
+        childEligibilityMinAge: null,
+        childEligibilityMaxAge: null,
         ticketLimit: 0,
         usheringAccounts: 0,
         imageUrl: "",
@@ -1788,6 +1864,53 @@ const EventsManagement: React.FC = () => {
       deleteEventMutation.mutate(eventToDelete.id);
       setIsDeleteDialogOpen(false);
       setEventToDelete(null);
+    }
+  };
+
+  const handleCancelEvent = (eventId: string) => {
+    if (!requirePermission("events_edit")) {
+      return;
+    }
+    const event = eventsData?.results?.find((e: any) => e.id === eventId);
+    if (event) {
+      setEventToCancel({
+        id: event.id,
+        title: event.title || event.name || "",
+        artist_name: event.artist_name || "",
+        organizer: event.organizer?.name || "",
+        organizers: [],
+        date: event.date || "",
+        time: event.time || "",
+        location: event.venue?.name || event.location || "",
+        status: event.status || "upcoming",
+        category: event.category?.name || "",
+        totalTickets: event.total_tickets || 0,
+        ticketsSold: event.tickets_sold || 0,
+        revenue: event.revenue || 0,
+        commission: event.commission || 0,
+        payout: event.payout || 0,
+        commissionRate: { type: "percentage" as const, value: 0 },
+        transferFee: { type: "percentage" as const, value: 0 },
+        ticketTransferEnabled: false,
+        childrenAllowed: false,
+        childEligibilityEnabled: false,
+        childEligibilityRuleType: "",
+        childEligibilityMinAge: null,
+        childEligibilityMaxAge: null,
+        ticketLimit: 0,
+        usheringAccounts: 0,
+        imageUrl: "",
+        description: "",
+      });
+      setIsCancelDialogOpen(true);
+    }
+  };
+
+  const confirmCancelEvent = () => {
+    if (eventToCancel) {
+      cancelEventMutation.mutate(eventToCancel.id);
+      setIsCancelDialogOpen(false);
+      setEventToCancel(null);
     }
   };
 
@@ -2025,17 +2148,25 @@ const EventsManagement: React.FC = () => {
       gatesOpenTimeValue = gatesOpenTimeValue + ":00";
     }
 
+    // Ensure closed_doors_time format is correct (HH:MM:SS)
+    let closedDoorsTimeValue = editEventData.closedDoorsTime || null;
+    if (closedDoorsTimeValue && closedDoorsTimeValue.length === 5) {
+      closedDoorsTimeValue = closedDoorsTimeValue + ":00";
+    }
+
     // Validate total_tickets and ticket_limit
     const totalTickets = parseInt(
       editEventData.totalTickets?.toString() || "0"
     );
     // Handle empty string for ticketLimit - default to 1
     const parsedTicketLimit =
-      editEventData.ticketLimit === "" ||
       editEventData.ticketLimit === null ||
-      editEventData.ticketLimit === undefined
+      editEventData.ticketLimit === undefined ||
+      editEventData.ticketLimit === 0
         ? 1
-        : parseInt(editEventData.ticketLimit?.toString() || "1");
+        : typeof editEventData.ticketLimit === "string"
+        ? parseInt(editEventData.ticketLimit) || 1
+        : editEventData.ticketLimit;
     const ticketLimit = editEventData.isTicketLimitUnlimited
       ? totalTickets !== undefined && totalTickets !== null
         ? totalTickets
@@ -2077,6 +2208,7 @@ const EventsManagement: React.FC = () => {
       description: editEventData.description || "",
       about_venue: editEventData.aboutVenue || "",
       gates_open_time: gatesOpenTimeValue,
+      closed_doors_time: closedDoorsTimeValue,
       terms_and_conditions: editEventData.termsAndConditions || "",
       date: date,
       time: timeValue,
@@ -2158,7 +2290,6 @@ const EventsManagement: React.FC = () => {
         editEventData.commissionRate.type || "percentage";
       // Handle empty string for commission_rate_value - default to 0
       const commissionValue =
-        editEventData.commissionRate.value === "" ||
         editEventData.commissionRate.value === null ||
         editEventData.commissionRate.value === undefined
           ? 0
@@ -2174,7 +2305,6 @@ const EventsManagement: React.FC = () => {
         editEventData.transferFee.type || "percentage";
       // Handle empty string for transfer_fee_value - default to 0
       const transferFeeValue =
-        editEventData.transferFee.value === "" ||
         editEventData.transferFee.value === null ||
         editEventData.transferFee.value === undefined
           ? 0
@@ -2183,6 +2313,12 @@ const EventsManagement: React.FC = () => {
           : editEventData.transferFee.value;
       updateData.transfer_fee_value = transferFeeValue;
     }
+
+    // Add facility fields
+    updateData.wheelchair_access = Boolean(editEventData.wheelchairAccess);
+    updateData.bathroom = Boolean(editEventData.bathroom);
+    updateData.parking = Boolean(editEventData.parking);
+    updateData.non_smoking = Boolean(editEventData.nonSmoking);
 
     // Add child eligibility fields - explicitly set to false if not enabled
     updateData.child_eligibility_enabled = Boolean(
@@ -2276,6 +2412,12 @@ const EventsManagement: React.FC = () => {
           }
         }
       });
+      // Add facility fields to FormData
+      formData.append("wheelchair_access", editEventData.wheelchairAccess ? "true" : "false");
+      formData.append("bathroom", editEventData.bathroom ? "true" : "false");
+      formData.append("parking", editEventData.parking ? "true" : "false");
+      formData.append("non_smoking", editEventData.nonSmoking ? "true" : "false");
+
       // Add child eligibility fields to FormData (only append once, not in the loop)
       // Make sure it's a string, not an array
       const childEligibilityEnabled = editEventData.childEligibilityEnabled
@@ -2339,9 +2481,9 @@ const EventsManagement: React.FC = () => {
               // Get all sections and update them
               const allSections = homePageSections || [];
               await Promise.all(
-                allSections.map(async (section) => {
+                allSections.map(async (section: any) => {
                   const currentEventIds =
-                    section.events?.map((e) => e.id) || [];
+                    section.events?.map((e: any) => e.id) || [];
                   const shouldInclude = selectedSectionIds.includes(section.id);
                   const currentlyIncludes = currentEventIds.includes(eventId);
 
@@ -2353,7 +2495,7 @@ const EventsManagement: React.FC = () => {
                   } else if (!shouldInclude && currentlyIncludes) {
                     // Remove event from section
                     await homePageSectionsApi.updateSection(section.id, {
-                      event_ids: currentEventIds.filter((id) => id !== eventId),
+                      event_ids: currentEventIds.filter((id: any) => id !== eventId),
                     });
                   }
                 })
@@ -2849,6 +2991,12 @@ const EventsManagement: React.FC = () => {
       gatesOpenTimeValue = gatesOpenTimeValue + ":00";
     }
 
+    // Ensure closed_doors_time format is correct (HH:MM:SS)
+    let closedDoorsTimeValue = newEvent.closedDoorsTime || null;
+    if (closedDoorsTimeValue && closedDoorsTimeValue.length === 5) {
+      closedDoorsTimeValue = closedDoorsTimeValue + ":00";
+    }
+
     // Create FormData for file upload
     const formData = new FormData();
     formData.append("title", newEvent.title.trim());
@@ -2879,9 +3027,9 @@ const EventsManagement: React.FC = () => {
     // total_tickets is auto-calculated from ticket categories, don't send it
     // Handle empty string for ticketLimit - default to 1
     const parsedTicketLimit =
-      newEvent.ticketLimit === "" ||
       newEvent.ticketLimit === null ||
-      newEvent.ticketLimit === undefined
+      newEvent.ticketLimit === undefined ||
+      newEvent.ticketLimit === 0
         ? 1
         : typeof newEvent.ticketLimit === "string"
         ? parseInt(newEvent.ticketLimit) || 1
@@ -2953,7 +3101,6 @@ const EventsManagement: React.FC = () => {
       formData.append("commission_rate_type", newEvent.commissionRate.type);
       // Handle empty string for commission_rate_value - default to 0
       const commissionValue =
-        newEvent.commissionRate.value === "" ||
         newEvent.commissionRate.value === null ||
         newEvent.commissionRate.value === undefined
           ? 0
@@ -2968,7 +3115,6 @@ const EventsManagement: React.FC = () => {
       formData.append("transfer_fee_type", newEvent.transferFee.type);
       // Handle empty string for transfer_fee_value - default to 0
       const transferFeeValue =
-        newEvent.transferFee.value === "" ||
         newEvent.transferFee.value === null ||
         newEvent.transferFee.value === undefined
           ? 0
@@ -2977,6 +3123,12 @@ const EventsManagement: React.FC = () => {
           : newEvent.transferFee.value;
       formData.append("transfer_fee_value", transferFeeValue.toString());
     }
+
+    // Add facility fields
+    formData.append("wheelchair_access", newEvent.wheelchairAccess ? "true" : "false");
+    formData.append("bathroom", newEvent.bathroom ? "true" : "false");
+    formData.append("parking", newEvent.parking ? "true" : "false");
+    formData.append("non_smoking", newEvent.nonSmoking ? "true" : "false");
 
     // Add child eligibility fields
     formData.append(
@@ -3035,12 +3187,12 @@ const EventsManagement: React.FC = () => {
             await Promise.all(
               selectedSectionIds.map(async (sectionId) => {
                 const section = homePageSections.find(
-                  (s) => s.id === sectionId
+                  (s: any) => s.id === sectionId
                 );
                 if (section) {
                   // Get current event IDs and add the new event ID
                   const currentEventIds =
-                    section.events?.map((e) => e.id) || [];
+                    section.events?.map((e: any) => e.id) || [];
                   if (!currentEventIds.includes(eventId)) {
                     const updatedEventIds = [...currentEventIds, eventId];
                     await homePageSectionsApi.updateSection(sectionId, {
@@ -3077,19 +3229,23 @@ const EventsManagement: React.FC = () => {
     // Reset form
     setNewEvent({
       title: "",
-      organizer: "",
+      artist_name: "",
+      organizers: [],
       date: "",
       time: "",
       location: "",
       category: "",
       totalTickets: 0,
       ticketLimit: 1,
+      isTicketLimitUnlimited: false,
       description: "",
       aboutVenue: "",
       gatesOpenTime: "",
+      closedDoorsTime: "",
       termsAndConditions: "",
       startingPrice: "",
       mainImageFile: null,
+      venueLayoutImageFile: null,
       ticketTransferEnabled: false,
       childrenAllowed: true,
       childEligibilityEnabled: false,
@@ -3104,9 +3260,15 @@ const EventsManagement: React.FC = () => {
         type: "percentage" as "percentage" | "flat",
         value: 5,
       },
+      wheelchairAccess: false,
+      bathroom: false,
+      parking: false,
+      nonSmoking: false,
       imageUrl: "",
+      venueLayoutImageUrl: "",
       gallery: [],
       ticketCategories: [],
+      homePageSectionIds: [],
     });
   };
 
@@ -3118,6 +3280,7 @@ const EventsManagement: React.FC = () => {
       | boolean
       | File
       | null
+      | string[]
       | { type: "percentage" | "flat"; value: number }
   ) => {
     setNewEvent((prev) => ({
@@ -3704,10 +3867,27 @@ const EventsManagement: React.FC = () => {
                                 {t("admin.events.actions.viewAnalytics")}
                               </DropdownMenuItem>
                             )}
+                            {hasPermission("events_view") && (
+                              <DropdownMenuItem
+                                onClick={() => handleViewFinances(event)}
+                              >
+                                <DollarSign className="h-4 w-4 rtl:ml-2 ltr:mr-2" />
+                                {t("admin.events.actions.viewFinances", "View Finances")}
+                              </DropdownMenuItem>
+                            )}
                             {hasPermission("analytics_view") &&
-                              hasPermission("events_delete") && (
+                              (hasPermission("events_edit") || hasPermission("events_delete")) && (
                                 <DropdownMenuSeparator />
                               )}
+                            {hasPermission("events_edit") && event.status !== "cancelled" && event.status !== "completed" && (
+                              <DropdownMenuItem
+                                onClick={() => handleCancelEvent(event.id)}
+                                className="text-orange-600"
+                              >
+                                <Ban className="h-4 w-4 rtl:ml-2 ltr:mr-2" />
+                                {t("admin.events.actions.cancelEvent") || "Cancel Event"}
+                              </DropdownMenuItem>
+                            )}
                             {hasPermission("events_delete") && (
                               <DropdownMenuItem
                                 onClick={() => handleDeleteEvent(event.id)}
@@ -4418,6 +4598,19 @@ const EventsManagement: React.FC = () => {
                 </div>
                 <div className="col-span-2">
                   <label className="text-sm font-medium rtl:text-right">
+                    {t("admin.events.form.closedDoorsTime")}
+                  </label>
+                  <Input
+                    type="time"
+                    value={editEventData.closedDoorsTime || ""}
+                    onChange={(e) =>
+                      handleEditEventDataChange("closedDoorsTime", e.target.value)
+                    }
+                    placeholder={t("admin.events.form.closedDoorsTimePlaceholder")}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.aboutVenue")}
                   </label>
                   <Textarea
@@ -4614,6 +4807,82 @@ const EventsManagement: React.FC = () => {
                 )}
               </div>
 
+              {/* Facility Icons */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                  {t("admin.events.facilities.title")}
+                </h4>
+                <p className="text-xs text-muted-foreground mb-4 rtl:text-right">
+                  {t("admin.events.facilities.description")}
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                    <Checkbox
+                      id="edit-wheelchair-access"
+                      checked={editEventData.wheelchairAccess}
+                      onCheckedChange={(checked) =>
+                        handleEditEventDataChange("wheelchairAccess", checked as boolean)
+                      }
+                    />
+                    <label
+                      htmlFor="edit-wheelchair-access"
+                      className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                    >
+                      <Accessibility className="h-5 w-5" />
+                      <span className="text-sm">{t("admin.events.facilities.wheelchairAccess")}</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                    <Checkbox
+                      id="edit-bathroom"
+                      checked={editEventData.bathroom}
+                      onCheckedChange={(checked) =>
+                        handleEditEventDataChange("bathroom", checked as boolean)
+                      }
+                    />
+                    <label
+                      htmlFor="edit-bathroom"
+                      className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                    >
+                      <ShowerHead className="h-5 w-5" />
+                      <span className="text-sm">{t("admin.events.facilities.bathroom")}</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                    <Checkbox
+                      id="edit-parking"
+                      checked={editEventData.parking}
+                      onCheckedChange={(checked) =>
+                        handleEditEventDataChange("parking", checked as boolean)
+                      }
+                    />
+                    <label
+                      htmlFor="edit-parking"
+                      className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                    >
+                      <ParkingCircle className="h-5 w-5" />
+                      <span className="text-sm">{t("admin.events.facilities.parking")}</span>
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                    <Checkbox
+                      id="edit-non-smoking"
+                      checked={editEventData.nonSmoking}
+                      onCheckedChange={(checked) =>
+                        handleEditEventDataChange("nonSmoking", checked as boolean)
+                      }
+                    />
+                    <label
+                      htmlFor="edit-non-smoking"
+                      className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                    >
+                      <Ban className="h-5 w-5" />
+                      <span className="text-sm">{t("admin.events.facilities.nonSmoking")}</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               {/* Commission Rate Configuration */}
               <div className="border-t pt-4">
                 <h4 className="text-sm font-medium mb-3 rtl:text-right">
@@ -4806,7 +5075,7 @@ const EventsManagement: React.FC = () => {
                       </p>
                     </div>
                   ) : (
-                    editEventData.ticketCategories.map((category, index) => (
+                    editEventData.ticketCategories.map((category: any, index) => (
                       <Card key={category.id}>
                         <CardHeader>
                           <div className="flex justify-between items-center">
@@ -4955,7 +5224,7 @@ const EventsManagement: React.FC = () => {
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {homePageSections.map((section) => (
+                    {homePageSections.map((section: any) => (
                       <div
                         key={section.id}
                         className="flex items-center space-x-2 rtl:space-x-reverse"
@@ -5615,6 +5884,19 @@ const EventsManagement: React.FC = () => {
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium rtl:text-right">
+                  {t("admin.events.form.closedDoorsTime")}
+                </label>
+                <Input
+                  type="time"
+                  value={newEvent.closedDoorsTime || ""}
+                  onChange={(e) =>
+                    handleNewEventChange("closedDoorsTime", e.target.value)
+                  }
+                  placeholder={t("admin.events.form.closedDoorsTimePlaceholder")}
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.aboutVenue")}
                 </label>
                 <Textarea
@@ -5840,6 +6122,82 @@ const EventsManagement: React.FC = () => {
               )}
             </div>
 
+            {/* Facility Icons */}
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium mb-3 rtl:text-right">
+                {t("admin.events.facilities.title")}
+              </h4>
+              <p className="text-xs text-muted-foreground mb-4 rtl:text-right">
+                {t("admin.events.facilities.description")}
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                  <Checkbox
+                    id="new-wheelchair-access"
+                    checked={newEvent.wheelchairAccess}
+                    onCheckedChange={(checked) =>
+                      handleNewEventChange("wheelchairAccess", checked as boolean)
+                    }
+                  />
+                  <label
+                    htmlFor="new-wheelchair-access"
+                    className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                  >
+                    <Accessibility className="h-5 w-5" />
+                    <span className="text-sm">{t("admin.events.facilities.wheelchairAccess")}</span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                  <Checkbox
+                    id="new-bathroom"
+                    checked={newEvent.bathroom}
+                    onCheckedChange={(checked) =>
+                      handleNewEventChange("bathroom", checked as boolean)
+                    }
+                  />
+                  <label
+                    htmlFor="new-bathroom"
+                    className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                  >
+                    <ShowerHead className="h-5 w-5" />
+                    <span className="text-sm">{t("admin.events.facilities.bathroom")}</span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                  <Checkbox
+                    id="new-parking"
+                    checked={newEvent.parking}
+                    onCheckedChange={(checked) =>
+                      handleNewEventChange("parking", checked as boolean)
+                    }
+                  />
+                  <label
+                    htmlFor="new-parking"
+                    className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                  >
+                    <ParkingCircle className="h-5 w-5" />
+                    <span className="text-sm">{t("admin.events.facilities.parking")}</span>
+                  </label>
+                </div>
+                <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse p-3 border rounded-lg">
+                  <Checkbox
+                    id="new-non-smoking"
+                    checked={newEvent.nonSmoking}
+                    onCheckedChange={(checked) =>
+                      handleNewEventChange("nonSmoking", checked as boolean)
+                    }
+                  />
+                  <label
+                    htmlFor="new-non-smoking"
+                    className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse cursor-pointer flex-1"
+                  >
+                    <Ban className="h-5 w-5" />
+                    <span className="text-sm">{t("admin.events.facilities.nonSmoking")}</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
             {/* Commission Rate Configuration */}
             <div className="border-t pt-4">
               <h4 className="text-sm font-medium mb-3 rtl:text-right">
@@ -5883,7 +6241,7 @@ const EventsManagement: React.FC = () => {
                       const val = e.target.value;
                       handleNewEventChange("commissionRate", {
                         ...newEvent.commissionRate,
-                        value: val === "" ? "" : parseFloat(val) || 0,
+                        value: val === "" ? 0 : parseFloat(val) || 0,
                       });
                     }}
                     placeholder={
@@ -5951,7 +6309,7 @@ const EventsManagement: React.FC = () => {
                       const val = e.target.value;
                       handleNewEventChange("transferFee", {
                         ...newEvent.transferFee,
-                        value: val === "" ? "" : parseFloat(val) || 0,
+                        value: val === "" ? 0 : parseFloat(val) || 0,
                       });
                     }}
                     placeholder={
@@ -6147,7 +6505,7 @@ const EventsManagement: React.FC = () => {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {homePageSections.map((section) => (
+                  {homePageSections.map((section: any) => (
                     <div
                       key={section.id}
                       className="flex items-center space-x-2 rtl:space-x-reverse"
@@ -6474,6 +6832,93 @@ const EventsManagement: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Manage Deductions Section */}
+          <div className="mt-6 border-t pt-6">
+            <h3 className="text-lg font-semibold mb-4 rtl:text-right">
+              {t("admin.events.manageDeductions", "Manage Deductions")}
+            </h3>
+            <div className="space-y-6">
+              {/* Part 1: Tickets Sold Revenue */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base rtl:text-right">
+                    {t("admin.events.finances.ticketRevenue", "Part 1: Tickets Sold Revenue")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium rtl:text-right">
+                        {t("admin.events.finances.totalTicketRevenue", "Total Ticket Revenue")}:
+                      </span>
+                      <span className="text-lg font-bold text-primary">
+                        0.00 EGP
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground rtl:text-right">
+                      {t("admin.events.finances.ticketRevenueDescription", "Money paid for tickets (excluding black card tickets)")}
+                    </p>
+                  </div>
+                  
+                  {/* Deductions applied to tickets */}
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold rtl:text-right">
+                      {t("admin.events.finances.deductions", "Deductions Applied")}:
+                    </h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between rtl:flex-row-reverse">
+                        <span className="text-muted-foreground">
+                          {t("admin.events.finances.ticketRunnerFee", "Ticket Runner Fee")}:
+                        </span>
+                        <span>0.00 EGP</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Final amount for organizer */}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold rtl:text-right">
+                        {t("admin.events.finances.organizerNetProfit", "Organizer Net Profit")}:
+                      </span>
+                      <span className="text-xl font-bold text-green-600">
+                        0.00 EGP
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                      {t("admin.events.finances.organizerNetProfitDescription", "This amount will be shown to the organizer")}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Part 2: NFC Card Revenue */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base rtl:text-right">
+                    {t("admin.events.finances.cardRevenue", "Part 2: NFC Card Revenue")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium rtl:text-right">
+                        {t("admin.events.finances.totalCardRevenue", "Total Card Revenue")}:
+                      </span>
+                      <span className="text-lg font-bold text-primary">
+                        {t("admin.events.finances.calculatedSeparately", "Calculated separately")}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground rtl:text-right">
+                      {t("admin.events.finances.cardRevenueDescription", "Revenue from first-time NFC card purchases (not shown to organizer)")}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
           <DialogFooter className="rtl:flex-row-reverse">
             <Button
               variant="outline"
@@ -7917,6 +8362,96 @@ const EventsManagement: React.FC = () => {
             >
               <Download className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
               {t("admin.events.tickets.export")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Finances Dialog */}
+      <Dialog open={isViewFinancesDialogOpen} onOpenChange={setIsViewFinancesDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="rtl:text-right">
+            <DialogTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              {t("admin.events.finances.title", "Event Financial Details")}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedEventForFinances?.title && (
+                <span>{selectedEventForFinances.title}</span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedEventForFinances && (
+            <EventFinancesReport event={selectedEventForFinances} />
+          )}
+          
+          <DialogFooter className="rtl:flex-row-reverse">
+            <Button
+              variant="outline"
+              onClick={() => setIsViewFinancesDialogOpen(false)}
+            >
+              {t("admin.events.dialogs.close")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Event Confirmation Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent className="rtl:text-right ltr:text-left">
+          <DialogHeader>
+            <DialogTitle className="rtl:text-right ltr:text-left">
+              {t("admin.events.dialogs.cancelEvent") || "Cancel Event"}
+            </DialogTitle>
+            <DialogDescription className="rtl:text-right ltr:text-left">
+              {t("admin.events.dialogs.cancelEventConfirm") ||
+                "Are you sure you want to cancel this event? The event status will be changed to 'cancelled'."}
+            </DialogDescription>
+          </DialogHeader>
+          {eventToCancel && (
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left">
+                <strong>{t("admin.events.table.title")}:</strong>{" "}
+                {eventToCancel.title}
+              </p>
+              {eventToCancel.organizer && (
+                <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
+                  <strong>{t("admin.events.table.organizer")}:</strong>{" "}
+                  {eventToCancel.organizer}
+                </p>
+              )}
+              {eventToCancel.date && (
+                <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left mt-2">
+                  <strong>{t("admin.events.table.date")}:</strong>{" "}
+                  {eventToCancel.date}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter className="rtl:flex-row-reverse">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsCancelDialogOpen(false);
+                setEventToCancel(null);
+              }}
+            >
+              {t("admin.events.dialogs.cancel") || "Cancel"}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancelEvent}
+              disabled={cancelEventMutation.isPending}
+            >
+              {cancelEventMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 rtl:ml-2 rtl:mr-0" />
+                  {t("common.cancelling") || "Cancelling..."}
+                </>
+              ) : (
+                t("admin.events.actions.cancelEvent") || "Cancel Event"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -507,7 +507,10 @@ const ProfileContent = () => {
             <CardTitle> {t("profilepage.settingsTab.ID")}</CardTitle>
             <div className="flex items-center gap-2">
               <CardTitle> {userInfo.id}</CardTitle>
-              {user?.labels?.includes("Black Card Customer") && (
+              {user?.labels?.some((label: any) => 
+                (typeof label === 'string' && label === 'Black Card Customer') ||
+                (typeof label === 'object' && label?.name === 'Black Card Customer')
+              ) && (
                 <span className="bg-black text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                   <svg
                     className="w-4 h-4"

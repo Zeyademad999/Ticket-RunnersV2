@@ -184,6 +184,7 @@ export class EventsService {
       date: apiData.date || apiData.event_date || "",
       time: apiData.time || apiData.event_time || "",
       gatesOpenTime: apiData.gates_open_time || undefined,
+      closedDoorsTime: apiData.closed_doors_time || undefined,
       location: apiData.location || apiData.venue_address || apiData.event_location || "",
       price: parseFloat(apiData.starting_price) || 0,
       startingPrice: parseFloat(apiData.starting_price) || 300, // Default ticket price (300 if not set)
@@ -194,12 +195,32 @@ export class EventsService {
       description: apiData.description || apiData.about_event_html || "",
       venueInfo: apiData.about_venue || apiData.venue?.about_html || "",
       termsAndConditions: apiData.terms_and_conditions || undefined,
-      facilities:
-        apiData.venue?.facilities?.map((facility: any) => ({
-          name: facility.name || facility,
-          icon: facility.icon || "info",
-          available: true,
-        })) || [],
+      facilities: (() => {
+        // Generate facilities from API fields - always show all facilities
+        const facilities = [
+          {
+            name: "Wheelchair Access",
+            icon: "accessibility",
+            available: apiData.wheelchair_access || false,
+          },
+          {
+            name: "Bathroom",
+            icon: "bathroom",
+            available: apiData.bathroom || false,
+          },
+          {
+            name: "Parking",
+            icon: "parking",
+            available: apiData.parking || false,
+          },
+          {
+            name: "Non-Smoking",
+            icon: "non-smoking",
+            available: apiData.non_smoking || false,
+          },
+        ];
+        return facilities;
+      })(),
       isFeatured: apiData.featured || false,
       // Handle multiple organizers (new format) or single organizer (old format for backward compatibility)
       organizers: (() => {

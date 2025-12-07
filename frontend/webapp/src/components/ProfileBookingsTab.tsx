@@ -323,21 +323,19 @@ export const ProfileBookingsTab: React.FC<any> = (props: any) => {
                           </span>
                         </div>
                         <div className="flex flex-wrap items-center gap-4 text-xs">
-                          {/* Calculate subtotal, VAT, and additional fees */}
+                          {/* Calculate subtotal and additional fees */}
                           {(() => {
                             // Get additional fees from booking (if available)
                             const fees = booking.additional_fees || {};
                             const ticketSubtotal = fees.subtotal || booking.total_amount || 0;
-                            const ticketVat = fees.vat_amount || (ticketSubtotal * 0.14);
                             
-                            // Additional fees (card cost, renewal cost) - these don't have VAT
+                            // Additional fees (card cost, renewal cost)
                             const cardCost = fees.card_cost || 0;
                             const renewalCost = fees.renewal_cost || 0;
                             
                             // Calculate totals
                             const subtotal = ticketSubtotal + cardCost + renewalCost;
-                            const totalVat = ticketVat; // Only tickets have VAT, additional fees don't
-                            const grandTotal = subtotal + totalVat;
+                            const grandTotal = subtotal;
                             
                             return (
                               <>
@@ -369,14 +367,6 @@ export const ProfileBookingsTab: React.FC<any> = (props: any) => {
                                     </span>
                                   </div>
                                 )}
-                                <div>
-                                  <span className="text-muted-foreground">
-                                    {t("booking.vat", "VAT (14%)")}:{" "}
-                                  </span>
-                                  <span className="font-medium">
-                                    {totalVat.toFixed(2)} EGP
-                                  </span>
-                                </div>
                                 <div>
                                   <span className="text-muted-foreground font-semibold">
                                     {t("profilepage.myBookings.total", "Total")}:{" "}

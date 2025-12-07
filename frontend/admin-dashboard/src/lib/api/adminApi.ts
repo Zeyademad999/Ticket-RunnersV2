@@ -259,6 +259,14 @@ export const eventsApi = {
   },
 
   /**
+   * Cancel event
+   */
+  cancelEvent: async (id: string) => {
+    const response = await adminApi.post(`/events/${id}/cancel/`);
+    return response.data;
+  },
+
+  /**
    * Get event statistics
    */
   getEventStatistics: async (id: string) => {
@@ -885,6 +893,49 @@ export const organizerEditRequestsApi = {
   },
 };
 
+// Event Edit Requests API (for organizers)
+export const eventEditRequestsApi = {
+  /**
+   * Get event edit requests
+   */
+  getEditRequests: async (params?: {
+    status?: string;
+    page?: number;
+    page_size?: number;
+  }) => {
+    const response = await adminApi.get('/organizer/admin/event-edit-requests/', { params });
+    return response.data;
+  },
+
+  /**
+   * Get edit request by ID
+   */
+  getEditRequest: async (id: string) => {
+    const response = await adminApi.get(`/organizer/admin/event-edit-requests/${id}/`);
+    return response.data;
+  },
+
+  /**
+   * Approve edit request
+   */
+  approveEditRequest: async (id: string, adminNotes?: string) => {
+    const response = await adminApi.post(`/organizer/admin/event-edit-requests/${id}/approve/`, {
+      admin_notes: adminNotes || '',
+    });
+    return response.data;
+  },
+
+  /**
+   * Reject edit request
+   */
+  rejectEditRequest: async (id: string, rejectionReason?: string) => {
+    const response = await adminApi.post(`/organizer/admin/event-edit-requests/${id}/reject/`, {
+      rejection_reason: rejectionReason || '',
+    });
+    return response.data;
+  },
+};
+
 // Venues API
 export const venuesApi = {
   /**
@@ -1121,6 +1172,98 @@ export const financesApi = {
    */
   getPaymentStats: async () => {
     const response = await adminApi.get('/payments/stats/');
+    return response.data;
+  },
+
+  /**
+   * Mark payment as refunded
+   */
+  markPaymentAsRefunded: async (paymentId: string) => {
+    const response = await adminApi.post(`/payments/${paymentId}/mark-refunded/`);
+    return response.data;
+  },
+
+  /**
+   * Get all deductions
+   */
+  getDeductions: async (params?: {
+    is_active?: boolean;
+    type?: string;
+  }) => {
+    const response = await adminApi.get('/finances/deductions/', { params });
+    return response.data;
+  },
+
+  /**
+   * Get deduction by ID
+   */
+  getDeduction: async (id: string) => {
+    const response = await adminApi.get(`/finances/deductions/${id}/`);
+    return response.data;
+  },
+
+  /**
+   * Create deduction
+   */
+  createDeduction: async (data: {
+    name: string;
+    value: number;
+    type: 'percentage' | 'fixed_per_ticket';
+    description?: string;
+    is_active?: boolean;
+  }) => {
+    const response = await adminApi.post('/finances/deductions/', data);
+    return response.data;
+  },
+
+  /**
+   * Update deduction
+   */
+  updateDeduction: async (id: string, data: Partial<{
+    name: string;
+    value: number;
+    type: 'percentage' | 'fixed_per_ticket';
+    description?: string;
+    is_active?: boolean;
+  }>) => {
+    const response = await adminApi.patch(`/finances/deductions/${id}/`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete deduction
+   */
+  deleteDeduction: async (id: string) => {
+    const response = await adminApi.delete(`/finances/deductions/${id}/`);
+    return response.data;
+  },
+
+  /**
+   * Get Ticket Runner profit
+   */
+  getTicketRunnerProfit: async () => {
+    const response = await adminApi.get('/finances/ticket-runner-profit/');
+    return response.data;
+  },
+
+  /**
+   * Get Organizer profit
+   */
+  getOrganizerProfit: async (organizerId?: string) => {
+    const url = organizerId 
+      ? `/finances/organizer-profit/${organizerId}/`
+      : '/finances/organizer-profit/';
+    const response = await adminApi.get(url);
+    return response.data;
+  },
+
+  /**
+   * Get event financial details (for a specific event)
+   */
+  getEventFinancials: async (eventId: string) => {
+    // This will calculate finances for a specific event
+    // We'll need to create this endpoint or use existing event statistics
+    const response = await adminApi.get(`/events/${eventId}/statistics/`);
     return response.data;
   },
 };

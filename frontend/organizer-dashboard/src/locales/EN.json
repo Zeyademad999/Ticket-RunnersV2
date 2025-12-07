@@ -649,6 +649,7 @@
     "stats": {
       "totalEvents": "Total Events",
       "runningEvents": "Running Events",
+      "liveEvents": "Live Events",
       "completedEvents": "Completed Events",
       "availableTickets": "Available Tickets",
       "totalTicketsSold": "Sold Tickets",

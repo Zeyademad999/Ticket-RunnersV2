@@ -607,13 +607,9 @@ export default function TicketDetails() {
                 <span>{t("ticketDetails.summary.subtotal")}</span>
                 <span>{Number(totalAmount).toFixed(2)} EGP</span>
               </div>
-              <div className="flex justify-between">
-                <span>{t("ticketDetails.summary.vat")}</span>
-                <span>{(Number(totalAmount) * 0.14).toFixed(2)} EGP</span>
-              </div>
               <div className="flex justify-between font-semibold text-foreground">
                 <span>{t("ticketDetails.summary.total")}</span>
-                <span>{(Number(totalAmount) * 1.14).toFixed(2)} EGP</span>
+                <span>{Number(totalAmount).toFixed(2)} EGP</span>
               </div>
             </CardContent>
           </Card>

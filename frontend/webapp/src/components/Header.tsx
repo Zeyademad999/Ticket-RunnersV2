@@ -15,6 +15,7 @@ import {
   Clock,
   MapPin,
   CreditCard,
+  Ticket,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Home } from "lucide-react";
@@ -423,6 +424,25 @@ export function Header() {
             )}
           </div>
 
+          {/* Marketplace Link - Desktop */}
+          <div className="hidden md:flex items-center mx-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2 h-auto py-1.5 px-3 hover:bg-muted/50"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate("/marketplace");
+              }}
+            >
+              <Ticket className="h-4 w-4 flex-shrink-0" />
+              <span className="font-semibold text-sm">
+                {t("marketplace.title", "Marketplace")}
+              </span>
+            </Button>
+          </div>
+
           {/* How to Get NFC Card - Desktop */}
           <div className="hidden md:flex items-center mx-2">
             <Button
@@ -633,6 +653,21 @@ export function Header() {
                 >
                   <Home className="h-5 w-5 pt-0.5" />
                   <span>{t("home")}</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  className="flex-1 flex flex-col items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors [&:hover]:transform-none [&:hover]:translate-y-0"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    navigate("/marketplace");
+                    setIsMenuOpen(false);
+                  }}
+                >
+                  <Ticket className="h-5 w-5 pt-0.5" />
+                  <span>{t("marketplace.title", "Marketplace")}</span>
                 </Button>
                 <Button
                   variant="ghost"

@@ -39,6 +39,7 @@ import {
   Building2,
   Wallet,
   Layout,
+  Edit,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, parseISO, subDays, startOfMonth, endOfMonth } from "date-fns";
@@ -96,6 +97,7 @@ import PaymentsManagement from "@/components/admin/PaymentsManagement";
 import MerchantManagement from "@/components/admin/MerchantManagement";
 import MerchantLocationsManagement from "@/components/admin/MerchantLocationsManagement";
 import OrganizerRequestsManagement from "@/components/admin/OrganizerRequestsManagement";
+import EventEditRequestsManagement from "@/components/admin/EventEditRequestsManagement";
 
 // Import Owner's Finances components
 import CompanyFinances from "@/components/admin/CompanyFinances";
@@ -282,6 +284,11 @@ const EnhancedTabsList: React.FC<EnhancedTabsListProps & { hasPermission?: (perm
           value: "organizer-requests",
           label: t("admin.dashboard.tabs.organizerRequests") || "Organizer Requests",
           icon: FileText,
+        },
+        {
+          value: "event-edit-requests",
+          label: t("admin.dashboard.tabs.eventEditRequests") || "Event Edit Requests",
+          icon: Edit,
         },
         {
           value: "ushers",
@@ -472,6 +479,7 @@ const EnhancedTabsList: React.FC<EnhancedTabsListProps & { hasPermission?: (perm
                         "customers": "customers_view",
                         "organizers": "organizers_view",
                         "organizer-requests": "organizers_view",
+                        "event-edit-requests": "events_view",
                         "ushers": "ushers_view",
                         "admins": "admins_view",
                         "merchants": "merchants_view",
@@ -560,6 +568,7 @@ const AdminDashboard: React.FC = () => {
       "customers": "customers_view",
       "organizers": "organizers_view",
       "organizer-requests": "organizers_view",
+      "event-edit-requests": "events_view",
       "ushers": "ushers_view",
       "admins": "admins_view",
       "merchants": "merchants_view",
@@ -1668,6 +1677,14 @@ const AdminDashboard: React.FC = () => {
             className="space-y-6 transition-all duration-300 ease-in-out"
           >
             <OrganizerRequestsManagement />
+          </TabsContent>
+
+          {/* Event Edit Requests Tab */}
+          <TabsContent
+            value="event-edit-requests"
+            className="space-y-6 transition-all duration-300 ease-in-out"
+          >
+            <EventEditRequestsManagement />
           </TabsContent>
 
           {/* Usher Management Tab */}

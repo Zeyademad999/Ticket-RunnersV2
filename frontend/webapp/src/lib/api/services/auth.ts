@@ -612,7 +612,7 @@ export class AuthService {
       // Continue with logout even if API call fails
       console.warn("Logout API call failed:", error);
       // Return a default response to maintain consistency
-      return { message: "Logged out locally" };
+      return { message: "Logged out successfully" };
     } finally {
       // Clear secure storage regardless of API call result
       clearSecureAuth();

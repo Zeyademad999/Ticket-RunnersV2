@@ -21,6 +21,7 @@ import {
   ShowerHead,
   Music,
   Sun,
+  Ban,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -63,7 +64,11 @@ const EventDetail: React.FC = () => {
   const { t } = useTranslation();
   const { isVip, user } = useAuth();
   // Check if user is a Black Card Customer
-  const isBlackCardCustomer = user?.labels?.includes("Black Card Customer") || false;
+  // Check if user is a Black Card Customer - handle both string and object formats
+  const isBlackCardCustomer = user?.labels?.some((label: any) => 
+    (typeof label === 'string' && label === 'Black Card Customer') ||
+    (typeof label === 'object' && label?.name === 'Black Card Customer')
+  ) || false;
   const [showTerms, setShowTerms] = useState(true);
   const locale = i18n.language === "ar" ? "ar-EG" : i18n.language || "en-US";
   const [showLayout, setShowLayout] = useState(false);
@@ -212,6 +217,8 @@ const EventDetail: React.FC = () => {
   const facilityIcons: Record<string, JSX.Element> = {
     parking: <ParkingCircle className="w-5 h-5 text-primary" />,
     accessibility: <Accessibility className="w-5 h-5 text-primary" />,
+    bathroom: <ShowerHead className="w-5 h-5 text-primary" />,
+    "non-smoking": <Ban className="w-5 h-5 text-primary" />,
     wifi: <Wifi className="w-5 h-5 text-primary" />,
     baby: <Baby className="w-5 h-5 text-primary" />,
     greenArea: <Leaf className="w-5 h-5 text-primary" />,
@@ -424,6 +431,9 @@ const EventDetail: React.FC = () => {
   const formattedTime = formatTime(event.time);
   const formattedGatesOpenTime = event.gatesOpenTime
     ? formatTime(event.gatesOpenTime)
+    : undefined;
+  const formattedClosedDoorsTime = event.closedDoorsTime
+    ? formatTime(event.closedDoorsTime)
     : undefined;
 
   return (
@@ -644,6 +654,14 @@ const EventDetail: React.FC = () => {
                     </span>
                   </div>
                 )}
+                {formattedClosedDoorsTime && (
+                  <div className="flex items-center text-muted-foreground">
+                    <Clock className="h-5 w-5 mx-3" />
+                    <span className="text-sm text-muted-foreground">
+                      {t("eventDetail.gateClose")} {formattedClosedDoorsTime}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Description */}
@@ -731,11 +749,20 @@ const EventDetail: React.FC = () => {
                     {event.facilities.map((facility) => (
                       <div
                         key={facility.name}
-                        className="flex items-center gap-2"
+                        className={`flex items-center gap-2 relative ${
+                          !facility.available ? "opacity-60" : ""
+                        }`}
                       >
-                        {facilityIcons[facility.icon] || null}
+                        <div className="relative">
+                          {facilityIcons[facility.icon] || null}
+                          {!facility.available && (
+                            <div className="absolute inset-0 flex items-center justify-center">
+                              <div className="w-6 h-0.5 bg-red-500 transform rotate-45"></div>
+                            </div>
+                          )}
+                        </div>
                         <span className="text-sm text-muted-foreground">
-                          {t(`eventDetail.facilities.${facility.name}`)}
+                          {t(`eventDetail.facilities.${facility.name}`, facility.name)}
                         </span>
                       </div>
                     ))}

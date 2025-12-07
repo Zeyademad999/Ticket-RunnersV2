@@ -1,4 +1,21 @@
 import React, { useState, useMemo, useEffect } from "react";
+
+// Custom hook for debounced search
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
 import {
   Card,
   CardContent,
@@ -126,7 +143,7 @@ import { useTranslation } from "react-i18next";
 import { format, parseISO } from "date-fns";
 import { ar } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
-import { formatNumberForLocale, formatPhoneNumberForLocale } from "@/lib/utils";
+import { formatNumberForLocale, formatPhoneNumberForLocale, formatCurrencyForLocale } from "@/lib/utils";
 import { ExportDialog } from "@/components/ui/export-dialog";
 import { commonColumns } from "@/lib/exportUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -209,11 +226,14 @@ const OrganizersManagement: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // 500ms delay
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [locationFilter, setLocationFilter] = useState<string>("all");
+  const [verifiedFilter, setVerifiedFilter] = useState<string>("all");
   const [selectedOrganizer, setSelectedOrganizer] = useState<Organizer | null>(
     null
   );
+  const [eventsDialogOrganizerFilter, setEventsDialogOrganizerFilter] = useState<string>("");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showOrganizerDetails, setShowOrganizerDetails] = useState(false);
@@ -271,9 +291,10 @@ const OrganizersManagement: React.FC = () => {
   } = useQuery({
     queryKey: [
       "organizers",
-      searchTerm,
+      debouncedSearchTerm,
       statusFilter,
-      categoryFilter,
+      locationFilter,
+      verifiedFilter,
       currentPage,
       itemsPerPage,
     ],
@@ -282,12 +303,14 @@ const OrganizersManagement: React.FC = () => {
         page: currentPage,
         page_size: itemsPerPage,
       };
-      if (searchTerm) params.search = searchTerm;
+      if (debouncedSearchTerm) params.search = debouncedSearchTerm;
       if (statusFilter !== "all") params.status = statusFilter;
-      if (categoryFilter !== "all") params.category = categoryFilter;
+      if (locationFilter !== "all") params.location = locationFilter;
+      if (verifiedFilter !== "all") params.verified = verifiedFilter === "verified";
 
       return await usersApi.getOrganizers(params);
     },
+    keepPreviousData: true, // Keep previous data while loading new data
   });
 
   // State to track if export dialog is open
@@ -302,18 +325,20 @@ const OrganizersManagement: React.FC = () => {
       "organizers",
       "all",
       "export",
-      searchTerm,
+      debouncedSearchTerm,
       statusFilter,
-      categoryFilter,
+      locationFilter,
+      verifiedFilter,
     ],
     queryFn: async () => {
       const params: any = {
         page: 1,
         page_size: 10000, // Large number to get all organizers
       };
-      if (searchTerm) params.search = searchTerm;
+      if (debouncedSearchTerm) params.search = debouncedSearchTerm;
       if (statusFilter !== "all") params.status = statusFilter;
-      if (categoryFilter !== "all") params.category = categoryFilter;
+      if (locationFilter !== "all") params.location = locationFilter;
+      if (verifiedFilter !== "all") params.verified = verifiedFilter === "verified";
 
       return await usersApi.getOrganizers(params);
     },
@@ -602,21 +627,22 @@ const OrganizersManagement: React.FC = () => {
   ];
 
 
-  // Fetch organizer events when an organizer is selected
+  // Fetch organizer events when an organizer is selected or filter is set
   const {
     data: organizerEventsData,
     isLoading: organizerEventsLoading,
     error: organizerEventsError,
   } = useQuery({
-    queryKey: ["organizerEvents", selectedOrganizer?.id],
+    queryKey: ["organizerEvents", eventsDialogOrganizerFilter || selectedOrganizer?.id],
     queryFn: async () => {
-      if (!selectedOrganizer?.id) return { results: [] };
+      const organizerId = eventsDialogOrganizerFilter || selectedOrganizer?.id;
+      if (!organizerId) return { results: [] };
       return await eventsApi.getEvents({
-        organizer: selectedOrganizer.id,
+        organizer: organizerId,
         page_size: 1000,
       });
     },
-    enabled: !!selectedOrganizer?.id && isEventsDialogOpen,
+    enabled: (!!eventsDialogOrganizerFilter || !!selectedOrganizer?.id) && isEventsDialogOpen,
   });
 
   // Transform API events to match OrganizerEvent interface
@@ -642,19 +668,30 @@ const OrganizersManagement: React.FC = () => {
   // API handles filtering, so we use organizers directly
   // Client-side filtering only for fields not supported by API
   const filteredOrganizers = useMemo(() => {
-    // API handles search, status, and category filtering
+    // API handles search, status, category, and location filtering
     // Only apply client-side filtering if needed for additional fields
     return organizers;
+  }, [organizers]);
+
+  // Get unique locations from organizers for filter dropdown
+  const uniqueLocations = useMemo(() => {
+    const locations = new Set<string>();
+    organizers.forEach((organizer) => {
+      if (organizer.location && organizer.location.trim() !== "") {
+        locations.add(organizer.location);
+      }
+    });
+    return Array.from(locations).sort();
   }, [organizers]);
 
   // Pagination - use API pagination
   const totalPages = organizersData?.total_pages || 1;
   const paginatedOrganizers = filteredOrganizers; // API already paginates
 
-  // Reset to first page when filters change
+  // Reset to first page when filters change (using debounced search)
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, statusFilter, categoryFilter]);
+  }, [debouncedSearchTerm, statusFilter, locationFilter, verifiedFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1007,6 +1044,7 @@ const OrganizersManagement: React.FC = () => {
     const organizer = organizers.find((o) => o.id === organizerId);
     if (organizer) {
       setSelectedOrganizer(organizer);
+      setEventsDialogOrganizerFilter(organizer.id);
       setIsEventsDialogOpen(true);
     }
   };
@@ -1230,9 +1268,10 @@ const OrganizersManagement: React.FC = () => {
             subtitle={t("admin.organizers.subtitle")}
             filename="organizers"
             filters={{
-              search: searchTerm,
+              search: debouncedSearchTerm,
               status: statusFilter,
-              category: categoryFilter,
+              location: locationFilter,
+              verified: verifiedFilter,
             }}
             onExport={async (format) => {
               // Ensure we have all organizers data before exporting
@@ -1242,18 +1281,20 @@ const OrganizersManagement: React.FC = () => {
                     "organizers",
                     "all",
                     "export",
-                    searchTerm,
+                    debouncedSearchTerm,
                     statusFilter,
-                    categoryFilter,
+                    locationFilter,
+                    verifiedFilter,
                   ],
                   queryFn: async () => {
                     const params: any = {
                       page: 1,
                       page_size: 10000,
                     };
-                    if (searchTerm) params.search = searchTerm;
+                    if (debouncedSearchTerm) params.search = debouncedSearchTerm;
                     if (statusFilter !== "all") params.status = statusFilter;
-                    if (categoryFilter !== "all") params.category = categoryFilter;
+                    if (locationFilter !== "all") params.location = locationFilter;
+                    if (verifiedFilter !== "all") params.verified = verifiedFilter === "verified";
                     return await usersApi.getOrganizers(params);
                   },
                 });
@@ -1275,18 +1316,20 @@ const OrganizersManagement: React.FC = () => {
                     "organizers",
                     "all",
                     "export",
-                    searchTerm,
+                    debouncedSearchTerm,
                     statusFilter,
-                    categoryFilter,
+                    locationFilter,
+                    verifiedFilter,
                   ],
                   queryFn: async () => {
                     const params: any = {
                       page: 1,
                       page_size: 10000,
                     };
-                    if (searchTerm) params.search = searchTerm;
+                    if (debouncedSearchTerm) params.search = debouncedSearchTerm;
                     if (statusFilter !== "all") params.status = statusFilter;
-                    if (categoryFilter !== "all") params.category = categoryFilter;
+                    if (locationFilter !== "all") params.location = locationFilter;
+                    if (verifiedFilter !== "all") params.verified = verifiedFilter === "verified";
                     return await usersApi.getOrganizers(params);
                   },
                 });
@@ -1321,7 +1364,7 @@ const OrganizersManagement: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground rtl:right-3 rtl:left-auto" />
               <Input
@@ -1357,39 +1400,39 @@ const OrganizersManagement: React.FC = () => {
               </SelectContent>
             </Select>
 
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
               <SelectTrigger>
                 <SelectValue
-                  placeholder={t("admin.organizers.filters.category")}
+                  placeholder={t("admin.organizers.filters.location")}
                 />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  {t("admin.organizers.filters.allCategories")}
+                  {t("admin.organizers.filters.allLocations")}
                 </SelectItem>
-                <SelectItem value="music">
-                  {t("admin.organizers.categories.music")}
+                {uniqueLocations.map((location) => (
+                  <SelectItem key={location} value={location || "unknown"}>
+                    {location}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={verifiedFilter} onValueChange={setVerifiedFilter}>
+              <SelectTrigger>
+                <SelectValue
+                  placeholder={t("admin.organizers.filters.verified") || "Verification Status"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {t("admin.organizers.filters.allVerification") || "All Verification Status"}
                 </SelectItem>
-                <SelectItem value="sports">
-                  {t("admin.organizers.categories.sports")}
+                <SelectItem value="verified">
+                  {t("admin.organizers.filters.verified") || "Verified"}
                 </SelectItem>
-                <SelectItem value="technology">
-                  {t("admin.organizers.categories.technology")}
-                </SelectItem>
-                <SelectItem value="art">
-                  {t("admin.organizers.categories.art")}
-                </SelectItem>
-                <SelectItem value="food">
-                  {t("admin.organizers.categories.food")}
-                </SelectItem>
-                <SelectItem value="education">
-                  {t("admin.organizers.categories.education")}
-                </SelectItem>
-                <SelectItem value="business">
-                  {t("admin.organizers.categories.business")}
-                </SelectItem>
-                <SelectItem value="other">
-                  {t("admin.organizers.categories.other")}
+                <SelectItem value="unverified">
+                  {t("admin.organizers.filters.unverified") || "Unverified"}
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -1461,6 +1504,9 @@ const OrganizersManagement: React.FC = () => {
                     {t("admin.organizers.table.events")}
                   </TableHead>
                   <TableHead className="rtl:text-right ltr:text-left">
+                    {t("admin.organizers.table.revenue") || "Revenue"}
+                  </TableHead>
+                  <TableHead className="rtl:text-right ltr:text-left">
                     {t("admin.organizers.table.rating")}
                   </TableHead>
                   <TableHead className="rtl:text-right ltr:text-left">
@@ -1471,7 +1517,7 @@ const OrganizersManagement: React.FC = () => {
               <TableBody>
                 {organizersLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12">
+                    <TableCell colSpan={8} className="text-center py-12">
                       <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
                       <span className="ml-2 text-muted-foreground">
                         {t("common.loading")}
@@ -1481,7 +1527,7 @@ const OrganizersManagement: React.FC = () => {
                 ) : organizersError ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-12 text-red-500"
                     >
                       <AlertCircle className="h-8 w-8 mx-auto mb-2" />
@@ -1491,7 +1537,7 @@ const OrganizersManagement: React.FC = () => {
                 ) : paginatedOrganizers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={7}
+                      colSpan={8}
                       className="text-center py-12 text-muted-foreground"
                     >
                       {t("admin.organizers.noOrganizers")}
@@ -1544,6 +1590,14 @@ const OrganizersManagement: React.FC = () => {
                         <p className="text-sm rtl:text-right ltr:text-left">
                           {formatNumberForLocale(
                             organizer.totalEvents,
+                            i18n.language
+                          )}
+                        </p>
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm font-medium text-green-600 rtl:text-right ltr:text-left">
+                          {formatCurrencyForLocale(
+                            organizer.totalRevenue,
                             i18n.language
                           )}
                         </p>
@@ -2313,8 +2367,113 @@ const OrganizersManagement: React.FC = () => {
               {t("admin.organizers.events.subtitle")}
             </DialogDescription>
           </DialogHeader>
-          {selectedOrganizer && (
-            <div className="space-y-4">
+          <div className="space-y-4">
+            {/* Organizer Filter */}
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium rtl:text-right ltr:text-left whitespace-nowrap">
+                {t("admin.organizers.events.filterByOrganizer") || "Filter by Organizer:"}
+              </label>
+              <Select 
+                value={eventsDialogOrganizerFilter || selectedOrganizer?.id || "all"} 
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    setEventsDialogOrganizerFilter("");
+                  } else {
+                    setEventsDialogOrganizerFilter(value);
+                    // Update selected organizer if needed
+                    const org = organizers.find(o => o.id === value);
+                    if (org) {
+                      setSelectedOrganizer(org);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="w-full max-w-md">
+                  <SelectValue placeholder={t("admin.organizers.events.selectOrganizer") || "Select an organizer"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    {t("admin.organizers.events.allOrganizers") || "All Organizers"}
+                  </SelectItem>
+                  {organizers.map((organizer) => (
+                    <SelectItem key={organizer.id} value={organizer.id}>
+                      {organizer.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {(selectedOrganizer || eventsDialogOrganizerFilter) && (
+              <>
+              {/* Revenue Summary Card */}
+              {selectedOrganizer && (
+                <div className="mb-4 p-3 bg-muted rounded-lg">
+                  <p className="text-sm font-medium rtl:text-right ltr:text-left">
+                    {t("admin.organizers.events.viewingEventsFor") || "Viewing events for:"} <span className="font-bold">{selectedOrganizer.name}</span>
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+                      {t("admin.organizers.events.totalRevenue") || "Total Revenue"}
+                    </CardTitle>
+                    <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
+                  </CardHeader>
+                  <CardContent className="rtl:text-right">
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrencyForLocale(
+                        organizerEvents.reduce((sum, event) => sum + event.revenue, 0),
+                        i18n.language
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedOrganizer 
+                        ? `${t("admin.organizers.events.fromAllEvents") || "From all events"} - ${selectedOrganizer.name}`
+                        : t("admin.organizers.events.fromAllEvents") || "From all events"}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+                      {t("admin.organizers.events.totalEvents") || "Total Events"}
+                    </CardTitle>
+                    <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                  </CardHeader>
+                  <CardContent className="rtl:text-right">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {formatNumberForLocale(organizerEvents.length, i18n.language)}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.organizers.events.eventsCount") || "Events organized"}
+                    </p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+                      {t("admin.organizers.events.avgRevenue") || "Average Revenue"}
+                    </CardTitle>
+                    <TrendingUp className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                  </CardHeader>
+                  <CardContent className="rtl:text-right">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {formatCurrencyForLocale(
+                        organizerEvents.length > 0
+                          ? organizerEvents.reduce((sum, event) => sum + event.revenue, 0) / organizerEvents.length
+                          : 0,
+                        i18n.language
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.organizers.events.perEvent") || "Per event"}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
               <div className="flex justify-end rtl:text-right ltr:text-left">
                 <Button onClick={() => setIsAddEventDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
@@ -2413,8 +2572,9 @@ const OrganizersManagement: React.FC = () => {
                           )}
                         </TableCell>
                         <TableCell className="rtl:text-right ltr:text-left">
-                          {formatNumberForLocale(event.revenue, i18n.language)}{" "}
-                          EGP
+                          <span className="font-medium text-green-600">
+                            {formatCurrencyForLocale(event.revenue, i18n.language)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           {event.rating ? (
@@ -2485,12 +2645,21 @@ const OrganizersManagement: React.FC = () => {
                   </TableBody>
                 </Table>
               </div>
-            </div>
-          )}
+              </>
+            )}
+            {!selectedOrganizer && !eventsDialogOrganizerFilter && (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>{t("admin.organizers.events.selectOrganizerToView") || "Please select an organizer to view their events"}</p>
+              </div>
+            )}
+          </div>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsEventsDialogOpen(false)}
+              onClick={() => {
+                setIsEventsDialogOpen(false);
+                setEventsDialogOrganizerFilter("");
+              }}
             >
               {t("admin.organizers.events.close")}
             </Button>

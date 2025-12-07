@@ -15,6 +15,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { ServerStatusBanner } from "./components/ServerStatusBanner";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { GlobalErrorHandler } from "./components/GlobalErrorHandler";
+import { BannedUserModal } from "./components/BannedUserModal";
 
 // Main App Pages
 import Index from "./pages/Index";
@@ -43,6 +44,7 @@ import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RefundPolicy from "./pages/refundPolicy";
 import SignupPage from "./pages/SignupPage";
+import MarketplacePage from "./pages/MarketplacePage";
 
 // Note: Admin and Organizer dashboards are separate projects
 
@@ -94,6 +96,7 @@ export default function App() {
               <div className="min-h-screen flex flex-col">
                 <ScrollToTop />
                 <GlobalErrorHandler />
+                <BannedUserModal />
                 <ServerStatusBanner
                   show={showServerBanner}
                   onDismiss={() => setShowServerBanner(false)}
@@ -154,6 +157,7 @@ export default function App() {
                       <Route path="/terms" element={<TermsAndConditions />} />
                       <Route path="/privacy" element={<PrivacyPolicy />} />
                       <Route path="/refund-policy" element={<RefundPolicy />} />
+                      <Route path="/marketplace" element={<MarketplacePage />} />
 
                       {/* Note: Admin and Organizer routes are in separate projects */}
 
