@@ -226,6 +226,21 @@ export interface EventAnalytics {
       unknown: number;
     };
   };
+  financial_breakdown?: {
+    ticket_revenue: number;
+    tickets_sold: number;
+    deductions: Array<{
+      name: string;
+      type: string;
+      value: number | null;
+      amount: number;
+      description?: string;
+    }>;
+    total_deductions: number;
+    commission?: number;  // Ticket Runner commission fee
+    ticket_runner_fee?: number;  // Legacy field, kept for compatibility
+    organizer_net_profit: number;
+  };
 }
 
 export interface Payout {

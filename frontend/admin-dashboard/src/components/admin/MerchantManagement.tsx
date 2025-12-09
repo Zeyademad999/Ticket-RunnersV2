@@ -1,4 +1,22 @@
 import React, { useState, useMemo, useEffect } from "react";
+
+// Custom hook for debounced search
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 import {
   Card,
   CardContent,
@@ -137,22 +155,30 @@ const MerchantAccountsManagement: React.FC = () => {
 
   const queryClient = useQueryClient();
 
-  // Fetch merchants from API
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, statusFilter, locationFilter, verificationFilter]);
+
+  // Fetch ALL merchants from API (we'll filter client-side since backend filtering is unreliable)
   const { data: merchantsData, isLoading: merchantsLoading, error: merchantsError } = useQuery({
-    queryKey: ['merchants', searchTerm, statusFilter, locationFilter, verificationFilter, currentPage, itemsPerPage],
+    queryKey: ['merchants', 'all'], // Fetch all merchants for client-side filtering
     queryFn: async () => {
       const params: any = {
-        page: currentPage,
-        page_size: itemsPerPage,
+        page: 1,
+        page_size: 10000, // Get all merchants
       };
-      
-      if (searchTerm) params.search = searchTerm;
-      if (statusFilter !== 'all') params.status = statusFilter;
-      if (verificationFilter !== 'all') params.verification_status = verificationFilter;
       
       const response = await merchantsApi.getMerchants(params);
       return response;
     },
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Transform API merchants to match MerchantAccount interface
@@ -348,29 +374,52 @@ const MerchantAccountsManagement: React.FC = () => {
     return { valid: true, range };
   };
 
-  // Filter merchants based on search and filters (client-side for location)
+  // Apply client-side filtering as fallback (backend may not filter correctly)
   const filteredMerchants = useMemo(() => {
-    let filtered = merchants;
+    let filtered = [...merchants];
     
-    // Client-side filter for location (backend handles search, status, and verification)
+    // Filter by status (client-side fallback)
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((merchant) => merchant.status === statusFilter);
+    }
+    
+    // Filter by location (client-side fallback)
     if (locationFilter !== "all") {
-      filtered = filtered.filter((merchant) => merchant.location.includes(locationFilter));
+      filtered = filtered.filter((merchant) => merchant.location === locationFilter);
+    }
+    
+    // Filter by verification status (client-side fallback)
+    if (verificationFilter !== "all") {
+      filtered = filtered.filter((merchant) => merchant.verificationStatus === verificationFilter);
+    }
+    
+    // Filter by search term (client-side fallback)
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter((merchant) => 
+        merchant.businessName.toLowerCase().includes(searchLower) ||
+        merchant.ownerName.toLowerCase().includes(searchLower) ||
+        merchant.email.toLowerCase().includes(searchLower) ||
+        merchant.phone.includes(searchLower) ||
+        (merchant.location && merchant.location.toLowerCase().includes(searchLower))
+      );
     }
     
     return filtered;
-  }, [merchants, locationFilter]);
+  }, [merchants, statusFilter, locationFilter, verificationFilter, debouncedSearchTerm]);
 
   // Get unique locations for filter
   const uniqueLocations = useMemo(() => {
     const locations = merchants.map((merchant) => merchant.location).filter(Boolean);
-    return [...new Set(locations)] as string[];
+    return [...new Set(locations)].sort() as string[];
   }, [merchants]);
 
-  // Pagination from API response
-  const totalPages = merchantsData?.total_pages || 1;
-  const startIndex = merchantsData?.page ? (merchantsData.page - 1) * merchantsData.page_size : 0;
-  const endIndex = startIndex + (merchantsData?.page_size || itemsPerPage);
-  const paginatedMerchants = filteredMerchants;
+  // Pagination - client-side pagination on filtered results
+  const totalFilteredCount = filteredMerchants.length;
+  const totalPages = Math.ceil(totalFilteredCount / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedMerchants = filteredMerchants.slice(startIndex, endIndex);
 
   // Mutations
   const createMerchantMutation = useMutation({
@@ -959,7 +1008,7 @@ const MerchantAccountsManagement: React.FC = () => {
                   {t("admin.merchants.stats.totalMerchants")}
                 </p>
                 <p className="text-2xl font-bold">
-                  {formatNumber(merchantsData?.count || merchants.length)}
+                  {formatNumber(totalFilteredCount)}
                 </p>
               </div>
               <Building2 className="h-8 w-8 text-blue-600" />
@@ -1116,13 +1165,13 @@ const MerchantAccountsManagement: React.FC = () => {
         <CardHeader>
           <CardTitle className="rtl:text-right ltr:text-left">
             {t("admin.merchants.table.merchant")} (
-            {formatNumber(merchantsData?.count || filteredMerchants.length)})
+            {formatNumber(totalFilteredCount)})
           </CardTitle>
           <div className="flex items-center gap-2 rtl:flex-row-reverse">
             <span className="text-sm text-muted-foreground">
-              {t("admin.merchants.pagination.showing")} {startIndex + 1}-
-              {Math.min(endIndex, merchantsData?.count || filteredMerchants.length)}{" "}
-              {t("admin.merchants.pagination.of")} {merchantsData?.count || filteredMerchants.length}
+              {t("admin.merchants.pagination.showing")} {totalFilteredCount > 0 ? startIndex + 1 : 0}-
+              {Math.min(endIndex, totalFilteredCount)}{" "}
+              {t("admin.merchants.pagination.of")} {totalFilteredCount}
             </span>
             <Select
               value={itemsPerPage.toString()}
@@ -1157,6 +1206,11 @@ const MerchantAccountsManagement: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-12">
               <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">{t("admin.merchants.noMerchantsFound") || "No merchants found"}</p>
+              {(debouncedSearchTerm || statusFilter !== "all" || locationFilter !== "all" || verificationFilter !== "all") && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {t("admin.merchants.noMerchantsFiltered") || "Try adjusting your filters to see more results."}
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1281,13 +1335,13 @@ const MerchantAccountsManagement: React.FC = () => {
               onPageChange={setCurrentPage}
               showInfo={true}
               infoText={`${t("admin.merchants.pagination.showing")} ${
-                startIndex + 1
-              }-${Math.min(endIndex, merchantsData?.count || 0)} ${t(
+                totalFilteredCount > 0 ? startIndex + 1 : 0
+              }-${Math.min(endIndex, totalFilteredCount)} ${t(
                 "admin.merchants.pagination.of"
-              )} ${merchantsData?.count || 0}`}
-              startIndex={startIndex}
-              endIndex={endIndex}
-              totalItems={merchantsData?.count || 0}
+              )} ${totalFilteredCount}`}
+              startIndex={totalFilteredCount > 0 ? startIndex + 1 : 0}
+              endIndex={Math.min(endIndex, totalFilteredCount)}
+              totalItems={totalFilteredCount}
               itemsPerPage={itemsPerPage}
               className="mt-4"
             />

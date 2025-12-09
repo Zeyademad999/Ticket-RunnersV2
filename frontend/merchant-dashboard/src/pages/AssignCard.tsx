@@ -420,7 +420,7 @@ const AssignCard: React.FC = () => {
         <div className="space-y-6 mb-6">
           {/* Customer Photo - Always shown */}
           <div className="bg-gray-50 rounded-lg p-6">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4 text-center">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
               Customer Photo
             </h3>
             <div className="flex flex-col items-center">
@@ -428,22 +428,23 @@ const AssignCard: React.FC = () => {
                 <img
                   src={customer.profile_image}
                   alt={customer.name}
-                  className="w-48 h-48 object-cover rounded-lg border-4 border-primary-200 shadow-lg"
+                  className="w-72 h-72 sm:w-80 sm:h-80 object-cover rounded-lg border-4 border-primary-200 shadow-xl"
+                  loading="eager"
                   onError={(e) => {
                     // Fallback to placeholder if image fails to load
-                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}&size=192&background=6366f1&color=fff`;
+                    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}&size=320&background=6366f1&color=fff`;
                   }}
                 />
               ) : (
-                <div className="w-48 h-48 bg-primary-100 rounded-lg border-4 border-primary-200 flex items-center justify-center">
-                  <User className="h-24 w-24 text-primary-400" />
+                <div className="w-72 h-72 sm:w-80 sm:h-80 bg-primary-100 rounded-lg border-4 border-primary-200 flex items-center justify-center">
+                  <User className="h-32 w-32 text-primary-400" />
                 </div>
               )}
               <div className="mt-4 text-center">
-                <p className="text-lg font-semibold text-gray-900">
+                <p className="text-xl font-semibold text-gray-900">
                   {customer.name}
                 </p>
-                <p className="text-sm text-gray-500">{customer.mobile_number}</p>
+                <p className="text-base text-gray-500">{customer.mobile_number}</p>
               </div>
             </div>
           </div>
@@ -451,7 +452,7 @@ const AssignCard: React.FC = () => {
           {/* Authorized Collector Photo - Shown if exists */}
           {customer.authorized_collector && (
             <div className="bg-blue-50 rounded-lg p-6 border-2 border-blue-200">
-              <h3 className="text-sm font-semibold text-blue-700 mb-4 text-center">
+              <h3 className="text-lg font-semibold text-blue-700 mb-4 text-center">
                 Authorized Collector Photo
               </h3>
               <div className="flex flex-col items-center">
@@ -459,24 +460,25 @@ const AssignCard: React.FC = () => {
                   <img
                     src={customer.authorized_collector.profile_image}
                     alt={customer.authorized_collector.name}
-                    className="w-48 h-48 object-cover rounded-lg border-4 border-blue-300 shadow-lg"
+                    className="w-72 h-72 sm:w-80 sm:h-80 object-cover rounded-lg border-4 border-blue-300 shadow-xl"
+                    loading="eager"
                     onError={(e) => {
                       // Fallback to placeholder if image fails to load
                       const collectorName = customer.authorized_collector?.name || 'Collector';
-                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(collectorName)}&size=192&background=3b82f6&color=fff`;
+                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(collectorName)}&size=320&background=3b82f6&color=fff`;
                     }}
                   />
                 ) : (
-                  <div className="w-48 h-48 bg-blue-100 rounded-lg border-4 border-blue-300 flex items-center justify-center">
-                    <User className="h-24 w-24 text-blue-400" />
+                  <div className="w-72 h-72 sm:w-80 sm:h-80 bg-blue-100 rounded-lg border-4 border-blue-300 flex items-center justify-center">
+                    <User className="h-32 w-32 text-blue-400" />
                   </div>
                 )}
                 <div className="mt-4 text-center">
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xl font-semibold text-gray-900">
                     {customer.authorized_collector.name}
                   </p>
-                  <p className="text-sm text-gray-500">{customer.authorized_collector.mobile_number}</p>
-                  <p className="text-xs text-blue-600 mt-1 font-medium">Authorized to collect on behalf</p>
+                  <p className="text-base text-gray-500">{customer.authorized_collector.mobile_number}</p>
+                  <p className="text-sm text-blue-600 mt-1 font-medium">Authorized to collect on behalf</p>
                 </div>
               </div>
             </div>

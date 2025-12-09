@@ -39,16 +39,25 @@ export const createApiClient = (): AxiosInstance => {
         return config;
       }
 
-      // Skip token for password reset endpoints (they work without auth)
-      const passwordResetEndpoints = [
+      // Skip token for authentication endpoints (login, register, OTP verification)
+      // These endpoints don't require tokens
+      const authEndpoints = [
+        "/users/login",
+        "/users/register",
+        "/users/verify-otp",
+        "/users/verify-login-otp",
+        "/users/send-email-otp",
+        "/users/verify-email-otp",
+        "/users/complete-registration",
+        "/users/set-password",
         "/forgot-password/request-otp",
         "/forgot-password/verify-otp",
         "/reset-password",
       ];
-      const isPasswordResetEndpoint = passwordResetEndpoints.some((endpoint) =>
+      const isAuthEndpoint = authEndpoints.some((endpoint) =>
         config.url?.includes(endpoint)
       );
-      if (isPasswordResetEndpoint) {
+      if (isAuthEndpoint) {
         return config;
       }
 
@@ -102,22 +111,48 @@ export const createApiClient = (): AxiosInstance => {
         return Promise.reject(error);
       }
 
-      // Skip token refresh for password reset endpoints (they work without auth)
-      const passwordResetEndpoints = [
+      // Skip token refresh for authentication endpoints (login, register, OTP verification)
+      // These endpoints don't require tokens and 401 errors should be handled directly
+      const authEndpoints = [
+        "/users/login",
+        "/users/register",
+        "/users/verify-otp",
+        "/users/verify-login-otp",
+        "/users/send-email-otp",
+        "/users/verify-email-otp",
+        "/users/complete-registration",
+        "/users/set-password",
         "/forgot-password/request-otp",
         "/forgot-password/verify-otp",
         "/reset-password",
       ];
-      const isPasswordResetEndpoint = passwordResetEndpoints.some((endpoint) =>
+      const isAuthEndpoint = authEndpoints.some((endpoint) =>
         originalRequest.url?.includes(endpoint)
       );
-      if (isPasswordResetEndpoint) {
-        // For password reset endpoints, extract error message properly and don't try to refresh tokens
+      if (isAuthEndpoint) {
+        // For auth endpoints, extract error message properly and don't try to refresh tokens
+        // This allows banned account errors and other auth errors to be handled correctly
         const errorData = error.response?.data;
-        if (errorData?.error?.message) {
-          // Extract the error message from the backend response
-          error.message = errorData.error.message;
+        
+        // Preserve the full error response structure for proper error handling
+        // The AuthContext needs access to error.response.data.error.code for ACCOUNT_BANNED detection
+        if (errorData) {
+          // Ensure error.response.data is preserved
+          if (!error.response) {
+            error.response = {} as any;
+          }
+          if (!error.response.data) {
+            error.response.data = errorData;
+          }
+          
+          // Also set error.message for easier access
+          if (errorData?.error?.message) {
+            error.message = errorData.error.message;
+          } else if (errorData?.message) {
+            error.message = errorData.message;
+          }
         }
+        
         return Promise.reject(error);
       }
 

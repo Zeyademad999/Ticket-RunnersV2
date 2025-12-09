@@ -167,5 +167,20 @@ export class NFCCardsService {
       return handleApiResponse(response);
     });
   }
+
+  /**
+   * Remove collector from NFC card
+   * DELETE /api/v1/users/nfc-cards/assign-collector/
+   */
+  static async removeCollector(): Promise<ApiResponse<{
+    message: string;
+  }>> {
+    return retryRequest(async () => {
+      const response = await apiClient.delete(
+        "/users/nfc-cards/assign-collector/"
+      );
+      return handleApiResponse(response);
+    });
+  }
 }
 

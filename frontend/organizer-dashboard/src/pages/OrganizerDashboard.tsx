@@ -46,6 +46,7 @@ import {
   Edit,
   Plus,
   Image as ImageIcon,
+  Calculator,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, parseISO } from "date-fns";
@@ -68,6 +69,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 
 
@@ -103,6 +110,21 @@ interface Event {
       other: number;
       unknown: number;
     };
+  };
+  financial_breakdown?: {
+    ticket_revenue: number;
+    tickets_sold: number;
+    deductions: Array<{
+      name: string;
+      type: string;
+      value: number | null;
+      amount: number;
+      description?: string;
+    }>;
+    total_deductions: number;
+    commission?: number;
+    ticket_runner_fee?: number;
+    organizer_net_profit: number;
   };
   age_distribution?: {
     '0-17': number;
@@ -226,6 +248,10 @@ const OrganizerDashboard: React.FC = () => {
   const [editRequestImage, setEditRequestImage] = useState<File | null>(null);
   const [editRequestImagePreview, setEditRequestImagePreview] = useState<string | null>(null);
   const [isSubmittingEditRequest, setIsSubmittingEditRequest] = useState(false);
+  
+  // View Finances modal state
+  const [showFinancesModal, setShowFinancesModal] = useState(false);
+  const [showNetRevenuesBreakdown, setShowNetRevenuesBreakdown] = useState(false);
 
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -803,6 +829,8 @@ const OrganizerDashboard: React.FC = () => {
 
     // Transform ticket categories from analytics
     console.log("Selected Event Analytics:", selectedEventAnalytics);
+    console.log("Financial Breakdown:", selectedEventAnalytics.financial_breakdown);
+    console.log("Has Financial Breakdown:", !!selectedEventAnalytics.financial_breakdown);
     console.log("Ticket Categories Raw:", selectedEventAnalytics.ticket_categories);
     
     const ticketCategories = selectedEventAnalytics.ticket_categories?.map((cat: any) => ({
@@ -825,6 +853,7 @@ const OrganizerDashboard: React.FC = () => {
       startingPrice: selectedEventAnalytics.starting_price || selectedEventAnalytics.price || undefined,
       gender_distribution: selectedEventAnalytics.gender_distribution,
       age_distribution: selectedEventAnalytics.age_distribution,
+      financial_breakdown: selectedEventAnalytics.financial_breakdown, // Include financial breakdown
     };
   }, [selectedEvent, selectedEventAnalytics]);
 
@@ -1399,7 +1428,23 @@ const OrganizerDashboard: React.FC = () => {
                   {t("dashboard.stats.netRevenues")}
                 </CardTitle>
               </div>
-              <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0 cursor-pointer hover:text-primary transition-colors" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowNetRevenuesBreakdown(true)}
+                      className="h-auto p-2"
+                    >
+                      {t("dashboard.stats.seeBreakdown", "See Breakdown")}
+                    </Button>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold rtl:text-right">
@@ -1431,6 +1476,32 @@ const OrganizerDashboard: React.FC = () => {
                   <div className="text-sm text-red-500">{t("common.errorLoadingData")}</div>
                 ) : (
                   <>E£ {stats.total_processed_payouts.toLocaleString()}</>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center space-y-0 pb-2">
+              <div className="flex-1 rtl:text-right">
+                <CardTitle className="text-sm font-medium">
+                  {t("dashboard.stats.balanceLeftWithTicketRunners")}
+                </CardTitle>
+              </div>
+              <DollarSign className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold rtl:text-right ${(() => {
+                if (statsLoading || statsError) return "";
+                const balance = stats.net_revenues - stats.total_processed_payouts;
+                return balance < 0 ? "text-red-600" : "text-green-600";
+              })()}`}>
+                {statsLoading ? (
+                  <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+                ) : statsError ? (
+                  <div className="text-sm text-red-500">{t("common.errorLoadingData")}</div>
+                ) : (
+                  <>E£ {(stats.net_revenues - stats.total_processed_payouts).toLocaleString()}</>
                 )}
               </div>
             </CardContent>
@@ -1897,10 +1968,23 @@ const OrganizerDashboard: React.FC = () => {
                     {/* Payout Information */}
                     <Card>
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2 rtl:flex-row-reverse">
-                          <DollarSign className="h-5 w-5" />
-                          {t("dashboard.analytics.payoutInfo")}
-                        </CardTitle>
+                        <div className="flex justify-between items-center">
+                          <CardTitle className="flex items-center gap-2 rtl:flex-row-reverse">
+                            <DollarSign className="h-5 w-5" />
+                            {t("dashboard.analytics.payoutInfo")}
+                          </CardTitle>
+                          {eventWithAnalytics?.financial_breakdown && (
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => setShowFinancesModal(true)}
+                              className="flex items-center gap-2"
+                            >
+                              <Calculator className="h-4 w-4" />
+                              {t("dashboard.analytics.viewFinances", "View Finances")}
+                            </Button>
+                          )}
+                        </div>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
@@ -3152,6 +3236,324 @@ const OrganizerDashboard: React.FC = () => {
           data={invoiceData}
         />
       )}
+
+      {/* View Finances Modal */}
+      <Dialog open={showFinancesModal} onOpenChange={setShowFinancesModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              {t("dashboard.analytics.viewFinances", "View Finances")} - {eventWithAnalytics?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {eventWithAnalytics?.financial_breakdown && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.analytics.totalTicketRevenue", "Total Ticket Revenue")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">
+                      E£ {eventWithAnalytics.financial_breakdown.ticket_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {eventWithAnalytics.financial_breakdown.tickets_sold || eventWithAnalytics.ticketsSold} {t("dashboard.analytics.ticketsSold", "tickets sold")}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.analytics.totalDeductions", "Total Deductions")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
+                      -E£ {(() => {
+                        // STRICT deduplication: Filter out duplicates by ID first, then by name+type+value combination
+                        const seenIds = new Set<string | number>();
+                        const seenKeys = new Set<string>();
+                        const uniqueDeductions = eventWithAnalytics.financial_breakdown.deductions?.filter((deduction: any) => {
+                          // First try to deduplicate by ID
+                          if (deduction.id !== undefined && deduction.id !== null) {
+                            if (seenIds.has(deduction.id)) {
+                              return false; // Duplicate ID, skip
+                            }
+                            seenIds.add(deduction.id);
+                            return true;
+                          }
+                          // Fallback: deduplicate by name+type+value combination
+                          const key = `${deduction.name || ''}_${deduction.type || ''}_${deduction.value || ''}`;
+                          if (seenKeys.has(key)) {
+                            return false; // Duplicate key, skip
+                          }
+                          seenKeys.add(key);
+                          return true;
+                        }) || [];
+                        const deductionsTotal = uniqueDeductions.reduce((sum: number, d: any) => sum + (d.amount || 0), 0);
+                        return ((eventWithAnalytics.financial_breakdown.commission || 0) + deductionsTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      })()}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {(() => {
+                        // STRICT deduplication: Filter out duplicates by ID first, then by name+type+value combination
+                        const seenIds = new Set<string | number>();
+                        const seenKeys = new Set<string>();
+                        const uniqueDeductions = eventWithAnalytics.financial_breakdown.deductions?.filter((deduction: any) => {
+                          // First try to deduplicate by ID
+                          if (deduction.id !== undefined && deduction.id !== null) {
+                            if (seenIds.has(deduction.id)) {
+                              return false; // Duplicate ID, skip
+                            }
+                            seenIds.add(deduction.id);
+                            return true;
+                          }
+                          // Fallback: deduplicate by name+type+value combination
+                          const key = `${deduction.name || ''}_${deduction.type || ''}_${deduction.value || ''}`;
+                          if (seenKeys.has(key)) {
+                            return false; // Duplicate key, skip
+                          }
+                          seenKeys.add(key);
+                          return true;
+                        }) || [];
+                        return (uniqueDeductions.length || 0) + (eventWithAnalytics.financial_breakdown.commission ? 1 : 0);
+                      })()} {t("dashboard.analytics.deductionItems", "deduction items")}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.analytics.organizerNetProfit", "Your Net Profit")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      E£ {eventWithAnalytics.financial_breakdown.organizer_net_profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("dashboard.analytics.shownToOrganizer", "Your profit after deductions")}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Detailed Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base rtl:text-right flex items-center gap-2">
+                    <Ticket className="h-5 w-5" />
+                    {t("dashboard.analytics.part1TicketRevenue", "Part 1: Tickets Sold Revenue")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium rtl:text-right">
+                        {t("dashboard.analytics.totalTicketRevenue", "Total Ticket Revenue")}:
+                      </span>
+                      <span className="text-lg font-bold text-primary">
+                        E£ {eventWithAnalytics.financial_breakdown.ticket_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Deductions Breakdown */}
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold rtl:text-right">
+                      {t("dashboard.analytics.deductions", "Deductions Applied")}:
+                    </h4>
+                    <div className="space-y-2">
+                      {/* TR Commission Fee */}
+                      {eventWithAnalytics.financial_breakdown.commission && (
+                        <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                          <div>
+                            <span className="text-sm font-medium">
+                              {t("dashboard.analytics.ticketRunnerFee", "TR Commission Fee")}
+                            </span>
+                          </div>
+                          <span className="text-sm font-semibold text-red-600">
+                            -E£ {eventWithAnalytics.financial_breakdown.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Custom Deductions */}
+                      {(() => {
+                        // STRICT deduplication: Filter out duplicates by ID first, then by name+type+value combination
+                        const seenIds = new Set<string | number>();
+                        const seenKeys = new Set<string>();
+                        const uniqueDeductions = eventWithAnalytics.financial_breakdown.deductions?.filter((deduction: any) => {
+                          // First try to deduplicate by ID
+                          if (deduction.id !== undefined && deduction.id !== null) {
+                            if (seenIds.has(deduction.id)) {
+                              return false; // Duplicate ID, skip
+                            }
+                            seenIds.add(deduction.id);
+                            return true;
+                          }
+                          // Fallback: deduplicate by name+type+value combination
+                          const key = `${deduction.name || ''}_${deduction.type || ''}_${deduction.value || ''}`;
+                          if (seenKeys.has(key)) {
+                            return false; // Duplicate key, skip
+                          }
+                          seenKeys.add(key);
+                          return true;
+                        }) || [];
+                        
+                        return uniqueDeductions.length > 0 ? (
+                          uniqueDeductions.map((deduction: any, index: number) => (
+                            <div key={deduction.id || index} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                              <div>
+                                <span className="text-sm font-medium">{deduction.name}</span>
+                                <p className="text-xs text-muted-foreground">
+                                  {deduction.type === 'percentage'
+                                    ? `${deduction.value}% ${t("dashboard.analytics.ofRevenue", "of revenue")}`
+                                    : `E£ ${deduction.value} ${t("dashboard.analytics.perTicket", "per ticket")}`
+                                  }
+                                </p>
+                              </div>
+                              <span className="text-sm font-semibold text-red-600">
+                                -E£ {deduction.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ))
+                        ) : !eventWithAnalytics.financial_breakdown.commission ? (
+                          <p className="text-xs text-muted-foreground rtl:text-right">
+                            {t("dashboard.analytics.noDeductions", "No deductions added yet")}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Organizer Net Profit */}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold rtl:text-right">
+                        {t("dashboard.analytics.organizerNetProfit", "Your Net Profit")}:
+                      </span>
+                      <span className="text-xl font-bold text-green-600">
+                        E£ {eventWithAnalytics.financial_breakdown.organizer_net_profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Net Revenues Breakdown Modal */}
+      <Dialog open={showNetRevenuesBreakdown} onOpenChange={setShowNetRevenuesBreakdown}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              {t("dashboard.stats.netRevenuesBreakdown", "Net Revenues Breakdown")}
+            </DialogTitle>
+          </DialogHeader>
+          {!statsLoading && !statsError && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.stats.totalRevenues", "Total Revenues")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">
+                      E£ {stats.total_revenues.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.stats.totalDeductions", "Total Deductions")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
+                      -E£ {(stats.total_revenues - stats.net_revenues).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("dashboard.stats.deductionsAndCommission", "Deductions and commission")}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.stats.netRevenues", "Net Revenues")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      E£ {stats.net_revenues.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("dashboard.stats.afterDeductions", "After all deductions")}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Detailed Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base rtl:text-right">
+                    {t("dashboard.stats.financialSummary", "Financial Summary")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded rtl:flex-row-reverse">
+                      <span className="text-sm font-medium rtl:text-right">
+                        {t("dashboard.stats.totalRevenues", "Total Revenues")}:
+                      </span>
+                      <span className="text-lg font-bold text-primary">
+                        E£ {stats.total_revenues.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center p-3 bg-muted/30 rounded rtl:flex-row-reverse">
+                      <span className="text-sm font-medium rtl:text-right">
+                        {t("dashboard.stats.totalDeductions", "Total Deductions")}:
+                      </span>
+                      <span className="text-lg font-bold text-red-600">
+                        -E£ {(stats.total_revenues - stats.net_revenues).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+
+                    <div className="border-t pt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold rtl:text-right">
+                          {t("dashboard.stats.netRevenues", "Net Revenues")}:
+                        </span>
+                        <span className="text-xl font-bold text-green-600">
+                          E£ {stats.net_revenues.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

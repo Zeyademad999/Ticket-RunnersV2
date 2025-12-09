@@ -1,4 +1,22 @@
 import React, { useState, useMemo, useEffect } from "react";
+
+// Custom hook for debounced search
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,29 +186,34 @@ const UsherManagement: React.FC = () => {
   const [credentialsForm, setCredentialsForm] = useState({
     username: "",
     password: "",
-    event_ids: [] as number[],
   });
 
   const queryClient = useQueryClient();
 
-  // Determine if we need to fetch all ushers for client-side filtering
-  const needsAllUshers = roleFilter !== "all" || performanceFilter !== "all";
-  
-  // Fetch ushers from API
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, statusFilter, roleFilter, performanceFilter]);
+
+  // Fetch ALL ushers from API (we'll filter client-side since backend filtering is unreliable)
   const { data: ushersData, isLoading: ushersLoading, error: ushersError } = useQuery({
-    queryKey: ['ushers', searchTerm, statusFilter, roleFilter, performanceFilter, currentPage, ushersPerPage, needsAllUshers],
+    queryKey: ['ushers', 'all'], // Fetch all ushers for client-side filtering
     queryFn: async () => {
       const params: any = {
-        page: needsAllUshers ? 1 : currentPage, // Fetch first page if we need all for client-side filtering
-        page_size: needsAllUshers ? 1000 : ushersPerPage, // Fetch all if client-side filtering needed
+        page: 1,
+        page_size: 10000, // Get all ushers
       };
-      
-      if (searchTerm) params.search = searchTerm;
-      if (statusFilter !== 'all') params.status = statusFilter;
       
       const response = await ushersApi.getUshers(params);
       return response;
     },
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Transform API ushers to match Usher interface
@@ -206,11 +229,46 @@ const UsherManagement: React.FC = () => {
   const ushers: Usher[] = useMemo(() => {
     if (!ushersData?.results) return [];
     const totalEventsCount = eventsData?.results?.length || 0;
+    const allEventsDetails = eventsData?.results ? eventsData.results.map((e: any) => ({
+      id: String(e.id),
+      title: e.title || '',
+      date: e.date || e.start_date || '',
+      status: e.status || 'upcoming',
+      venue: e.venue?.name || e.venue || '',
+      organizer: e.organizer?.name || e.organizer_name || '',
+      category: e.category || '',
+    })) : [];
+    
     return ushersData.results.map((item: any) => {
       const assignedEventIds = item.events ? item.events.map((e: any) => String(e.id)) : [];
       // Determine team leader status: if assigned to all events (or 80%+ of events), consider them a team leader
       // This is a workaround until backend adds is_team_leader field
-      const isTeamLeader = totalEventsCount > 0 && assignedEventIds.length >= totalEventsCount * 0.8;
+      const isTeamLeader = item.is_team_leader || (totalEventsCount > 0 && assignedEventIds.length >= totalEventsCount * 0.8);
+      
+      // If team leader, they are assigned to all events by default
+      const finalAssignedEventIds = isTeamLeader 
+        ? allEventsDetails.map((e: any) => e.id)
+        : assignedEventIds;
+      
+      // Calculate totalEvents: if team leader, use all events count, otherwise use assigned events
+      const calculatedTotalEvents = isTeamLeader
+        ? totalEventsCount
+        : (item.total_events !== null && item.total_events !== undefined
+          ? (typeof item.total_events === 'string' ? parseInt(item.total_events, 10) : Number(item.total_events)) || 0
+          : (item.events ? item.events.length : 0));
+      
+      // If team leader, use all events details, otherwise use assigned events details
+      const finalAssignedEventsDetails = isTeamLeader
+        ? allEventsDetails
+        : (item.events ? item.events.map((e: any) => ({
+            id: String(e.id),
+            title: e.title || '',
+            date: e.date || e.start_date || '',
+            status: e.status || 'upcoming',
+            venue: e.venue?.name || e.venue || '',
+            organizer: e.organizer?.name || e.organizer_name || '',
+            category: e.category || '',
+          })) : []);
       
       return {
         id: String(item.id),
@@ -221,24 +279,16 @@ const UsherManagement: React.FC = () => {
         role: item.role as "entry" | "exit" | "security" | "general",
         hireDate: item.hire_date || item.hireDate || '',
         lastActive: item.last_active || item.lastActive || undefined,
-        totalEvents: item.total_events || item.totalEvents || 0,
+        totalEvents: calculatedTotalEvents,
         rating: parseFloat(item.rating) || 0,
-        assignedEvents: assignedEventIds,
-        assignedEventsDetails: item.events ? item.events.map((e: any) => ({
-          id: String(e.id),
-          title: e.title || '',
-          date: e.date || '',
-          status: e.status || 'upcoming',
-          venue: e.venue || '',
-          organizer: e.organizer || '',
-          category: e.category || '',
-        })) : [],
+        assignedEvents: finalAssignedEventIds,
+        assignedEventsDetails: finalAssignedEventsDetails,
         location: item.location || '',
         experience: item.experience || 0,
         hourlyRate: parseFloat(item.hourly_rate || item.hourlyRate) || 0,
         totalHours: parseFloat(item.total_hours || item.totalHours) || 0,
         performance: (item.performance || 'average') as "excellent" | "good" | "average" | "poor",
-        isTeamLeader: item.is_team_leader || isTeamLeader,
+        isTeamLeader: isTeamLeader,
         zones: Array.isArray(item.zones) ? item.zones : [],
         ticketCategories: Array.isArray(item.ticket_categories) ? item.ticket_categories : [],
       };
@@ -320,49 +370,46 @@ const UsherManagement: React.FC = () => {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [events, selectedUsher, tempAssignedEvents]);
 
-  // Filter ushers based on search and filters (client-side for role and performance)
+  // Apply client-side filtering as fallback (backend may not filter correctly)
   const filteredUshers = useMemo(() => {
-    let filtered = ushers;
+    let filtered = [...ushers];
     
-    // Client-side filters (backend handles search and status)
+    // Filter by status (client-side fallback)
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((usher) => usher.status === statusFilter);
+    }
+    
+    // Filter by role (client-side fallback)
     if (roleFilter !== "all") {
       filtered = filtered.filter((usher) => usher.role === roleFilter);
     }
+    
+    // Filter by performance (client-side fallback)
     if (performanceFilter !== "all") {
       filtered = filtered.filter((usher) => usher.performance === performanceFilter);
     }
     
+    // Filter by search term (client-side fallback)
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter((usher) => 
+        usher.name.toLowerCase().includes(searchLower) ||
+        usher.email.toLowerCase().includes(searchLower) ||
+        usher.phone.includes(searchLower) ||
+        (usher.location && usher.location.toLowerCase().includes(searchLower))
+      );
+    }
+    
     return filtered;
-  }, [ushers, roleFilter, performanceFilter]);
+  }, [ushers, statusFilter, roleFilter, performanceFilter, debouncedSearchTerm]);
 
-  // Pagination logic
-  // If we have client-side filters (role or performance), paginate the filtered results
-  // Otherwise, use API pagination
-  const hasClientSideFilters = roleFilter !== "all" || performanceFilter !== "all";
-  
-  let totalPages: number;
-  let startIndex: number;
-  let endIndex: number;
-  let paginatedUshers: Usher[];
-  
-  if (hasClientSideFilters) {
-    // Client-side pagination for filtered results
-    totalPages = Math.ceil(filteredUshers.length / ushersPerPage);
-    startIndex = (currentPage - 1) * ushersPerPage;
-    endIndex = startIndex + ushersPerPage;
-    paginatedUshers = filteredUshers.slice(startIndex, endIndex);
-  } else {
-    // API pagination
-    totalPages = ushersData?.total_pages || 1;
-    startIndex = ushersData?.page ? (ushersData.page - 1) * ushersData.page_size : 0;
-    endIndex = startIndex + (ushersData?.page_size || ushersPerPage);
-    paginatedUshers = filteredUshers;
-  }
+  // Pagination - client-side pagination on filtered results
+  const totalFilteredCount = filteredUshers.length;
+  const totalPages = Math.ceil(totalFilteredCount / ushersPerPage) || 1;
+  const startIndex = (currentPage - 1) * ushersPerPage;
+  const endIndex = startIndex + ushersPerPage;
+  const paginatedUshers = filteredUshers.slice(startIndex, endIndex);
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm, statusFilter, roleFilter, performanceFilter]);
 
   // Mutations
   const createUsherMutation = useMutation({
@@ -476,7 +523,7 @@ const UsherManagement: React.FC = () => {
         description: t("admin.ushers.toast.credentialsCreatedDesc") || `EVS credentials created successfully. Username: ${data.username}`,
       });
       setIsCreateCredentialsDialogOpen(false);
-      setCredentialsForm({ username: "", password: "", event_ids: [] });
+      setCredentialsForm({ username: "", password: "" });
       setSelectedUsher(null);
     },
     onError: (error: any) => {
@@ -873,7 +920,6 @@ const UsherManagement: React.FC = () => {
     createCredentialsMutation.mutate({
       username: credentialsForm.username,
       password: credentialsForm.password,
-      event_ids: credentialsForm.event_ids.length > 0 ? credentialsForm.event_ids : undefined,
     });
   };
 
@@ -1024,7 +1070,7 @@ const UsherManagement: React.FC = () => {
             <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           </CardHeader>
           <CardContent className="rtl:text-right">
-            <div className="text-2xl font-bold">{ushersData?.count || ushers.length}</div>
+            <div className="text-2xl font-bold">{totalFilteredCount}</div>
           </CardContent>
         </Card>
 
@@ -1184,13 +1230,13 @@ const UsherManagement: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="rtl:text-right ltr:text-left">
-            {t("admin.ushers.table.ushers")} ({hasClientSideFilters ? filteredUshers.length : (ushersData?.count || filteredUshers.length)})
+            {t("admin.ushers.table.ushers")} ({totalFilteredCount})
           </CardTitle>
           <div className="flex items-center gap-2 rtl:flex-row-reverse">
             <span className="text-sm text-muted-foreground">
-              {t("admin.ushers.pagination.showing")} {startIndex + 1}-
-              {Math.min(endIndex, hasClientSideFilters ? filteredUshers.length : (ushersData?.count || filteredUshers.length))}{" "}
-              {t("admin.ushers.pagination.of")} {hasClientSideFilters ? filteredUshers.length : (ushersData?.count || filteredUshers.length)}
+              {t("admin.ushers.pagination.showing")} {totalFilteredCount > 0 ? startIndex + 1 : 0}-
+              {Math.min(endIndex, totalFilteredCount)}{" "}
+              {t("admin.ushers.pagination.of")} {totalFilteredCount}
             </span>
             <Select
               value={ushersPerPage.toString()}
@@ -1225,6 +1271,11 @@ const UsherManagement: React.FC = () => {
             <div className="flex flex-col items-center justify-center py-12">
               <Users className="h-12 w-12 text-muted-foreground mb-4" />
               <p className="text-muted-foreground">{t("admin.ushers.noUshersFound") || "No ushers found"}</p>
+              {(debouncedSearchTerm || statusFilter !== "all" || roleFilter !== "all" || performanceFilter !== "all") && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  {t("admin.ushers.noUshersFiltered") || "Try adjusting your filters to see more results."}
+                </p>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -1372,7 +1423,6 @@ const UsherManagement: React.FC = () => {
                               setCredentialsForm({
                                 username: "",
                                 password: "",
-                                event_ids: usher.assignedEventsDetails?.map((e: any) => parseInt(e.id)) || [],
                               });
                               setIsCreateCredentialsDialogOpen(true);
                             }}
@@ -1440,15 +1490,15 @@ const UsherManagement: React.FC = () => {
               onPageChange={setCurrentPage}
               showInfo={true}
               infoText={`${t("admin.ushers.pagination.showing")} ${
-                startIndex + 1
-              }-${Math.min(endIndex, hasClientSideFilters ? filteredUshers.length : (ushersData?.count || 0))} ${t(
+                totalFilteredCount > 0 ? startIndex + 1 : 0
+              }-${Math.min(endIndex, totalFilteredCount)} ${t(
                 "admin.ushers.pagination.of"
-              )} ${hasClientSideFilters ? filteredUshers.length : (ushersData?.count || 0)} ${t(
+              )} ${totalFilteredCount} ${t(
                 "admin.ushers.pagination.results"
               )}`}
-              startIndex={startIndex}
-              endIndex={endIndex}
-              totalItems={hasClientSideFilters ? filteredUshers.length : (ushersData?.count || 0)}
+              startIndex={totalFilteredCount > 0 ? startIndex + 1 : 0}
+              endIndex={Math.min(endIndex, totalFilteredCount)}
+              totalItems={totalFilteredCount}
               itemsPerPage={ushersPerPage}
               className="mt-4"
             />
@@ -2237,7 +2287,9 @@ const UsherManagement: React.FC = () => {
               {t("admin.ushers.dialogs.rateAndFeedback") || "Rate & Feedback"}
             </DialogTitle>
             <DialogDescription className="rtl:text-right ltr:text-left">
-              {selectedUsher && `${t("admin.ushers.dialogs.rateAndFeedbackSubtitle") || "Provide rating and feedback for"} ${selectedUsher.name}`}
+              {selectedUsher 
+                ? t("admin.ushers.dialogs.rateAndFeedbackSubtitle", { name: selectedUsher.name }) 
+                : "Rate and provide feedback for this usher"}
             </DialogDescription>
           </DialogHeader>
           {selectedUsher && (
@@ -2424,7 +2476,7 @@ const UsherManagement: React.FC = () => {
                       {t("admin.ushers.details.totalEvents") || "Total Events"}
                     </label>
                     <p className="text-2xl font-bold rtl:text-right">
-                      {selectedUsher.totalEvents}
+                      {selectedUsher.assignedEventsDetails ? selectedUsher.assignedEventsDetails.length : selectedUsher.totalEvents || 0}
                     </p>
                   </div>
                   <div>
@@ -2434,7 +2486,7 @@ const UsherManagement: React.FC = () => {
                     <div className="flex items-center gap-1 rtl:flex-row-reverse">
                       <Star className="h-5 w-5 text-yellow-500 fill-current" />
                       <span className="text-2xl font-bold">
-                        {selectedUsher.rating}
+                        {selectedUsher.rating || 0}
                       </span>
                     </div>
                   </div>
@@ -2443,17 +2495,8 @@ const UsherManagement: React.FC = () => {
                       {t("admin.ushers.details.experience") || "Experience"}
                     </label>
                     <p className="text-2xl font-bold rtl:text-right">
-                      {selectedUsher.experience}{" "}
+                      {selectedUsher.experience || 0}{" "}
                       {t("admin.ushers.details.years") || "years"}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium rtl:text-right">
-                      {t("admin.ushers.details.totalHours") || "Total Hours"}
-                    </label>
-                    <p className="text-2xl font-bold rtl:text-right">
-                      {selectedUsher.totalHours}{" "}
-                      {t("admin.ushers.details.hours") || "hours"}
                     </p>
                   </div>
                   <div>
@@ -2462,7 +2505,7 @@ const UsherManagement: React.FC = () => {
                     </label>
                     <p className="text-2xl font-bold rtl:text-right">
                       {formatCurrencyForLocale(
-                        selectedUsher.hourlyRate,
+                        selectedUsher.hourlyRate || 0,
                         i18n.language
                       )}
                     </p>
@@ -2716,55 +2759,11 @@ const UsherManagement: React.FC = () => {
                 {t("admin.ushers.credentials.passwordHint") || "Password must be at least 6 characters long"}
               </p>
             </div>
-            <div>
-              <label className="text-sm font-medium rtl:text-right ltr:text-left mb-2 block">
-                {t("admin.ushers.credentials.assignEvents") || "Assign to Events (Optional)"}
-              </label>
-              <p className="text-xs text-muted-foreground mb-2 rtl:text-right ltr:text-left">
-                {t("admin.ushers.credentials.assignEventsHint") || "Select events this usher will be assigned to. If none selected, only existing assignments will be kept."}
-              </p>
-              <div className="max-h-48 overflow-y-auto border rounded-md p-2 space-y-2">
-                {events.length === 0 ? (
-                  <p className="text-sm text-muted-foreground rtl:text-right ltr:text-left">
-                    {t("admin.ushers.credentials.noEvents") || "No events available"}
-                  </p>
-                ) : (
-                  events.map((event) => (
-                    <div key={event.id} className="flex items-center space-x-2 rtl:space-x-reverse rtl:flex-row-reverse">
-                      <Checkbox
-                        id={`event-${event.id}`}
-                        checked={credentialsForm.event_ids.includes(parseInt(event.id))}
-                        onCheckedChange={(checked) => {
-                          const eventId = parseInt(event.id);
-                          if (checked) {
-                            setCredentialsForm({
-                              ...credentialsForm,
-                              event_ids: [...credentialsForm.event_ids, eventId],
-                            });
-                          } else {
-                            setCredentialsForm({
-                              ...credentialsForm,
-                              event_ids: credentialsForm.event_ids.filter((id) => id !== eventId),
-                            });
-                          }
-                        }}
-                      />
-                      <label
-                        htmlFor={`event-${event.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
-                      >
-                        {event.title}
-                      </label>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => {
               setIsCreateCredentialsDialogOpen(false);
-              setCredentialsForm({ username: "", password: "", event_ids: [] });
+              setCredentialsForm({ username: "", password: "" });
             }}>
               {t("admin.ushers.credentials.cancel") || "Cancel"}
             </Button>

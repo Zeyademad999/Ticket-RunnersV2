@@ -19,6 +19,11 @@ export interface NFCCard {
   customer_id?: string;
   customer_name?: string;
   customer_mobile?: string;
+  customer_profile_image?: string;
+  collector_id?: string;
+  collector_name?: string;
+  collector_mobile?: string;
+  collector_profile_image?: string;
   assigned_at?: string;
   delivered_at?: string;
   hashed_code?: string;

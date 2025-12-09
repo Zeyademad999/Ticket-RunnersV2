@@ -1139,7 +1139,14 @@ const TicketsManagement: React.FC = () => {
     // Validate required fields
     // Category is only required if event has ticket categories
     const categoryRequired = eventTicketCategories.length > 0;
-    const fullPhoneNumber = assignPhoneDialCode + assignPhoneNumber;
+    
+    // Normalize phone number: remove leading 0 for Egyptian numbers when country code is +20
+    let normalizedPhoneNumber = assignPhoneNumber;
+    if (assignPhoneDialCode === "+20" && normalizedPhoneNumber.startsWith("0") && normalizedPhoneNumber.length === 11) {
+      normalizedPhoneNumber = normalizedPhoneNumber.substring(1);
+    }
+    const fullPhoneNumber = assignPhoneDialCode + normalizedPhoneNumber;
+    
     if (!selectedEventId || (categoryRequired && !selectedCategory) || !assignPhoneNumber || (!paidOutsideSystem && !assignPrice)) {
       toast({
         title: t("common.error"),
@@ -1152,8 +1159,9 @@ const TicketsManagement: React.FC = () => {
     // Find customer by phone number (try with and without dial code)
     try {
       const { customersApi } = await import("@/lib/api/adminApi");
+      // Search with both original and normalized phone numbers
       const customersResponse = await customersApi.getCustomers({
-        search: assignPhoneNumber,
+        search: normalizedPhoneNumber || assignPhoneNumber,
         page_size: 10,
       });
       
@@ -1162,8 +1170,9 @@ const TicketsManagement: React.FC = () => {
       let customer = customers.find(
         (c: any) => {
           const cPhone = c.phone || c.mobile_number || '';
-          return cPhone === fullPhoneNumber || cPhone === assignPhoneNumber || 
-                 cPhone.endsWith(assignPhoneNumber) || assignPhoneNumber.endsWith(cPhone.replace(/^\+/, ''));
+          return cPhone === fullPhoneNumber || cPhone === normalizedPhoneNumber || cPhone === assignPhoneNumber || 
+                 cPhone.endsWith(normalizedPhoneNumber) || cPhone.endsWith(assignPhoneNumber) || 
+                 normalizedPhoneNumber.endsWith(cPhone.replace(/^\+/, '')) || assignPhoneNumber.endsWith(cPhone.replace(/^\+/, ''));
         }
       );
 

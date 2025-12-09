@@ -435,9 +435,12 @@
       "feeNotPaidDescription": "You need to pay the initial NFC card purchase fee to get your card.",
       "renewCard": "Renew Card",
       "allowCollector": "Allow Someone to Collect My Card",
+      "viewCollector": "View Collector",
       "collectorModal": {
         "title": "Allow Someone to Collect My Card",
+        "viewTitle": "View Collector",
         "description": "Authorize someone to collect your NFC card on your behalf",
+        "viewDescription": "View and manage your assigned collector",
         "descriptionPayment": "You need to pay for your NFC card first before assigning a collector",
         "descriptionPhone": "Enter the phone number of the person who will collect your card",
         "importantInfo": "Important Information",
@@ -457,7 +460,16 @@
         "back": "Back",
         "successMessage": "Collector assigned successfully! {{name}} can now collect your card.",
         "errorMessage": "Failed to assign collector",
-        "errorMessageRetry": "Failed to assign collector. Please try again."
+        "errorMessageRetry": "Failed to assign collector. Please try again.",
+        "editCollector": "Edit Collector",
+        "removeCollector": "Remove Collector",
+        "updateCollector": "Update Collector",
+        "removing": "Removing...",
+        "collectorRemoved": "Collector removed successfully",
+        "removeError": "Failed to remove collector",
+        "removeErrorRetry": "Failed to remove collector. Please try again.",
+        "noCollector": "No Authorized Collector",
+        "noCollectorDescription": "You haven't assigned anyone to collect your card yet."
       }
     },
     "settingsTab": {
@@ -985,6 +997,8 @@
     "invalidCredentialsMessage": "The email/phone or password you entered is incorrect. Please try again.",
     "accountBlocked": "Account Blocked",
     "accountBlockedMessage": "Your account has been temporarily blocked. Please contact support for assistance.",
+    "accountBanned": "Account Banned",
+    "accountBannedMessage": "Your account has been banned. You cannot sign in. Please contact support for more information.",
     "serverError": "Server Error",
     "serverErrorMessage": "There was a problem with our servers. Please try again later.",
     "dataSyncError": "Server error: Data synchronization issue. Please try again in a moment.",

@@ -1,4 +1,22 @@
 import React, { useState, useMemo, useEffect } from "react";
+
+// Custom hook for debounced search
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { usersApi } from "@/lib/api/adminApi";
 import {
@@ -209,56 +227,53 @@ const AdminUserManagement: React.FC = () => {
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
 
-  // Build query params based on userType and filters
-  const getQueryParams = () => {
-    const params: any = {
-      page: currentPage,
-      page_size: itemsPerPage,
-    };
-    
-    if (searchTerm) params.search = searchTerm;
-    if (statusFilter !== 'all') {
-      if (userType === 'admins') {
-        params.is_active = statusFilter === 'active';
-      } else {
-        params.status = statusFilter;
-      }
-    }
-    if (userType === 'admins' && roleFilter !== 'all') {
-      params.role = roleFilter.toUpperCase().replace('_', '_');
-    }
-    if (userType === 'organizers' && roleFilter !== 'all') {
-      params.verified = roleFilter === 'verified';
-    }
-    if (userType === 'merchants' && roleFilter !== 'all') {
-      params.verification_status = roleFilter;
-    }
-    return params;
-  };
+  // Debounce search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
-  // Fetch users based on userType - using separate queries
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, roleFilter, statusFilter, userType]);
+
+  // Fetch ALL users based on userType (we'll filter client-side since backend filtering is unreliable)
   const adminsQuery = useQuery({
-    queryKey: ['admins', searchTerm, roleFilter, statusFilter, currentPage, itemsPerPage],
-    queryFn: () => usersApi.getAdmins(getQueryParams()),
+    queryKey: ['admins', 'all'],
+    queryFn: () => usersApi.getAdmins({ page: 1, page_size: 10000 }),
     enabled: userType === 'admins',
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const organizersQuery = useQuery({
-    queryKey: ['organizers', searchTerm, roleFilter, statusFilter, currentPage, itemsPerPage],
-    queryFn: () => usersApi.getOrganizers(getQueryParams()),
+    queryKey: ['organizers', 'all'],
+    queryFn: () => usersApi.getOrganizers({ page: 1, page_size: 10000 }),
     enabled: userType === 'organizers',
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const merchantsQuery = useQuery({
-    queryKey: ['merchants', searchTerm, roleFilter, statusFilter, currentPage, itemsPerPage],
-    queryFn: () => usersApi.getMerchants(getQueryParams()),
+    queryKey: ['merchants', 'all'],
+    queryFn: () => usersApi.getMerchants({ page: 1, page_size: 10000 }),
     enabled: userType === 'merchants',
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   const ushersQuery = useQuery({
-    queryKey: ['ushers', searchTerm, roleFilter, statusFilter, currentPage, itemsPerPage],
-    queryFn: () => usersApi.getUshers(getQueryParams()),
+    queryKey: ['ushers', 'all'],
+    queryFn: () => usersApi.getUshers({ page: 1, page_size: 10000 }),
     enabled: userType === 'ushers',
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0,
+    gcTime: 0,
   });
 
   // Get the active query based on userType
@@ -1255,25 +1270,50 @@ const AdminUserManagement: React.FC = () => {
     },
   ];
 
-  // Filtered users (API handles most filtering, but we filter role client-side if needed)
+  // Apply client-side filtering as fallback (backend may not filter correctly)
   const filteredUsers = useMemo(() => {
-    // API already handles search and status filtering
-    // Only filter by role if needed (for admins, role is already filtered by API)
-    if (userType === 'admins' || roleFilter === 'all') {
-      return adminUsers;
+    let filtered = [...adminUsers];
+    
+    // Filter by status (client-side fallback)
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((user) => user.status === statusFilter);
     }
-    // For other user types, role filter might be client-side
-    return adminUsers.filter((user) => {
-      const matchesRole = roleFilter === "all" || user.role === roleFilter;
-      return matchesRole;
-    });
-  }, [adminUsers, roleFilter, userType]);
+    
+    // Filter by role (client-side fallback)
+    if (roleFilter !== "all") {
+      if (userType === 'admins') {
+        // For admins, roleFilter might be 'super_admin', 'admin', 'usher', 'support'
+        filtered = filtered.filter((user) => user.role === roleFilter);
+      } else if (userType === 'organizers') {
+        // For organizers, roleFilter might be 'verified' or 'unverified'
+        // This is handled differently - we'd need to check verification status
+        // For now, just filter by role if it matches
+        filtered = filtered.filter((user) => user.role === roleFilter);
+      } else {
+        filtered = filtered.filter((user) => user.role === roleFilter);
+      }
+    }
+    
+    // Filter by search term (client-side fallback)
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter((user) => 
+        user.username.toLowerCase().includes(searchLower) ||
+        user.email.toLowerCase().includes(searchLower) ||
+        user.fullName.toLowerCase().includes(searchLower) ||
+        (user.phone && user.phone.includes(searchLower))
+      );
+    }
+    
+    return filtered;
+  }, [adminUsers, statusFilter, roleFilter, debouncedSearchTerm, userType]);
 
-  // Pagination - API handles pagination, so we use the data directly
-  const totalPages = usersData?.total_pages || 1;
-  const startIndex = usersData?.page ? (usersData.page - 1) * usersData.page_size : 0;
-  const endIndex = startIndex + (usersData?.page_size || itemsPerPage);
-  const paginatedUsers = filteredUsers; // API already paginates
+  // Pagination - client-side pagination on filtered results
+  const totalFilteredCount = filteredUsers.length;
+  const totalPages = Math.ceil(totalFilteredCount / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
   // Sync selectedUser when adminUsers data updates (e.g., after query refetch)
   useEffect(() => {
@@ -1904,17 +1944,6 @@ const AdminUserManagement: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          <Button
-            variant="outline"
-            onClick={() => setIsRoleDialogOpen(true)}
-            className="text-xs sm:text-sm"
-          >
-            <Shield className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-            <span className="hidden sm:inline">
-              {t("admin.users.actions.manageRoles")}
-            </span>
-            <span className="sm:hidden">Roles</span>
-          </Button>
           <ExportDialog
             data={filteredUsers}
             columns={commonColumns.users}
@@ -1975,46 +2004,6 @@ const AdminUserManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* User Type Selector */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant={userType === "admins" ? "default" : "outline"}
-              onClick={() => setUserType("admins")}
-              className="text-xs sm:text-sm"
-            >
-              <Shield className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-              {t("admin.users.types.admins")}
-            </Button>
-            <Button
-              variant={userType === "organizers" ? "default" : "outline"}
-              onClick={() => setUserType("organizers")}
-              className="text-xs sm:text-sm"
-            >
-              <Users className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-              {t("admin.users.types.organizers")}
-            </Button>
-            <Button
-              variant={userType === "merchants" ? "default" : "outline"}
-              onClick={() => setUserType("merchants")}
-              className="text-xs sm:text-sm"
-            >
-              <User className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-              {t("admin.users.types.merchants")}
-            </Button>
-            <Button
-              variant={userType === "ushers" ? "default" : "outline"}
-              onClick={() => setUserType("ushers")}
-              className="text-xs sm:text-sm"
-            >
-              <UserCheck className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 rtl:ml-1 sm:rtl:ml-2 rtl:mr-0" />
-              {t("admin.users.types.ushers")}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Filters */}
       <Card>
         <CardHeader>
@@ -2049,12 +2038,6 @@ const AdminUserManagement: React.FC = () => {
                 <SelectItem value="admin">
                   {t("admin.users.filters.administrator")}
                 </SelectItem>
-                <SelectItem value="usher">
-                  {t("admin.users.filters.usher")}
-                </SelectItem>
-                <SelectItem value="support">
-                  {t("admin.users.filters.support")}
-                </SelectItem>
               </SelectContent>
             </Select>
 
@@ -2083,13 +2066,13 @@ const AdminUserManagement: React.FC = () => {
         <CardHeader>
           <CardTitle className="rtl:text-right ltr:text-left">
             {t("admin.users.table.user")} (
-            {formatNumberForLocale(usersData?.count || 0, i18n.language)})
+            {formatNumberForLocale(totalFilteredCount, i18n.language)})
           </CardTitle>
           <div className="flex items-center gap-2 rtl:flex-row-reverse">
             <span className="text-sm text-muted-foreground">
-              {t("admin.users.pagination.showing")} {startIndex + 1}-
-              {Math.min(endIndex, usersData?.count || 0)}{" "}
-              {t("admin.users.pagination.of")} {usersData?.count || 0}{" "}
+              {t("admin.users.pagination.showing")} {totalFilteredCount > 0 ? startIndex + 1 : 0}-
+              {Math.min(endIndex, totalFilteredCount)}{" "}
+              {t("admin.users.pagination.of")} {totalFilteredCount}{" "}
               {t("admin.users.pagination.results")}
             </span>
             <Select
@@ -2158,27 +2141,22 @@ const AdminUserManagement: React.FC = () => {
                     <TableCell colSpan={7} className="text-center py-12">
                       <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                       <p className="text-muted-foreground">{t("admin.users.noUsersFound")}</p>
+                      {(debouncedSearchTerm || statusFilter !== "all" || roleFilter !== "all") && (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          {t("admin.organizers.noOrganizersFiltered") || "Try adjusting your filters to see more results."}
+                        </p>
+                      )}
                     </TableCell>
                   </TableRow>
                 ) : (
                   paginatedUsers.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
-                      <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                        <img
-                          src={
-                            user.profileImage ||
-                            "/public/Portrait_Placeholder.png"
-                          }
-                          alt={user.fullName}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div className="rtl:text-right ltr:text-left">
-                          <p className="font-medium">{user.fullName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            @{user.username}
-                          </p>
-                        </div>
+                      <div className="rtl:text-right ltr:text-left">
+                        <p className="font-medium">{user.fullName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          @{user.username}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -2298,15 +2276,15 @@ const AdminUserManagement: React.FC = () => {
               onPageChange={setCurrentPage}
               showInfo={true}
               infoText={`${t("admin.users.pagination.showing")} ${
-                startIndex + 1
-              }-${Math.min(endIndex, usersData?.count || 0)} ${t(
+                totalFilteredCount > 0 ? startIndex + 1 : 0
+              }-${Math.min(endIndex, totalFilteredCount)} ${t(
                 "admin.users.pagination.of"
-              )} ${usersData?.count || 0} ${t(
+              )} ${totalFilteredCount} ${t(
                 "admin.users.pagination.results"
               )}`}
-              startIndex={startIndex}
-              endIndex={endIndex}
-              totalItems={usersData?.count || 0}
+              startIndex={totalFilteredCount > 0 ? startIndex + 1 : 0}
+              endIndex={Math.min(endIndex, totalFilteredCount)}
+              totalItems={totalFilteredCount}
               itemsPerPage={itemsPerPage}
               className="mt-4"
             />

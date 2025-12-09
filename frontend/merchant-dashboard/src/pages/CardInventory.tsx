@@ -458,29 +458,64 @@ const CardInventory: React.FC = () => {
               {/* Customer Information */}
               {selectedCard.customer_name && (
                 <>
-                  <div className="flex items-start">
-                    <User className={`h-5 w-5 text-gray-400 mt-1 ${isRTL ? "ml-3" : "mr-3"}`} />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-500">
-                        {t("assignCard.customerName") || "Customer Name"}
-                      </p>
-                      <p className="text-lg text-gray-900 mt-1">
+                  <div className="border-t pt-4">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
+                      {t("assignCard.customerName") || "Customer Information"}
+                    </h3>
+                    <div className="flex flex-col items-center mb-4">
+                      {selectedCard.customer_profile_image ? (
+                        <img
+                          src={selectedCard.customer_profile_image}
+                          alt={selectedCard.customer_name}
+                          className="w-64 h-64 sm:w-72 sm:h-72 object-cover rounded-lg border-4 border-primary-200 shadow-xl mb-3"
+                          loading="eager"
+                          onError={(e) => {
+                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedCard.customer_name || 'Customer')}&size=288&background=6366f1&color=fff`;
+                          }}
+                        />
+                      ) : (
+                        <div className="w-64 h-64 sm:w-72 sm:h-72 bg-primary-100 rounded-lg border-4 border-primary-200 flex items-center justify-center mb-3">
+                          <User className="h-28 w-28 text-primary-400" />
+                        </div>
+                      )}
+                      <p className="text-xl font-semibold text-gray-900">
                         {selectedCard.customer_name}
                       </p>
+                      <p className="text-base text-gray-500">{selectedCard.customer_mobile || "—"}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-start">
-                    <Phone className={`h-5 w-5 text-gray-400 mt-1 ${isRTL ? "ml-3" : "mr-3"}`} />
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-500">
-                        {t("assignCard.customerPhone")}
-                      </p>
-                      <p className="text-lg text-gray-900 mt-1">
-                        {selectedCard.customer_mobile || "—"}
-                      </p>
+                  {/* Collector Information */}
+                  {(selectedCard.collector_name || selectedCard.collector_profile_image) && (
+                    <div className="border-t pt-4">
+                      <h3 className="text-lg font-semibold text-blue-700 mb-4">
+                        {t("assignCard.authorizedCollector") || "Authorized Collector"}
+                      </h3>
+                      <div className="flex flex-col items-center mb-4">
+                        {selectedCard.collector_profile_image ? (
+                          <img
+                            src={selectedCard.collector_profile_image}
+                            alt={selectedCard.collector_name || "Collector"}
+                            className="w-64 h-64 sm:w-72 sm:h-72 object-cover rounded-lg border-4 border-blue-300 shadow-xl mb-3"
+                            loading="eager"
+                            onError={(e) => {
+                              const collectorName = selectedCard.collector_name || 'Collector';
+                              e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(collectorName)}&size=288&background=3b82f6&color=fff`;
+                            }}
+                          />
+                        ) : (
+                          <div className="w-64 h-64 sm:w-72 sm:h-72 bg-blue-100 rounded-lg border-4 border-blue-300 flex items-center justify-center mb-3">
+                            <User className="h-28 w-28 text-blue-400" />
+                          </div>
+                        )}
+                        <p className="text-xl font-semibold text-gray-900">
+                          {selectedCard.collector_name || "—"}
+                        </p>
+                        <p className="text-base text-gray-500">{selectedCard.collector_mobile || "—"}</p>
+                        <p className="text-sm text-blue-600 mt-1 font-medium">Authorized to collect on behalf</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
 

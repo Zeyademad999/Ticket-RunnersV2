@@ -6,7 +6,6 @@ import {
   Calendar,
   MapPin,
   Clock,
-  Heart,
   Share2,
   Ticket,
   Banknote,
@@ -16,8 +15,6 @@ import { useTranslation } from "react-i18next";
 import { ShareModal } from "@/components/ShareModal";
 import { ImageWithFallback } from "@/components/ui/ImageWithFallback";
 import { formatDate, formatTime, isRTL, getTextDirection } from "@/lib/utils";
-import { useFavorites } from "@/hooks/useFavorites";
-import { Loader2 } from "lucide-react";
 import { useAuth } from "@/Contexts/AuthContext";
 import { SignInPromptModal } from "@/components/SignInPromptModal";
 
@@ -52,7 +49,6 @@ export function EventCard({
   ticketsAvailable,
   ticketCategories,
 }: EventCardProps) {
-  const [liked, setLiked] = useState(isLiked);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
@@ -62,11 +58,6 @@ export function EventCard({
   const isRTLMode = isRTL(currentLocale);
   const textDirection = getTextDirection(currentLocale);
   const { user } = useAuth();
-  const {
-    addToFavorites,
-    removeFromFavorites,
-    loading: favoritesLoading,
-  } = useFavorites();
   
   // Check if user is a Black Card Customer
   // Handle both string format (legacy) and object format (new)
@@ -111,24 +102,6 @@ export function EventCard({
 
   const eventUrl = `${window.location.origin}/event/${id}`;
 
-  const handleLike = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    if (!liked) {
-      // Add to favorites using API
-      const success = await addToFavorites(id);
-      if (success) {
-        setLiked(true);
-      }
-    } else {
-      // Remove from favorites using API
-      const success = await removeFromFavorites(id);
-      if (success) {
-        setLiked(false);
-      }
-    }
-  };
-
   const handleShare = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowShareModal(true);
@@ -165,23 +138,6 @@ export function EventCard({
 
         {/* Actions */}
         <div className="absolute top-4 right-4 flex flex-col space-y-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
-          <Button
-            variant="icon"
-            size="icon"
-            className="bg-background/80 backdrop-blur-sm hover:bg-background"
-            onClick={handleLike}
-            disabled={favoritesLoading}
-          >
-            {favoritesLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Heart
-                className={`h-4 w-4 ${
-                  liked ? "fill-red-500 text-red-500" : ""
-                }`}
-              />
-            )}
-          </Button>
           <Button
             variant="icon"
             size="icon"

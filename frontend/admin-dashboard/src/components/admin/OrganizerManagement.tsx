@@ -19,7 +19,6 @@ const useDebounce = (value: string, delay: number) => {
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -48,7 +47,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -59,13 +57,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
   ResponsivePagination,
 } from "@/components/ui/pagination";
 import {
@@ -77,65 +68,26 @@ import {
   Eye,
   Download,
   User,
-  Shield,
-  Settings,
   MoreHorizontal,
   UserCheck,
   UserX,
-  Lock,
-  Unlock,
   RefreshCw,
   AlertCircle,
   CheckCircle,
-  XCircle,
-  Clock,
-  Crown,
-  Users,
-  UserCog,
   Key,
-  LogOut,
   Calendar,
-  EyeOff,
-  CheckSquare,
-  Square,
-  Building2,
-  MapPin,
-  Phone,
-  Mail,
-  Globe,
   Star,
-  StarOff,
   TrendingUp,
-  TrendingDown,
   DollarSign,
-  Ticket,
-  CalendarDays,
-  Award,
-  FileText,
-  CreditCard,
-  Wallet,
   Target,
   Zap,
-  Repeat,
-  Clock3,
-  CalendarX,
   Building,
-  Home,
   Briefcase,
   GraduationCap,
   Music,
-  Camera,
   Palette,
-  Gamepad2,
   Utensils,
-  Car,
-  Plane,
-  Train,
-  Bus,
-  Ship,
-  Bike,
   Upload,
-  Image,
   Loader2,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -283,7 +235,7 @@ const OrganizersManagement: React.FC = () => {
   });
   const queryClient = useQueryClient();
 
-  // Fetch organizers from API
+  // Fetch ALL organizers from API (we'll filter client-side since backend filtering is unreliable)
   const {
     data: organizersData,
     isLoading: organizersLoading,
@@ -291,26 +243,21 @@ const OrganizersManagement: React.FC = () => {
   } = useQuery({
     queryKey: [
       "organizers",
-      debouncedSearchTerm,
-      statusFilter,
-      locationFilter,
-      verifiedFilter,
-      currentPage,
-      itemsPerPage,
+      "all", // Fetch all organizers for client-side filtering
     ],
     queryFn: async () => {
+      // Fetch all organizers with a large page size
       const params: any = {
-        page: currentPage,
-        page_size: itemsPerPage,
+        page: 1,
+        page_size: 10000, // Get all organizers
       };
-      if (debouncedSearchTerm) params.search = debouncedSearchTerm;
-      if (statusFilter !== "all") params.status = statusFilter;
-      if (locationFilter !== "all") params.location = locationFilter;
-      if (verifiedFilter !== "all") params.verified = verifiedFilter === "verified";
 
       return await usersApi.getOrganizers(params);
     },
-    keepPreviousData: true, // Keep previous data while loading new data
+    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    staleTime: 0, // Always consider data stale to ensure fresh fetches
+    gcTime: 0, // Don't cache results
   });
 
   // State to track if export dialog is open
@@ -319,7 +266,6 @@ const OrganizersManagement: React.FC = () => {
   // Fetch all organizers for export (without pagination) when dialog opens
   const {
     data: allOrganizersData,
-    isLoading: allOrganizersLoading,
   } = useQuery({
     queryKey: [
       "organizers",
@@ -346,7 +292,18 @@ const OrganizersManagement: React.FC = () => {
   });
 
   // Helper function to transform API organizer data
-  const transformOrganizer = (item: any): Organizer => ({
+  const transformOrganizer = (item: any): Organizer => {
+    // Parse totalEvents - handle null, undefined, string, or number
+    const totalEvents = item.total_events !== null && item.total_events !== undefined
+      ? (typeof item.total_events === 'string' ? parseInt(item.total_events, 10) : Number(item.total_events)) || 0
+      : 0;
+    
+    // Parse totalRevenue - handle null, undefined, string, or number
+    const totalRevenue = item.total_revenue !== null && item.total_revenue !== undefined
+      ? (typeof item.total_revenue === 'string' ? parseFloat(item.total_revenue) : Number(item.total_revenue)) || 0
+      : 0;
+    
+    return {
     id: item.id?.toString() || "",
     name: item.name || "",
     email: item.email || "",
@@ -359,18 +316,16 @@ const OrganizersManagement: React.FC = () => {
       | "pending",
     registrationDate: item.registration_date || item.created_at || "",
     lastLogin: item.last_login || "",
-    totalEvents: item.total_events || 0,
-    totalRevenue: parseFloat(item.total_revenue || 0),
+    totalEvents: totalEvents,
+    totalRevenue: totalRevenue,
     commissionRate: parseFloat(item.commission_rate || 0) * 100, // Convert to percentage
     commission: (() => {
-      const revenue = parseFloat(item.total_revenue || 0);
       const rate = parseFloat(item.commission_rate || 0);
-      return revenue * rate; // Calculate commission from revenue and rate
+      return totalRevenue * rate; // Calculate commission from revenue and rate
     })(),
     netRevenue: (() => {
-      const revenue = parseFloat(item.total_revenue || 0);
       const rate = parseFloat(item.commission_rate || 0);
-      return revenue - (revenue * rate); // Net revenue = total revenue - commission
+      return totalRevenue - (totalRevenue * rate); // Net revenue = total revenue - commission
     })(),
     rating: parseFloat(item.rating || 0),
     verified: item.verified || false,
@@ -401,231 +356,112 @@ const OrganizersManagement: React.FC = () => {
     customerSatisfaction: 0,
     repeatCustomers: 0,
     socialMedia: {},
+  };
+  };
+
+  // Fetch all events to calculate totals for organizers
+  const { data: allEventsData } = useQuery({
+    queryKey: ["allEventsForOrganizerStats"],
+    queryFn: async () => {
+      return await eventsApi.getEvents({
+        page_size: 10000, // Get all events
+      });
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
+
+  // Calculate organizer stats from events
+  const organizerStatsMap = useMemo(() => {
+    const statsMap = new Map<string, { totalEvents: number; totalRevenue: number }>();
+    
+    if (!allEventsData) return statsMap;
+    
+    const eventsArray = Array.isArray(allEventsData)
+      ? allEventsData
+      : (allEventsData.results || []);
+    
+    // Create a map of organizer names to IDs from the current organizers list
+    const organizerNameToIdMap = new Map<string, string>();
+    if (organizersData && 'results' in organizersData && organizersData.results) {
+      organizersData.results.forEach((org: any) => {
+        if (org.name && org.id) {
+          organizerNameToIdMap.set(org.name.toLowerCase().trim(), String(org.id));
+        }
+      });
+    }
+    
+    eventsArray.forEach((event: any) => {
+      const eventRevenue = parseFloat(event.revenue || 0);
+      
+      // Try to get organizer IDs from organizers array (if available in detail view)
+      const eventOrganizers = event.organizers || [];
+      if (Array.isArray(eventOrganizers) && eventOrganizers.length > 0) {
+        // Handle multiple organizers per event
+        eventOrganizers.forEach((org: any) => {
+          const orgId = typeof org === 'object' ? (org.id || org.organizer_id) : org;
+          if (orgId) {
+            const orgIdStr = String(orgId);
+            const current = statsMap.get(orgIdStr) || { totalEvents: 0, totalRevenue: 0 };
+            statsMap.set(orgIdStr, {
+              totalEvents: current.totalEvents + 1,
+              totalRevenue: current.totalRevenue + eventRevenue,
+            });
+          }
+        });
+      } else if (event.organizer) {
+        // Single organizer (backward compatibility)
+        const orgId = typeof event.organizer === 'object' ? (event.organizer.id || event.organizer.organizer_id) : event.organizer;
+        if (orgId) {
+          const orgIdStr = String(orgId);
+          const current = statsMap.get(orgIdStr) || { totalEvents: 0, totalRevenue: 0 };
+          statsMap.set(orgIdStr, {
+            totalEvents: current.totalEvents + 1,
+            totalRevenue: current.totalRevenue + eventRevenue,
+          });
+        }
+      } else if (event.organizer_name) {
+        // Fallback: match by organizer name (less reliable but works if IDs not available)
+        const organizerNames = event.organizer_name.split(',').map((name: string) => name.trim());
+        organizerNames.forEach((name: string) => {
+          const orgId = organizerNameToIdMap.get(name.toLowerCase());
+          if (orgId) {
+            const current = statsMap.get(orgId) || { totalEvents: 0, totalRevenue: 0 };
+            statsMap.set(orgId, {
+              totalEvents: current.totalEvents + 1,
+              totalRevenue: current.totalRevenue + eventRevenue,
+            });
+          }
+        });
+      }
+    });
+    
+    return statsMap;
+  }, [allEventsData, organizersData]);
 
   // Transform API organizers to match Organizer interface
   const organizers: Organizer[] = useMemo(() => {
-    if (!organizersData?.results) return [];
-    return organizersData.results.map(transformOrganizer);
-  }, [organizersData]);
+    if (!organizersData || !('results' in organizersData) || !organizersData.results) return [];
+    return organizersData.results.map((item: any) => {
+      const transformed = transformOrganizer(item);
+      // Override with calculated stats from events if available
+      const stats = organizerStatsMap.get(transformed.id);
+      if (stats) {
+        transformed.totalEvents = stats.totalEvents;
+        transformed.totalRevenue = stats.totalRevenue;
+        // Recalculate commission and netRevenue with updated totalRevenue
+        const rate = transformed.commissionRate / 100; // Convert back to decimal
+        transformed.commission = transformed.totalRevenue * rate;
+        transformed.netRevenue = transformed.totalRevenue - transformed.commission;
+      }
+      return transformed;
+    });
+  }, [organizersData, organizerStatsMap]);
 
   // Transform all organizers for export
   const allOrganizersForExport: Organizer[] = useMemo(() => {
-    if (!allOrganizersData?.results) return organizers; // Fallback to current page if export data not loaded
+    if (!allOrganizersData || !('results' in allOrganizersData) || !allOrganizersData.results) return organizers; // Fallback to current page if export data not loaded
     return allOrganizersData.results.map(transformOrganizer);
   }, [allOrganizersData, organizers]);
-
-  // Mock organizers data (fallback - will be removed once API is fully integrated)
-  const mockOrganizers: Organizer[] = [
-    {
-      id: "ORG001",
-      name: "Cairo Events Pro",
-      email: "contact@cairoeventspro.com",
-      phone: "+20 10 1234 5678",
-      website: "https://cairoeventspro.com",
-      status: "active",
-      registrationDate: "2024-01-15",
-      lastLogin: "2025-08-16T10:30:00",
-      totalEvents: 45,
-      totalRevenue: 1250000,
-      commissionRate: 10,
-      rating: 4.8,
-      verified: true,
-      category: "music",
-      location: "Cairo, Egypt",
-      description:
-        "Premier event organizer specializing in music concerts and festivals across Egypt.",
-      profileImage: "/public/Portrait_Placeholder.png",
-      contactPerson: "Ahmed Hassan",
-      businessLicense: "BL-2024-001",
-      taxId: "TAX-123456789",
-      bankAccount: "EG123456789012345678901234",
-      payoutMethod: "bank",
-      minimumPayout: 5000,
-      totalPayouts: 1150000,
-      pendingPayout: 15000,
-      eventsThisMonth: 3,
-      eventsLastMonth: 4,
-      averageRating: 4.8,
-      totalReviews: 156,
-      responseRate: 98,
-      responseTime: 2,
-      cancellationRate: 2,
-      refundRate: 1,
-      customerSatisfaction: 95,
-      repeatCustomers: 45,
-      socialMedia: {
-        facebook: "cairoeventspro",
-        instagram: "cairoeventspro",
-        twitter: "cairoeventspro",
-      },
-    },
-    {
-      id: "ORG002",
-      name: "Tech Events Egypt",
-      email: "info@techeventsegypt.com",
-      phone: "+20 10 2345 6789",
-      website: "https://techeventsegypt.com",
-      status: "active",
-      registrationDate: "2024-02-20",
-      lastLogin: "2025-08-16T09:15:00",
-      totalEvents: 28,
-      totalRevenue: 850000,
-      commissionRate: 12,
-      rating: 4.6,
-      verified: true,
-      category: "technology",
-      location: "Alexandria, Egypt",
-      description:
-        "Leading technology conference and workshop organizer in Egypt.",
-      profileImage: "/public/Portrait_Placeholder.png",
-      contactPerson: "Sarah Mohamed",
-      businessLicense: "BL-2024-002",
-      taxId: "TAX-987654321",
-      bankAccount: "EG987654321098765432109876",
-      payoutMethod: "paypal",
-      payoutEmail: "payments@techeventsegypt.com",
-      minimumPayout: 3000,
-      totalPayouts: 748000,
-      pendingPayout: 102000,
-      eventsThisMonth: 2,
-      eventsLastMonth: 3,
-      averageRating: 4.6,
-      totalReviews: 89,
-      responseRate: 95,
-      responseTime: 4,
-      cancellationRate: 5,
-      refundRate: 2,
-      customerSatisfaction: 92,
-      repeatCustomers: 32,
-      socialMedia: {
-        linkedin: "techeventsegypt",
-        twitter: "techeventsegypt",
-      },
-    },
-    {
-      id: "ORG003",
-      name: "Art & Culture Hub",
-      email: "hello@artculturehub.com",
-      phone: "+20 10 3456 7890",
-      website: "https://artculturehub.com",
-      status: "active",
-      registrationDate: "2024-03-10",
-      lastLogin: "2025-08-16T11:45:00",
-      totalEvents: 15,
-      totalRevenue: 320000,
-      commissionRate: 8,
-      rating: 4.9,
-      verified: true,
-      category: "art",
-      location: "Giza, Egypt",
-      description: "Curating exceptional art exhibitions and cultural events.",
-      profileImage: "/public/Portrait_Placeholder.png",
-      contactPerson: "Layla Ahmed",
-      businessLicense: "BL-2024-003",
-      taxId: "TAX-456789123",
-      bankAccount: "EG456789123456789123456789",
-      payoutMethod: "bank",
-      minimumPayout: 2000,
-      totalPayouts: 294400,
-      pendingPayout: 25600,
-      eventsThisMonth: 1,
-      eventsLastMonth: 2,
-      averageRating: 4.9,
-      totalReviews: 67,
-      responseRate: 100,
-      responseTime: 1,
-      cancellationRate: 0,
-      refundRate: 0,
-      customerSatisfaction: 98,
-      repeatCustomers: 28,
-      socialMedia: {
-        instagram: "artculturehub",
-        facebook: "artculturehub",
-      },
-    },
-    {
-      id: "ORG004",
-      name: "Sports Events Plus",
-      email: "contact@sportseventsplus.com",
-      phone: "+20 10 4567 8901",
-      website: "https://sportseventsplus.com",
-      status: "inactive",
-      registrationDate: "2024-04-05",
-      lastLogin: "2025-07-20T14:20:00",
-      totalEvents: 8,
-      totalRevenue: 180000,
-      commissionRate: 15,
-      rating: 4.3,
-      verified: false,
-      category: "sports",
-      location: "Sharm El Sheikh, Egypt",
-      description:
-        "Sports event organizer specializing in marathons and fitness events.",
-      profileImage: "/public/Portrait_Placeholder.png",
-      contactPerson: "Omar Khalil",
-      businessLicense: "BL-2024-004",
-      taxId: "TAX-789123456",
-      bankAccount: "EG789123456789123456789123",
-      payoutMethod: "stripe",
-      minimumPayout: 1000,
-      totalPayouts: 153000,
-      pendingPayout: 27000,
-      eventsThisMonth: 0,
-      eventsLastMonth: 1,
-      averageRating: 4.3,
-      totalReviews: 34,
-      responseRate: 85,
-      responseTime: 6,
-      cancellationRate: 8,
-      refundRate: 3,
-      customerSatisfaction: 87,
-      repeatCustomers: 12,
-    },
-    {
-      id: "ORG005",
-      name: "Food Festival Masters",
-      email: "info@foodfestivalmasters.com",
-      phone: "+20 10 5678 9012",
-      website: "https://foodfestivalmasters.com",
-      status: "active",
-      registrationDate: "2024-05-12",
-      lastLogin: "2025-08-16T08:30:00",
-      totalEvents: 22,
-      totalRevenue: 680000,
-      commissionRate: 10,
-      rating: 4.7,
-      verified: true,
-      category: "food",
-      location: "Luxor, Egypt",
-      description: "Premier food festival and culinary event organizer.",
-      profileImage: "/public/Portrait_Placeholder.png",
-      contactPerson: "Fatima Ali",
-      businessLicense: "BL-2024-005",
-      taxId: "TAX-321654987",
-      bankAccount: "EG321654987321654987321654",
-      payoutMethod: "bank",
-      minimumPayout: 4000,
-      totalPayouts: 612000,
-      pendingPayout: 68000,
-      eventsThisMonth: 2,
-      eventsLastMonth: 2,
-      averageRating: 4.7,
-      totalReviews: 123,
-      responseRate: 96,
-      responseTime: 3,
-      cancellationRate: 3,
-      refundRate: 1,
-      customerSatisfaction: 94,
-      repeatCustomers: 38,
-      socialMedia: {
-        instagram: "foodfestivalmasters",
-        facebook: "foodfestivalmasters",
-        twitter: "foodfestivalmasters",
-      },
-    },
-  ];
-
 
   // Fetch organizer events when an organizer is selected or filter is set
   const {
@@ -647,8 +483,14 @@ const OrganizersManagement: React.FC = () => {
 
   // Transform API events to match OrganizerEvent interface
   const organizerEvents: OrganizerEvent[] = useMemo(() => {
-    if (!organizerEventsData?.results) return [];
-    return organizerEventsData.results.map((item: any) => ({
+    if (!organizerEventsData) return [];
+    
+    // Handle both paginated response (with results) and direct array response
+    const eventsArray = Array.isArray(organizerEventsData) 
+      ? organizerEventsData 
+      : (organizerEventsData.results || []);
+    
+    return eventsArray.map((item: any) => ({
       id: item.id?.toString() || "",
       title: item.title || "",
       date: item.date || item.start_date || "",
@@ -658,20 +500,49 @@ const OrganizersManagement: React.FC = () => {
       revenue: parseFloat(item.revenue || item.total_revenue || 0),
       commission: parseFloat(item.commission || 0),
       rating: item.rating ? parseFloat(item.rating) : undefined,
-      image: item.image || item.image_url || "/public/Portrait_Placeholder.png",
+      image: item.image || item.image_url || item.thumbnail_path || "/public/Portrait_Placeholder.png",
       description: item.description || "",
-      location: item.location || item.venue?.name || "",
+      location: item.location || item.venue?.name || item.venue?.address || "",
       price: parseFloat(item.price || item.starting_price || 0),
     }));
   }, [organizerEventsData]);
 
-  // API handles filtering, so we use organizers directly
-  // Client-side filtering only for fields not supported by API
+  // Apply client-side filtering as fallback (backend may not filter correctly)
   const filteredOrganizers = useMemo(() => {
-    // API handles search, status, category, and location filtering
-    // Only apply client-side filtering if needed for additional fields
-    return organizers;
-  }, [organizers]);
+    let filtered = [...organizers];
+    
+    // Filter by status (client-side fallback)
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((org) => org.status === statusFilter);
+    }
+    
+    // Filter by location (client-side fallback)
+    if (locationFilter !== "all") {
+      filtered = filtered.filter((org) => org.location === locationFilter);
+    }
+    
+    // Filter by verification status (client-side fallback)
+    if (verifiedFilter !== "all") {
+      if (verifiedFilter === "verified") {
+        filtered = filtered.filter((org) => org.verified === true);
+      } else if (verifiedFilter === "unverified") {
+        filtered = filtered.filter((org) => org.verified === false);
+      }
+    }
+    
+    // Filter by search term (client-side fallback)
+    if (debouncedSearchTerm) {
+      const searchLower = debouncedSearchTerm.toLowerCase();
+      filtered = filtered.filter((org) => 
+        org.name.toLowerCase().includes(searchLower) ||
+        org.email.toLowerCase().includes(searchLower) ||
+        org.phone.includes(searchLower) ||
+        (org.location && org.location.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    return filtered;
+  }, [organizers, statusFilter, locationFilter, verifiedFilter, debouncedSearchTerm]);
 
   // Get unique locations from organizers for filter dropdown
   const uniqueLocations = useMemo(() => {
@@ -684,9 +555,12 @@ const OrganizersManagement: React.FC = () => {
     return Array.from(locations).sort();
   }, [organizers]);
 
-  // Pagination - use API pagination
-  const totalPages = organizersData?.total_pages || 1;
-  const paginatedOrganizers = filteredOrganizers; // API already paginates
+  // Pagination - client-side pagination on filtered results
+  const totalFilteredCount = filteredOrganizers.length;
+  const totalPages = Math.ceil(totalFilteredCount / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedOrganizers = filteredOrganizers.slice(startIndex, endIndex);
 
   // Reset to first page when filters change (using debounced search)
   useEffect(() => {
@@ -877,62 +751,82 @@ const OrganizersManagement: React.FC = () => {
         email: organizer.email || "",
         phone: organizer.phone || "",
         status: organizer.status || "active",
-        category: organizer.category || "",
+        category: organizer.category || "other",
         totalEvents: organizer.totalEvents || 0,
         totalRevenue: organizer.totalRevenue || 0,
         commission: organizer.commission || 0,
-        payout: organizer.netRevenue || 0,
+        netRevenue: organizer.netRevenue || 0,
         registrationDate: organizer.registrationDate || "",
         lastLogin: organizer.lastLogin || "",
         location: organizer.location || "",
         rating: organizer.rating || 0,
-        totalTicketsSold: 0,
+        verified: organizer.verified || false,
+        commissionRate: organizer.commissionRate || 0,
+        description: organizer.description || "",
+        website: organizer.website,
+        profileImage: organizer.profileImage,
+        contactPerson: organizer.contactPerson || "",
+        businessLicense: organizer.businessLicense,
+        taxId: organizer.taxId,
+        bankAccount: organizer.bankAccount,
+        contactMobile: organizer.contactMobile,
+        payoutMethod: organizer.payoutMethod,
+        payoutEmail: organizer.payoutEmail,
+        minimumPayout: organizer.minimumPayout,
+        totalPayouts: organizer.totalPayouts,
+        pendingPayout: organizer.pendingPayout,
+        eventsThisMonth: organizer.eventsThisMonth,
+        eventsLastMonth: organizer.eventsLastMonth,
+        averageRating: organizer.averageRating,
+        totalReviews: organizer.totalReviews,
+        responseRate: organizer.responseRate,
+        responseTime: organizer.responseTime,
+        cancellationRate: organizer.cancellationRate,
+        refundRate: organizer.refundRate,
+        customerSatisfaction: organizer.customerSatisfaction,
+        repeatCustomers: organizer.repeatCustomers,
+        socialMedia: organizer.socialMedia,
       });
     } else if (rawOrganizer) {
-      // Use raw API data (snake_case)
-      setOrganizerToDelete({
-        id: String(rawOrganizer.id),
-        name: rawOrganizer.name || rawOrganizer.username || "",
-        email: rawOrganizer.email || "",
-        phone: rawOrganizer.mobile_number || rawOrganizer.phone || rawOrganizer.contact_mobile || "",
-        status: rawOrganizer.status || "active",
-        category: rawOrganizer.category?.name || rawOrganizer.category || "",
-        totalEvents: rawOrganizer.total_events || 0,
-        totalRevenue: parseFloat(rawOrganizer.total_revenue) || 0,
-        commission: (() => {
-          const revenue = parseFloat(rawOrganizer.total_revenue || 0);
-          const rate = parseFloat(rawOrganizer.commission_rate || 0);
-          return revenue * rate;
-        })(),
-        payout: (() => {
-          const revenue = parseFloat(rawOrganizer.total_revenue || 0);
-          const rate = parseFloat(rawOrganizer.commission_rate || 0);
-          return revenue - (revenue * rate);
-        })(),
-        registrationDate: rawOrganizer.registration_date || rawOrganizer.created_at || "",
-        lastLogin: rawOrganizer.last_login || "",
-        location: rawOrganizer.location || "",
-        rating: parseFloat(rawOrganizer.rating) || 0,
-        totalTicketsSold: rawOrganizer.total_tickets_sold || 0,
-      });
+      // Use raw API data (snake_case) - transform to Organizer type
+      const transformed = transformOrganizer(rawOrganizer);
+      setOrganizerToDelete(transformed);
     } else {
-      // Fallback: create organizer object from ID if not found
+      // Fallback: create minimal organizer object from ID if not found
       setOrganizerToDelete({
         id: organizerIdStr,
         name: "",
         email: "",
         phone: "",
         status: "active",
-        category: "",
+        category: "other",
         totalEvents: 0,
         totalRevenue: 0,
         commission: 0,
-        payout: 0,
+        netRevenue: 0,
         registrationDate: "",
         lastLogin: "",
         location: "",
         rating: 0,
-        totalTicketsSold: 0,
+        verified: false,
+        commissionRate: 0,
+        description: "",
+        contactPerson: "",
+        payoutMethod: "bank",
+        minimumPayout: 0,
+        totalPayouts: 0,
+        pendingPayout: 0,
+        eventsThisMonth: 0,
+        eventsLastMonth: 0,
+        averageRating: 0,
+        totalReviews: 0,
+        responseRate: 0,
+        responseTime: 0,
+        cancellationRate: 0,
+        refundRate: 0,
+        customerSatisfaction: 0,
+        repeatCustomers: 0,
+        socialMedia: {},
       });
     }
     
@@ -946,12 +840,6 @@ const OrganizersManagement: React.FC = () => {
     }
   };
 
-  const handleExportOrganizers = () => {
-    toast({
-      title: t("admin.organizers.toast.exportSuccess"),
-      description: t("admin.organizers.toast.exportSuccessDesc"),
-    });
-  };
 
   // Update organizer mutation
   const updateOrganizerMutation = useMutation({
@@ -1233,15 +1121,6 @@ const OrganizersManagement: React.FC = () => {
     }
   };
 
-  const formatDateTimeForLocale = (dateString: string) => {
-    try {
-      return format(parseISO(dateString), "MMM dd, HH:mm", {
-        locale: i18n.language === "ar" ? ar : undefined,
-      });
-    } catch (error) {
-      return dateString;
-    }
-  };
 
   const formatPhone = (phoneNumber: string) => {
     return formatPhoneNumberForLocale(phoneNumber, i18n.language);
@@ -1273,7 +1152,7 @@ const OrganizersManagement: React.FC = () => {
               location: locationFilter,
               verified: verifiedFilter,
             }}
-            onExport={async (format) => {
+            onExport={async () => {
               // Ensure we have all organizers data before exporting
               if (!allOrganizersData || allOrganizersForExport.length === 0) {
                 await queryClient.fetchQuery({
@@ -1446,7 +1325,7 @@ const OrganizersManagement: React.FC = () => {
           <CardTitle className="rtl:text-right ltr:text-left">
             {t("admin.organizers.table.organizer")} (
             {formatNumberForLocale(
-              organizersData?.count || paginatedOrganizers.length,
+              totalFilteredCount,
               i18n.language
             )}
             )
@@ -1456,14 +1335,14 @@ const OrganizersManagement: React.FC = () => {
               {organizersLoading
                 ? t("common.loading")
                 : `${t("admin.organizers.pagination.showing")} ${
-                    (currentPage - 1) * itemsPerPage + 1
+                    totalFilteredCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0
                   }-${Math.min(
                     currentPage * itemsPerPage,
-                    organizersData?.count || paginatedOrganizers.length
+                    totalFilteredCount
                   )} ${t(
                     "admin.organizers.pagination.of"
                   )} ${formatNumberForLocale(
-                    organizersData?.count || paginatedOrganizers.length,
+                    totalFilteredCount,
                     i18n.language
                   )} ${t("admin.organizers.pagination.results")}`}
             </span>
@@ -1507,9 +1386,6 @@ const OrganizersManagement: React.FC = () => {
                     {t("admin.organizers.table.revenue") || "Revenue"}
                   </TableHead>
                   <TableHead className="rtl:text-right ltr:text-left">
-                    {t("admin.organizers.table.rating")}
-                  </TableHead>
-                  <TableHead className="rtl:text-right ltr:text-left">
                     {t("admin.organizers.table.actions")}
                   </TableHead>
                 </TableRow>
@@ -1517,7 +1393,7 @@ const OrganizersManagement: React.FC = () => {
               <TableBody>
                 {organizersLoading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={7} className="text-center py-12">
                       <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
                       <span className="ml-2 text-muted-foreground">
                         {t("common.loading")}
@@ -1527,7 +1403,7 @@ const OrganizersManagement: React.FC = () => {
                 ) : organizersError ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={7}
                       className="text-center py-12 text-red-500"
                     >
                       <AlertCircle className="h-8 w-8 mx-auto mb-2" />
@@ -1537,10 +1413,20 @@ const OrganizersManagement: React.FC = () => {
                 ) : paginatedOrganizers.length === 0 ? (
                   <TableRow>
                     <TableCell
-                      colSpan={8}
+                      colSpan={7}
                       className="text-center py-12 text-muted-foreground"
                     >
-                      {t("admin.organizers.noOrganizers")}
+                      <div className="flex flex-col items-center gap-2">
+                        <AlertCircle className="h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm font-medium">
+                          {t("admin.organizers.noOrganizers") || "No organizers found"}
+                        </p>
+                        {(debouncedSearchTerm || statusFilter !== "all" || locationFilter !== "all" || verifiedFilter !== "all") && (
+                          <p className="text-xs text-muted-foreground">
+                            {t("admin.organizers.noOrganizersWithFilters") || "Try adjusting your filters to see more results"}
+                          </p>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -1586,27 +1472,21 @@ const OrganizersManagement: React.FC = () => {
                           {getStatusText(organizer.status)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <p className="text-sm rtl:text-right ltr:text-left">
+                      <TableCell className="rtl:text-right ltr:text-left">
+                        <p className="text-sm font-medium">
                           {formatNumberForLocale(
-                            organizer.totalEvents,
+                            organizer.totalEvents || 0,
                             i18n.language
                           )}
                         </p>
                       </TableCell>
-                      <TableCell>
-                        <p className="text-sm font-medium text-green-600 rtl:text-right ltr:text-left">
+                      <TableCell className="rtl:text-right ltr:text-left">
+                        <p className="text-sm font-medium text-green-600">
                           {formatCurrencyForLocale(
-                            organizer.totalRevenue,
+                            organizer.netRevenue || 0,
                             i18n.language
                           )}
                         </p>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1 rtl:flex-row-reverse">
-                          <Star className="h-4 w-4 text-yellow-500" />
-                          <span className="text-sm">{organizer.rating}</span>
-                        </div>
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>
@@ -1712,20 +1592,20 @@ const OrganizersManagement: React.FC = () => {
               onPageChange={setCurrentPage}
               showInfo={true}
               infoText={`${t("admin.organizers.pagination.showing")} ${
-                (currentPage - 1) * itemsPerPage + 1
+                totalFilteredCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0
               }-${Math.min(
                 currentPage * itemsPerPage,
-                organizersData?.count || paginatedOrganizers.length
+                totalFilteredCount
               )} ${t("admin.organizers.pagination.of")} ${formatNumberForLocale(
-                organizersData?.count || paginatedOrganizers.length,
+                totalFilteredCount,
                 i18n.language
               )} ${t("admin.organizers.pagination.results")}`}
-              startIndex={(currentPage - 1) * itemsPerPage + 1}
+              startIndex={totalFilteredCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
               endIndex={Math.min(
                 currentPage * itemsPerPage,
-                organizersData?.count || paginatedOrganizers.length
+                totalFilteredCount
               )}
-              totalItems={organizersData?.count || paginatedOrganizers.length}
+              totalItems={totalFilteredCount}
               itemsPerPage={itemsPerPage}
               className="mt-4"
             />
@@ -1759,36 +1639,26 @@ const OrganizersManagement: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center space-x-3 rtl:space-x-reverse">
-                      <img
-                        src={
-                          selectedOrganizer.profileImage ||
-                          "/public/Portrait_Placeholder.png"
-                        }
-                        alt={selectedOrganizer.name}
-                        className="w-16 h-16 rounded-full object-cover"
-                      />
-                      <div className="rtl:text-right ltr:text-left">
-                        <h3 className="text-lg font-semibold">
-                          {selectedOrganizer.name}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {selectedOrganizer.location}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1 rtl:flex-row-reverse">
-                          <Badge
-                            className={getStatusColor(selectedOrganizer.status)}
-                          >
-                            {getStatusText(selectedOrganizer.status)}
+                  <div className="space-y-4">
+                    <div className="rtl:text-right ltr:text-left">
+                      <h3 className="text-lg font-semibold">
+                        {selectedOrganizer.name}
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedOrganizer.location}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1 rtl:flex-row-reverse">
+                        <Badge
+                          className={getStatusColor(selectedOrganizer.status)}
+                        >
+                          {getStatusText(selectedOrganizer.status)}
+                        </Badge>
+                        {selectedOrganizer.verified && (
+                          <Badge variant="outline" className="text-green-600">
+                            <CheckCircle className="h-3 w-3 mr-1 rtl:ml-1 rtl:mr-0" />
+                            {t("admin.organizers.verified")}
                           </Badge>
-                          {selectedOrganizer.verified && (
-                            <Badge variant="outline" className="text-green-600">
-                              <CheckCircle className="h-3 w-3 mr-1 rtl:ml-1 rtl:mr-0" />
-                              {t("admin.organizers.verified")}
-                            </Badge>
-                          )}
-                        </div>
+                        )}
                       </div>
                     </div>
                     <div className="space-y-2 rtl:text-right ltr:text-left">
@@ -1816,71 +1686,6 @@ const OrganizersManagement: React.FC = () => {
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Statistics */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 rtl:text-right ltr:text-left">
-                    <TrendingUp className="h-5 w-5" />
-                    {t("admin.organizers.details.statistics")}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">
-                        {selectedOrganizer.totalEvents}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("admin.organizers.details.totalEvents")}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">
-                        {formatNumberForLocale(
-                          selectedOrganizer.totalRevenue,
-                          i18n.language
-                        )}{" "}
-                        EGP
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("admin.organizers.details.totalRevenue")}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">
-                        {selectedOrganizer.rating}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("admin.organizers.details.rating")}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-2xl font-bold">
-                        {selectedOrganizer.commissionRate}%
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {t("admin.organizers.details.commissionRate")}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Description */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 rtl:text-right ltr:text-left">
-                    <FileText className="h-5 w-5" />
-                    {t("admin.organizers.details.description")}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm rtl:text-right ltr:text-left">
-                    {selectedOrganizer.description}
-                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -2389,11 +2194,11 @@ const OrganizersManagement: React.FC = () => {
                 }}
               >
                 <SelectTrigger className="w-full max-w-md">
-                  <SelectValue placeholder={t("admin.organizers.events.selectOrganizer") || "Select an organizer"} />
+                  <SelectValue placeholder={t("admin.organizers.events.selectOrganizer")} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">
-                    {t("admin.organizers.events.allOrganizers") || "All Organizers"}
+                    {t("admin.organizers.events.allOrganizers")}
                   </SelectItem>
                   {organizers.map((organizer) => (
                     <SelectItem key={organizer.id} value={organizer.id}>
@@ -2404,83 +2209,98 @@ const OrganizersManagement: React.FC = () => {
               </Select>
             </div>
             
-            {(selectedOrganizer || eventsDialogOrganizerFilter) && (
-              <>
-              {/* Revenue Summary Card */}
-              {selectedOrganizer && (
-                <div className="mb-4 p-3 bg-muted rounded-lg">
-                  <p className="text-sm font-medium rtl:text-right ltr:text-left">
-                    {t("admin.organizers.events.viewingEventsFor") || "Viewing events for:"} <span className="font-bold">{selectedOrganizer.name}</span>
-                  </p>
+            {(selectedOrganizer || eventsDialogOrganizerFilter) && (() => {
+              // Get the current organizer (either from selectedOrganizer or from organizers array)
+              const currentOrganizer = selectedOrganizer || (eventsDialogOrganizerFilter ? organizers.find(o => o.id === eventsDialogOrganizerFilter) : null);
+              
+              // Calculate stats from actual events data
+              const totalEventsCount = organizerEvents.length;
+              const totalRevenue = organizerEvents.reduce((sum, event) => sum + (event.revenue || 0), 0);
+              const totalCommission = organizerEvents.reduce((sum, event) => sum + (event.commission || 0), 0);
+              const netRevenue = totalRevenue - totalCommission; // Revenue after deductions/commission
+              const averageRevenue = totalEventsCount > 0 ? totalRevenue / totalEventsCount : 0;
+              
+              return (
+                <>
+                {/* Revenue Summary Card */}
+                {currentOrganizer && (
+                  <div className="mb-4 p-3 bg-muted rounded-lg">
+                    <p className="text-sm font-medium rtl:text-right ltr:text-left">
+                      {t("admin.organizers.events.viewingEventsFor")} <span className="font-bold">{currentOrganizer.name}</span>
+                    </p>
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+                        {t("admin.organizers.events.totalRevenue")}
+                      </CardTitle>
+                      <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
+                    </CardHeader>
+                    <CardContent className="rtl:text-right">
+                      <div className="text-2xl font-bold text-green-600">
+                        {organizerEventsLoading ? (
+                          <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+                        ) : (
+                          formatCurrencyForLocale(totalRevenue, i18n.language)
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {currentOrganizer 
+                          ? `${t("admin.organizers.events.fromAllEvents")} - ${currentOrganizer.name}`
+                          : t("admin.organizers.events.fromAllEvents")}
+                      </p>
+                      {!organizerEventsLoading && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Net: {formatCurrencyForLocale(netRevenue, i18n.language)} (after deductions)
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+                        {t("admin.organizers.events.totalEvents")}
+                      </CardTitle>
+                      <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                    </CardHeader>
+                    <CardContent className="rtl:text-right">
+                      <div className="text-2xl font-bold text-blue-600">
+                        {organizerEventsLoading ? (
+                          <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+                        ) : (
+                          formatNumberForLocale(totalEventsCount, i18n.language)
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t("admin.organizers.events.eventsCount")}
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
+                        {t("admin.organizers.events.avgRevenue")}
+                      </CardTitle>
+                      <TrendingUp className="h-4 w-4 text-purple-600 flex-shrink-0" />
+                    </CardHeader>
+                    <CardContent className="rtl:text-right">
+                      <div className="text-2xl font-bold text-purple-600">
+                        {organizerEventsLoading ? (
+                          <div className="text-sm text-muted-foreground">{t("common.loading")}</div>
+                        ) : (
+                          formatCurrencyForLocale(averageRevenue, i18n.language)
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {t("admin.organizers.events.perEvent")}
+                      </p>
+                    </CardContent>
+                  </Card>
                 </div>
-              )}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-                      {t("admin.organizers.events.totalRevenue") || "Total Revenue"}
-                    </CardTitle>
-                    <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
-                  </CardHeader>
-                  <CardContent className="rtl:text-right">
-                    <div className="text-2xl font-bold text-green-600">
-                      {formatCurrencyForLocale(
-                        organizerEvents.reduce((sum, event) => sum + event.revenue, 0),
-                        i18n.language
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedOrganizer 
-                        ? `${t("admin.organizers.events.fromAllEvents") || "From all events"} - ${selectedOrganizer.name}`
-                        : t("admin.organizers.events.fromAllEvents") || "From all events"}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-                      {t("admin.organizers.events.totalEvents") || "Total Events"}
-                    </CardTitle>
-                    <Calendar className="h-4 w-4 text-blue-600 flex-shrink-0" />
-                  </CardHeader>
-                  <CardContent className="rtl:text-right">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {formatNumberForLocale(organizerEvents.length, i18n.language)}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t("admin.organizers.events.eventsCount") || "Events organized"}
-                    </p>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium rtl:text-right ltr:text-left">
-                      {t("admin.organizers.events.avgRevenue") || "Average Revenue"}
-                    </CardTitle>
-                    <TrendingUp className="h-4 w-4 text-purple-600 flex-shrink-0" />
-                  </CardHeader>
-                  <CardContent className="rtl:text-right">
-                    <div className="text-2xl font-bold text-purple-600">
-                      {formatCurrencyForLocale(
-                        organizerEvents.length > 0
-                          ? organizerEvents.reduce((sum, event) => sum + event.revenue, 0) / organizerEvents.length
-                          : 0,
-                        i18n.language
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {t("admin.organizers.events.perEvent") || "Per event"}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              <div className="flex justify-end rtl:text-right ltr:text-left">
-                <Button onClick={() => setIsAddEventDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
-                  {t("admin.organizers.events.addEvent")}
-                </Button>
-              </div>
-              <div className="overflow-x-auto">
+                
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -2525,7 +2345,7 @@ const OrganizersManagement: React.FC = () => {
                           <div className="flex items-center justify-center gap-2 text-red-600">
                             <AlertCircle className="h-4 w-4" />
                             <span>
-                              {t("common.error")}: {organizerEventsError instanceof Error ? organizerEventsError.message : t("admin.organizers.events.loadError") || "Failed to load events"}
+                              {t("common.error")}: {organizerEventsError instanceof Error ? organizerEventsError.message : t("admin.organizers.events.loadError")}
                             </span>
                           </div>
                         </TableCell>
@@ -2533,7 +2353,7 @@ const OrganizersManagement: React.FC = () => {
                     ) : organizerEvents.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          {t("admin.organizers.events.noEvents") || "No events found for this organizer"}
+                          {t("admin.organizers.events.noEvents")}
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -2645,11 +2465,12 @@ const OrganizersManagement: React.FC = () => {
                   </TableBody>
                 </Table>
               </div>
-              </>
-            )}
+                </>
+              );
+            })()}
             {!selectedOrganizer && !eventsDialogOrganizerFilter && (
               <div className="text-center py-8 text-muted-foreground">
-                <p>{t("admin.organizers.events.selectOrganizerToView") || "Please select an organizer to view their events"}</p>
+                <p>{t("admin.organizers.events.selectOrganizerToView")}</p>
               </div>
             )}
           </div>
@@ -3017,7 +2838,7 @@ const OrganizersManagement: React.FC = () => {
               {t("admin.organizers.events.add.cancel")}
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 // Validate required fields
                 if (
                   !newEvent.title ||
@@ -3035,42 +2856,73 @@ const OrganizersManagement: React.FC = () => {
                   return;
                 }
 
-                // Create new event object
-                const eventToAdd: OrganizerEvent = {
-                  id: `E${String(organizerEvents.length + 1).padStart(3, "0")}`,
-                  title: newEvent.title,
-                  date: newEvent.date,
-                  status: "upcoming",
-                  ticketsSold: 0,
-                  totalTickets: newEvent.totalTickets || 0,
-                  revenue: 0,
-                  commission: 0,
-                  rating: 0,
-                  image:
-                    newEvent.imageUrl || "/public/Portrait_Placeholder.png",
-                  description: newEvent.description || "",
-                  location: newEvent.location,
-                  price: 0,
-                };
+                // Create event via API
+                if (!selectedOrganizer?.id) {
+                  toast({
+                    title: t("admin.organizers.toast.validationError"),
+                    description: "Please select an organizer first",
+                    variant: "destructive",
+                  });
+                  return;
+                }
 
-                setOrganizerEvents((prevEvents) => [...prevEvents, eventToAdd]);
-                toast({
-                  title: t("admin.organizers.toast.eventAdded"),
-                  description: t("admin.organizers.toast.eventAddedDesc"),
-                });
-                setIsAddEventDialogOpen(false);
-                setNewEvent({
-                  commissionRate: {
-                    type: "percentage",
-                    value: 10,
-                  },
-                  transferFee: {
-                    type: "percentage",
-                    value: 5,
-                  },
-                  ticketTransferEnabled: false,
-                  ticketLimit: 1,
-                });
+                try {
+                  const eventData: any = {
+                    title: newEvent.title,
+                    date: newEvent.date,
+                    location: newEvent.location,
+                    category: newEvent.category,
+                    description: newEvent.description || "",
+                    total_tickets: newEvent.totalTickets || 0,
+                    ticket_limit: newEvent.ticketLimit || 1,
+                    ticket_transfer_enabled: newEvent.ticketTransferEnabled || false,
+                    image_url: newEvent.imageUrl || "",
+                    organizer: selectedOrganizer.id,
+                  };
+
+                  if (newEvent.time) {
+                    eventData.time = newEvent.time;
+                  }
+
+                  if (newEvent.commissionRate) {
+                    eventData.commission_rate_type = newEvent.commissionRate.type;
+                    eventData.commission_rate_value = newEvent.commissionRate.value;
+                  }
+
+                  if (newEvent.transferFee) {
+                    eventData.transfer_fee_type = newEvent.transferFee.type;
+                    eventData.transfer_fee_value = newEvent.transferFee.value;
+                  }
+
+                  await eventsApi.createEvent(eventData);
+                  
+                  // Invalidate queries to refresh the events list
+                  queryClient.invalidateQueries({ queryKey: ["organizerEvents", selectedOrganizer.id] });
+                  
+                  toast({
+                    title: t("admin.organizers.toast.eventAdded"),
+                    description: t("admin.organizers.toast.eventAddedDesc"),
+                  });
+                  setIsAddEventDialogOpen(false);
+                  setNewEvent({
+                    commissionRate: {
+                      type: "percentage",
+                      value: 10,
+                    },
+                    transferFee: {
+                      type: "percentage",
+                      value: 5,
+                    },
+                    ticketTransferEnabled: false,
+                    ticketLimit: 1,
+                  });
+                } catch (error: any) {
+                  toast({
+                    title: t("common.error"),
+                    description: error?.response?.data?.error?.message || error?.message || "Failed to create event",
+                    variant: "destructive",
+                  });
+                }
               }}
             >
               {t("admin.organizers.events.add.add")}
@@ -3308,19 +3160,46 @@ const OrganizersManagement: React.FC = () => {
               {t("admin.organizers.events.edit.cancel")}
             </Button>
             <Button
-              onClick={() => {
+              onClick={async () => {
                 if (!editingEvent) return;
-                setOrganizerEvents((prevEvents) =>
-                  prevEvents.map((event) =>
-                    event.id === editingEvent.id ? editingEvent : event
-                  )
-                );
-                toast({
-                  title: t("admin.organizers.toast.eventUpdated"),
-                  description: t("admin.organizers.toast.eventUpdatedDesc"),
-                });
-                setIsEditEventDialogOpen(false);
-                setEditingEvent(null);
+                
+                try {
+                  const eventData: any = {
+                    title: editingEvent.title,
+                    date: editingEvent.date,
+                    status: editingEvent.status,
+                    tickets_sold: editingEvent.ticketsSold,
+                    total_tickets: editingEvent.totalTickets,
+                    revenue: editingEvent.revenue,
+                    commission: editingEvent.commission,
+                    rating: editingEvent.rating,
+                    image_url: editingEvent.image,
+                    description: editingEvent.description,
+                    location: editingEvent.location,
+                    price: editingEvent.price,
+                  };
+
+                  await eventsApi.updateEvent(editingEvent.id, eventData);
+                  
+                  // Invalidate queries to refresh the events list
+                  const organizerId = eventsDialogOrganizerFilter || selectedOrganizer?.id;
+                  if (organizerId) {
+                    queryClient.invalidateQueries({ queryKey: ["organizerEvents", organizerId] });
+                  }
+                  
+                  toast({
+                    title: t("admin.organizers.toast.eventUpdated"),
+                    description: t("admin.organizers.toast.eventUpdatedDesc"),
+                  });
+                  setIsEditEventDialogOpen(false);
+                  setEditingEvent(null);
+                } catch (error: any) {
+                  toast({
+                    title: t("common.error"),
+                    description: error?.response?.data?.error?.message || error?.message || "Failed to update event",
+                    variant: "destructive",
+                  });
+                }
               }}
             >
               {t("admin.organizers.events.edit.save")}

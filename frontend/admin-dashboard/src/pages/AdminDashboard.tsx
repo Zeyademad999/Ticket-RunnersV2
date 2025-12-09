@@ -101,6 +101,7 @@ import EventEditRequestsManagement from "@/components/admin/EventEditRequestsMan
 
 // Import Owner's Finances components
 import CompanyFinances from "@/components/admin/CompanyFinances";
+import OwnerFinances from "@/components/admin/OwnerFinances";
 import HomePageSectionsManagement from "@/components/admin/HomePageSectionsManagement";
 
 // Types
@@ -339,6 +340,11 @@ const EnhancedTabsList: React.FC<EnhancedTabsListProps & { hasPermission?: (perm
           value: "company-finances",
           label: t("admin.dashboard.tabs.companyFinances"),
           icon: Building2,
+        },
+        {
+          value: "owner-finances",
+          label: t("admin.dashboard.tabs.ownerFinances"),
+          icon: Users,
         },
       ],
     },
@@ -1768,6 +1774,16 @@ const AdminDashboard: React.FC = () => {
               className="space-y-6 transition-all duration-300 ease-in-out"
             >
               <CompanyFinances />
+            </TabsContent>
+          )}
+
+          {/* Owner Finances Tab */}
+          {hasPermission("finances_view") && (
+            <TabsContent
+              value="owner-finances"
+              className="space-y-6 transition-all duration-300 ease-in-out"
+            >
+              <OwnerFinances />
             </TabsContent>
           )}
 

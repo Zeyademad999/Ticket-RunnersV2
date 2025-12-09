@@ -75,6 +75,8 @@ import { commonColumns } from "@/lib/exportUtils";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { nfcCardsApi, customersApi } from "@/lib/api/adminApi";
 import { useWebNFC } from "@/hooks/useWebNFC";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import NFCCardSettings from "./NFCCardSettings";
 
 type NFCCard = {
   id: string;
@@ -1329,7 +1331,18 @@ const NFCCardManagement: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6" dir={i18n.language === "ar" ? "rtl" : "ltr"}>
+    <Tabs defaultValue="cards" className="space-y-6" dir={i18n.language === "ar" ? "rtl" : "ltr"}>
+      <TabsList>
+        <TabsTrigger value="cards">
+          {t("admin.tickets.nfc.title", "NFC Cards")}
+        </TabsTrigger>
+        <TabsTrigger value="settings">
+          {t("admin.nfc.settings.title", "Settings")}
+        </TabsTrigger>
+      </TabsList>
+      
+      <TabsContent value="cards" className="space-y-6">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -2312,6 +2325,12 @@ const NFCCardManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
     </div>
+      </TabsContent>
+      
+      <TabsContent value="settings" className="space-y-6">
+        <NFCCardSettings />
+      </TabsContent>
+    </Tabs>
   );
 };
 

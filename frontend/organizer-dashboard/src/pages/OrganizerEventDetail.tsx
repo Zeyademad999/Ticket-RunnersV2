@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Calendar,
   MapPin,
@@ -25,6 +26,8 @@ import {
   Sun as SunIcon,
   Moon,
   LogOut,
+  Calculator,
+  DollarSign,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -109,6 +112,7 @@ const OrganizerEventDetail: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const [showLayout, setShowLayout] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showFinancesModal, setShowFinancesModal] = useState(false);
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
   const [language, setLanguage] = useState("EN");
   const locale = i18n.language === "ar" ? "ar-EG" : i18n.language || "en-US";
@@ -199,6 +203,8 @@ const OrganizerEventDetail: React.FC = () => {
 
     // Debug logging
     console.log("Event Analytics Data:", eventAnalytics);
+    console.log("Financial Breakdown:", eventAnalytics.financial_breakdown);
+    console.log("Has Financial Breakdown:", !!eventAnalytics.financial_breakdown);
     console.log("Ticket Categories Raw:", eventAnalytics.ticket_categories);
     console.log("Ticket Categories Transformed:", ticketCategories);
 
@@ -530,6 +536,23 @@ const OrganizerEventDetail: React.FC = () => {
               </div>
             </div>
 
+            {/* View Finances Button - Under Event Statistics */}
+            {eventAnalytics && (
+              <div className="pt-4 pb-2">
+                <Button
+                  variant="default"
+                  size="lg"
+                  onClick={() => setShowFinancesModal(true)}
+                  className="w-full md:w-auto flex items-center justify-center gap-2 bg-primary hover:bg-primary/90"
+                  disabled={!eventAnalytics?.financial_breakdown}
+                >
+                  <DollarSign className="h-5 w-5" />
+                  {t("dashboard.analytics.viewFinances", "View Finances")}
+                  {!eventAnalytics?.financial_breakdown && " (No Data)"}
+                </Button>
+              </div>
+            )}
+
             {/* Sales Progress */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -666,9 +689,11 @@ const OrganizerEventDetail: React.FC = () => {
 
             {/* Payout Information */}
             <div className="pt-6">
-              <h2 className="text-xl font-semibold text-foreground mb-3">
-                {t("dashboard.analytics.payoutInfo")}
-              </h2>
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-xl font-semibold text-foreground">
+                  {t("dashboard.analytics.payoutInfo")}
+                </h2>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="text-center p-4 bg-yellow-50 rounded-lg">
                   <p className="text-2xl font-bold text-yellow-600">
@@ -688,6 +713,86 @@ const OrganizerEventDetail: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {/* Financial Breakdown */}
+            {eventAnalytics?.financial_breakdown && (
+              <div className="pt-6">
+                <h2 className="text-xl font-semibold text-foreground mb-3">
+                  {t("dashboard.analytics.financialBreakdown", "Financial Breakdown")}
+                </h2>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base rtl:text-right">
+                      {t("dashboard.analytics.ticketRevenue", "Ticket Revenue")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="bg-muted/50 p-4 rounded-lg">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium rtl:text-right">
+                          {t("dashboard.analytics.totalTicketRevenue", "Total Ticket Revenue")}:
+                        </span>
+                        <span className="text-lg font-bold text-primary">
+                          E£ {eventAnalytics.financial_breakdown.ticket_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground rtl:text-right">
+                        {eventAnalytics.financial_breakdown.tickets_sold} {t("dashboard.analytics.ticketsSold", "tickets sold")}
+                      </p>
+                    </div>
+
+                    {/* Deductions Breakdown */}
+                    {eventAnalytics.financial_breakdown.deductions && eventAnalytics.financial_breakdown.deductions.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-semibold rtl:text-right">
+                          {t("dashboard.analytics.deductions", "Deductions Applied")}:
+                        </h4>
+                        <div className="space-y-2">
+                          {eventAnalytics.financial_breakdown.deductions.map((deduction, index) => (
+                            <div key={index} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                              <div>
+                                <span className="text-sm font-medium">{deduction.name}</span>
+                                {deduction.description && (
+                                  <p className="text-xs text-muted-foreground">{deduction.description}</p>
+                                )}
+                                {deduction.type === 'percentage' && deduction.value !== null && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {deduction.value}% {t("dashboard.analytics.ofRevenue", "of revenue")}
+                                  </p>
+                                )}
+                                {deduction.type === 'fixed_per_ticket' && deduction.value !== null && (
+                                  <p className="text-xs text-muted-foreground">
+                                    E£ {deduction.value} {t("dashboard.analytics.perTicket", "per ticket")}
+                                  </p>
+                                )}
+                              </div>
+                              <span className="text-sm font-semibold text-red-600">
+                                -E£ {deduction.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Net Profit */}
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center">
+                        <span className="font-semibold rtl:text-right">
+                          {t("dashboard.analytics.organizerNetProfit", "Your Net Profit")}:
+                        </span>
+                        <span className="text-xl font-bold text-green-600">
+                          E£ {eventAnalytics.financial_breakdown.organizer_net_profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                        {t("dashboard.analytics.netProfitDescription", "This is your profit after all deductions")}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
           </div>
             </>
           )}
@@ -699,6 +804,219 @@ const OrganizerEventDetail: React.FC = () => {
         shareUrl={window.location.href}
       />
 
+      {/* View Finances Modal */}
+      <Dialog open={showFinancesModal} onOpenChange={setShowFinancesModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              {t("dashboard.analytics.viewFinances", "View Finances")} - {event?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {eventAnalytics?.financial_breakdown && (
+            <div className="space-y-6">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.analytics.totalTicketRevenue", "Total Ticket Revenue")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-primary">
+                      E£ {eventAnalytics.financial_breakdown.ticket_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {eventAnalytics.financial_breakdown.tickets_sold || event.ticketsSold} {t("dashboard.analytics.ticketsSold", "tickets sold")}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.analytics.totalDeductions", "Total Deductions")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">
+                      -E£ {(() => {
+                        // STRICT deduplication: Filter out duplicates by ID first, then by name+type+value combination
+                        const seenIds = new Set<string | number>();
+                        const seenKeys = new Set<string>();
+                        const uniqueDeductions = eventAnalytics.financial_breakdown.deductions?.filter((deduction: any) => {
+                          // First try to deduplicate by ID
+                          if (deduction.id !== undefined && deduction.id !== null) {
+                            if (seenIds.has(deduction.id)) {
+                              return false; // Duplicate ID, skip
+                            }
+                            seenIds.add(deduction.id);
+                            return true;
+                          }
+                          // Fallback: deduplicate by name+type+value combination
+                          const key = `${deduction.name || ''}_${deduction.type || ''}_${deduction.value || ''}`;
+                          if (seenKeys.has(key)) {
+                            return false; // Duplicate key, skip
+                          }
+                          seenKeys.add(key);
+                          return true;
+                        }) || [];
+                        const deductionsTotal = uniqueDeductions.reduce((sum: number, d: any) => sum + (d.amount || 0), 0);
+                        return ((eventAnalytics.financial_breakdown.commission || 0) + deductionsTotal).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                      })()}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {(() => {
+                        // STRICT deduplication: Filter out duplicates by ID first, then by name+type+value combination
+                        const seenIds = new Set<string | number>();
+                        const seenKeys = new Set<string>();
+                        const uniqueDeductions = eventAnalytics.financial_breakdown.deductions?.filter((deduction: any) => {
+                          // First try to deduplicate by ID
+                          if (deduction.id !== undefined && deduction.id !== null) {
+                            if (seenIds.has(deduction.id)) {
+                              return false; // Duplicate ID, skip
+                            }
+                            seenIds.add(deduction.id);
+                            return true;
+                          }
+                          // Fallback: deduplicate by name+type+value combination
+                          const key = `${deduction.name || ''}_${deduction.type || ''}_${deduction.value || ''}`;
+                          if (seenKeys.has(key)) {
+                            return false; // Duplicate key, skip
+                          }
+                          seenKeys.add(key);
+                          return true;
+                        }) || [];
+                        return (uniqueDeductions.length || 0) + (eventAnalytics.financial_breakdown.commission ? 1 : 0);
+                      })()} {t("dashboard.analytics.deductionItems", "deduction items")}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm rtl:text-right">
+                      {t("dashboard.analytics.organizerNetProfit", "Your Net Profit")}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      E£ {eventAnalytics.financial_breakdown.organizer_net_profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("dashboard.analytics.shownToOrganizer", "Your profit after deductions")}
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Detailed Breakdown */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base rtl:text-right flex items-center gap-2">
+                    <Ticket className="h-5 w-5" />
+                    {t("dashboard.analytics.part1TicketRevenue", "Part 1: Tickets Sold Revenue")}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-muted/50 p-4 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium rtl:text-right">
+                        {t("dashboard.analytics.totalTicketRevenue", "Total Ticket Revenue")}:
+                      </span>
+                      <span className="text-lg font-bold text-primary">
+                        E£ {eventAnalytics.financial_breakdown.ticket_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Deductions Breakdown */}
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-semibold rtl:text-right">
+                      {t("dashboard.analytics.deductions", "Deductions Applied")}:
+                    </h4>
+                    <div className="space-y-2">
+                      {/* TR Commission Fee */}
+                      {eventAnalytics.financial_breakdown.commission && (
+                        <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                          <div>
+                            <span className="text-sm font-medium">
+                              {t("dashboard.analytics.ticketRunnerFee", "TR Commission Fee")}
+                            </span>
+                          </div>
+                          <span className="text-sm font-semibold text-red-600">
+                            -E£ {eventAnalytics.financial_breakdown.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Custom Deductions */}
+                      {(() => {
+                        // STRICT deduplication: Filter out duplicates by ID first, then by name+type+value combination
+                        const seenIds = new Set<string | number>();
+                        const seenKeys = new Set<string>();
+                        const uniqueDeductions = eventAnalytics.financial_breakdown.deductions?.filter((deduction: any) => {
+                          // First try to deduplicate by ID
+                          if (deduction.id !== undefined && deduction.id !== null) {
+                            if (seenIds.has(deduction.id)) {
+                              return false; // Duplicate ID, skip
+                            }
+                            seenIds.add(deduction.id);
+                            return true;
+                          }
+                          // Fallback: deduplicate by name+type+value combination
+                          const key = `${deduction.name || ''}_${deduction.type || ''}_${deduction.value || ''}`;
+                          if (seenKeys.has(key)) {
+                            return false; // Duplicate key, skip
+                          }
+                          seenKeys.add(key);
+                          return true;
+                        }) || [];
+                        
+                        return uniqueDeductions.length > 0 ? (
+                          uniqueDeductions.map((deduction: any, index: number) => (
+                            <div key={deduction.id || index} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                              <div>
+                                <span className="text-sm font-medium">{deduction.name}</span>
+                                <p className="text-xs text-muted-foreground">
+                                  {deduction.type === 'percentage'
+                                    ? `${deduction.value}% ${t("dashboard.analytics.ofRevenue", "of revenue")}`
+                                    : `E£ ${deduction.value} ${t("dashboard.analytics.perTicket", "per ticket")}`
+                                  }
+                                </p>
+                              </div>
+                              <span className="text-sm font-semibold text-red-600">
+                                -E£ {deduction.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ))
+                        ) : !eventAnalytics.financial_breakdown.commission ? (
+                          <p className="text-xs text-muted-foreground rtl:text-right">
+                            {t("dashboard.analytics.noDeductions", "No deductions added yet")}
+                          </p>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
+
+                  {/* Organizer Net Profit */}
+                  <div className="border-t pt-4">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold rtl:text-right">
+                        {t("dashboard.analytics.organizerNetProfit", "Your Net Profit")}:
+                      </span>
+                      <span className="text-xl font-bold text-green-600">
+                        E£ {eventAnalytics.financial_breakdown.organizer_net_profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

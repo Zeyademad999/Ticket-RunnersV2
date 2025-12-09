@@ -59,6 +59,7 @@ adminApi.interceptors.response.use(
     }
 
     // Handle 401 Unauthorized - Try to refresh token
+    // Only handle 401 if we haven't already retried
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -77,14 +78,38 @@ adminApi.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${access}`;
           }
           return adminApi(originalRequest);
+        } else {
+          // No refresh token available - redirect to login
+          localStorage.removeItem('admin_access_token');
+          localStorage.removeItem('admin_refresh_token');
+          localStorage.removeItem('admin_user');
+          window.location.href = '/login';
         }
-      } catch (refreshError) {
-        // Refresh failed - redirect to login
+      } catch (refreshError: any) {
+        // Only log out if refresh endpoint returns 401 (token is actually invalid)
+        // Don't log out on network errors or other issues
+        if (refreshError.response?.status === 401 || refreshError.response?.status === 403) {
+          localStorage.removeItem('admin_access_token');
+          localStorage.removeItem('admin_refresh_token');
+          localStorage.removeItem('admin_user');
+          window.location.href = '/login';
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    // Handle 401 without retry flag (already tried) - only log out if it's a real auth error
+    if (error.response?.status === 401 && originalRequest._retry) {
+      // Check if it's a real authentication error (not a server error)
+      const isAuthError = error.response?.data?.code === 'token_not_valid' || 
+                         error.response?.data?.detail?.includes('token') ||
+                         error.response?.data?.detail?.includes('authentication');
+      
+      if (isAuthError) {
         localStorage.removeItem('admin_access_token');
         localStorage.removeItem('admin_refresh_token');
         localStorage.removeItem('admin_user');
         window.location.href = '/login';
-        return Promise.reject(refreshError);
       }
     }
 
@@ -501,6 +526,26 @@ export const nfcCardsApi = {
    */
   bulkOperation: async (data: { operation: string; card_ids: string[]; [key: string]: any }) => {
     const response = await adminApi.post('/nfc-cards/bulk/', data);
+    return response.data;
+  },
+  /**
+   * Get NFC card settings
+   */
+  getSettings: async () => {
+    const response = await adminApi.get('/nfc-cards/settings/');
+    return response.data;
+  },
+  /**
+   * Update NFC card settings
+   */
+  updateSettings: async (data: {
+    first_purchase_cost?: number;
+    renewal_fee?: number;
+    deactivation_days_before_expiry?: number;
+    auto_deactivate_expired?: boolean;
+    card_validity_days?: number;
+  }) => {
+    const response = await adminApi.put('/nfc-cards/settings/', data);
     return response.data;
   },
 };
@@ -1264,6 +1309,136 @@ export const financesApi = {
     // This will calculate finances for a specific event
     // We'll need to create this endpoint or use existing event statistics
     const response = await adminApi.get(`/events/${eventId}/statistics/`);
+    return response.data;
+  },
+
+  /**
+   * Get all owners
+   */
+  getOwners: async (params?: {
+    status?: string;
+    page?: number;
+    page_size?: number;
+  }) => {
+    const response = await adminApi.get('/finances/owners/', { params });
+    return response.data;
+  },
+
+  /**
+   * Get owner by ID
+   */
+  getOwner: async (id: string) => {
+    const response = await adminApi.get(`/finances/owners/${id}/`);
+    return response.data;
+  },
+
+  /**
+   * Create owner
+   */
+  createOwner: async (data: {
+    name: string;
+    email?: string;
+    phone?: string;
+    company_percentage: number;
+    status?: 'active' | 'inactive';
+  }) => {
+    const response = await adminApi.post('/finances/owners/', data);
+    return response.data;
+  },
+
+  /**
+   * Update owner
+   */
+  updateOwner: async (id: string, data: Partial<{
+    name: string;
+    email?: string;
+    phone?: string;
+    company_percentage: number;
+    status?: 'active' | 'inactive';
+  }>) => {
+    const response = await adminApi.patch(`/finances/owners/${id}/`, data);
+    return response.data;
+  },
+
+  /**
+   * Delete owner
+   */
+  deleteOwner: async (id: string) => {
+    const response = await adminApi.delete(`/finances/owners/${id}/`);
+    return response.data;
+  },
+
+  /**
+   * Get owner wallet
+   */
+  getOwnerWallet: async (id: string) => {
+    const response = await adminApi.get(`/finances/owners/${id}/wallet/`);
+    return response.data;
+  },
+
+  /**
+   * Get owner revenue
+   */
+  getOwnerRevenue: async (id: string) => {
+    const response = await adminApi.get(`/finances/owners/${id}/revenue/`);
+    return response.data;
+  },
+
+  /**
+   * Get revenue summary for all owners
+   */
+  getOwnersRevenueSummary: async () => {
+    const response = await adminApi.get('/finances/owners/revenue-summary/');
+    return response.data;
+  },
+
+  /**
+   * Distribute profits to owners
+   */
+  distributeProfits: async (data: {
+    distributions: Array<{ owner_id: string; amount: number }>;
+    total_revenue: number;
+  }) => {
+    const response = await adminApi.post('/finances/owners/distribute-profits/', data);
+    return response.data;
+  },
+
+  /**
+   * Company wallet transaction (credit/debit)
+   */
+  companyWalletTransaction: async (data: {
+    amount: number;
+    transaction_type: "credit" | "debit";
+    description?: string;
+  }) => {
+    const response = await adminApi.post('/finances/owners/company-wallet/transaction/', data);
+    return response.data;
+  },
+
+  /**
+   * Owner wallet transaction (credit/debit)
+   */
+  ownerWalletTransaction: async (ownerId: string, data: {
+    amount: number;
+    transaction_type: "credit" | "debit";
+    description?: string;
+  }) => {
+    const response = await adminApi.post(`/finances/owners/${ownerId}/wallet/transaction/`, data);
+    return response.data;
+  },
+
+  /**
+   * Transfer money between wallets
+   */
+  walletTransfer: async (data: {
+    from_wallet_type: "owner" | "company";
+    from_wallet_id: string;
+    to_wallet_type: "owner" | "company";
+    to_wallet_id: string;
+    amount: number;
+    description?: string;
+  }) => {
+    const response = await adminApi.post('/finances/owners/transfer/', data);
     return response.data;
   },
 };

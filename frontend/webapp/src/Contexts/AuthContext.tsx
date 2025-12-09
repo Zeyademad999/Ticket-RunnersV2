@@ -318,7 +318,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         errorTitle = t("auth.accountBanned") || "Account Banned";
         errorMessage = error.response?.data?.error?.message || 
                       error.response?.data?.message || 
-                      "Your account has been banned. Please contact support for more information.";
+                      "Your account has been banned. You cannot sign in. Please contact support for more information.";
+        
+        // Dispatch event to show banned modal (don't show toast, modal will handle it)
+        window.dispatchEvent(new CustomEvent("account-banned"));
+        
+        // Don't show toast for banned accounts - the modal will handle the message
+        throw error;
       }
       // Handle specific error types
       else if (error.status === 429) {
@@ -370,11 +376,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         errorMessage = t("auth.apiErrorMessage");
       }
 
-      toast({
-        title: errorTitle,
-        description: errorMessage,
-        variant: "destructive",
-      });
+      // Only show toast if not already handled (e.g., banned account shows modal instead)
+      // errorCode was already checked above for banned accounts
+      if (errorCode !== "ACCOUNT_BANNED" && errorCode !== "account_banned") {
+        toast({
+          title: errorTitle,
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
       throw error;
     } finally {
       setIsLoading(false);
@@ -608,12 +618,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (errorCode === "ACCOUNT_BANNED" || errorCode === "account_banned") {
         const errorMessage = error.response?.data?.error?.message || 
                             error.response?.data?.message || 
-                            "Your account has been banned. Please contact support for more information.";
-        toast({
-          title: t("auth.accountBanned") || "Account Banned",
-          description: errorMessage,
-          variant: "destructive",
-        });
+                            "Your account has been banned. You cannot sign in. Please contact support for more information.";
+        
+        // Dispatch event to show banned modal (don't show toast, modal will handle it)
+        window.dispatchEvent(new CustomEvent("account-banned"));
+        
+        // Don't show toast for banned accounts - the modal will handle the message
         throw error;
       }
       

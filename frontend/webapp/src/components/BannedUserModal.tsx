@@ -35,8 +35,8 @@ export const BannedUserModal: React.FC = () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => e.preventDefault()}>
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-[425px]" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
           <div className="flex items-center justify-center mb-4">
             <div className="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center">
@@ -47,7 +47,7 @@ export const BannedUserModal: React.FC = () => {
             {t("auth.accountBanned") || "Account Banned"}
           </DialogTitle>
           <DialogDescription className="text-center">
-            {t("auth.accountBannedMessage") || "Your account has been banned. Please contact support for more information."}
+            {t("auth.accountBannedMessage") || "Your account has been banned. You cannot sign in. Please contact support for more information."}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3 mt-6">

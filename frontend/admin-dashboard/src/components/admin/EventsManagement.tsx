@@ -168,6 +168,14 @@ interface Event {
     applicableCategories: string[];
     minQuantity?: number;
   }>;
+  deductions?: Array<{
+    id?: string;
+    name: string;
+    type: "percentage" | "fixed_per_ticket";
+    value: number;
+    description?: string;
+    appliesTo?: "tickets" | "nfc_cards";
+  }>;
 }
 
 interface GalleryImage {
@@ -277,6 +285,14 @@ const EventsManagement: React.FC = () => {
       color?: string;
     }>,
     homePageSectionIds: [] as number[], // Selected home page sections
+    deductions: [] as Array<{
+      id?: string;
+      name: string;
+      type: "percentage" | "fixed_per_ticket";
+      value: number;
+      description?: string;
+      appliesTo?: "tickets" | "nfc_cards"; // Which part this deduction applies to
+    }>,
   });
 
   // Edit event state for new features
@@ -321,6 +337,14 @@ const EventsManagement: React.FC = () => {
     venueLayoutImageUrl: "",
     gallery: [] as GalleryImage[],
     homePageSectionIds: [] as number[],
+    deductions: [] as Array<{
+      id?: string;
+      name: string;
+      type: "percentage" | "fixed_per_ticket";
+      value: number;
+      description?: string;
+      appliesTo?: "tickets" | "nfc_cards"; // Which part this deduction applies to
+    }>,
     venueLayouts: [
       {
         id: "1",
@@ -437,6 +461,14 @@ const EventsManagement: React.FC = () => {
   const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState<Event | null>(null);
+  const [isAddDeductionDialogOpen, setIsAddDeductionDialogOpen] = useState(false);
+  const [deductionAppliesTo, setDeductionAppliesTo] = useState<"tickets" | "nfc_cards">("tickets");
+  const [newDeduction, setNewDeduction] = useState({
+    name: "",
+    type: "percentage" as "percentage" | "fixed_per_ticket",
+    value: 0,
+    description: "",
+  });
   const queryClient = useQueryClient();
 
   // Fetch organizers and venues for form dropdowns
@@ -476,6 +508,7 @@ const EventsManagement: React.FC = () => {
       console.log("Venues list:", venuesData?.results || venuesData);
     }
   }, [organizersData, venuesData]);
+
 
   // Fetch events from API
   const {
@@ -1466,9 +1499,46 @@ const EventsManagement: React.FC = () => {
     }
   };
 
-  const handleViewFinances = (event: Event) => {
-    setSelectedEventForFinances(event);
-    setIsViewFinancesDialogOpen(true);
+  const handleViewFinances = async (event: Event) => {
+    // Fetch full event details including deductions
+    try {
+      const eventDetails = await eventsApi.getEvent(event.id);
+      
+      // Create event object with all details including deductions
+      const commissionRate = eventDetails.commission_rate && typeof eventDetails.commission_rate === "object"
+        ? {
+            type: (eventDetails.commission_rate.type || "percentage") as "percentage" | "flat",
+            value: parseFloat(eventDetails.commission_rate.value?.toString() || "10") || 10,
+          }
+        : {
+            type: "percentage" as const,
+            value: 10,
+          };
+
+      const eventWithDetails: Event = {
+        ...event,
+        revenue: eventDetails.revenue || event.revenue || 0,
+        commission: eventDetails.commission || event.commission || 0,
+        ticketsSold: eventDetails.tickets_sold || event.ticketsSold || 0,
+        deductions: (eventDetails.deductions || []).map((d: any) => ({
+          id: d.id?.toString(),
+          name: d.name || "",
+          type: (d.type || "percentage") as "percentage" | "fixed_per_ticket",
+          value: parseFloat(d.value?.toString() || "0"),
+          description: d.description || "",
+          appliesTo: (d.appliesTo || d.applies_to || "tickets") as "tickets" | "nfc_cards",
+        })),
+        commissionRate,
+      };
+      
+      setSelectedEventForFinances(eventWithDetails);
+      setIsViewFinancesDialogOpen(true);
+    } catch (error) {
+      console.error("Error fetching event details for finances:", error);
+      // Fallback to basic event data if API call fails
+      setSelectedEventForFinances(event);
+      setIsViewFinancesDialogOpen(true);
+    }
   };
 
   const handleEditEvent = async (event: Event) => {
@@ -1666,6 +1736,14 @@ const EventsManagement: React.FC = () => {
         venueLayouts: eventDetails.venue_layouts || event.venueLayouts || [],
         ticketCategories: ticketCategories,
         discounts: eventDetails.discounts || event.discounts || [],
+        deductions: (eventDetails.deductions || []).map((d: any) => ({
+          id: d.id?.toString(),
+          name: d.name || "",
+          type: d.type || "percentage",
+          value: parseFloat(d.value?.toString() || "0"),
+          description: d.description || "",
+          appliesTo: d.appliesTo || d.applies_to || "tickets", // Check both appliesTo and applies_to for backward compatibility
+        })),
         // Load home page sections that contain this event
         homePageSectionIds: (() => {
           const eventId = parseInt(event.id);
@@ -1766,6 +1844,7 @@ const EventsManagement: React.FC = () => {
         venueLayouts: event.venueLayouts || [],
         ticketCategories: [], // Empty if fetch fails
         discounts: event.discounts || [],
+        deductions: [],
         homePageSectionIds: event.homePageSectionIds || [],
       });
       toast({
@@ -1912,6 +1991,52 @@ const EventsManagement: React.FC = () => {
       setIsCancelDialogOpen(false);
       setEventToCancel(null);
     }
+  };
+
+  const handleAddDeduction = () => {
+    if (!newDeduction.name.trim() || newDeduction.value <= 0) {
+      toast({
+        title: t("common.error"),
+        description: t("admin.events.finances.deductionValidationError", "Please fill in all required fields with valid values"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Add deduction to the event's deductions list (not global)
+    const deductionToAdd = {
+      name: newDeduction.name,
+      type: newDeduction.type,
+      value: newDeduction.value,
+      description: newDeduction.description || "",
+      appliesTo: deductionAppliesTo, // Track which part this deduction applies to
+    };
+
+    // Check if we're in Add Event dialog or Edit Event dialog
+    if (isAddDialogOpen) {
+      setNewEvent({
+        ...newEvent,
+        deductions: [...newEvent.deductions, deductionToAdd],
+      });
+    } else if (isEditDialogOpen) {
+      setEditEventData({
+        ...editEventData,
+        deductions: [...editEventData.deductions, deductionToAdd],
+      });
+    }
+
+    setNewDeduction({
+      name: "",
+      type: "percentage",
+      value: 0,
+      description: "",
+    });
+    setIsAddDeductionDialogOpen(false);
+    
+    toast({
+      title: t("admin.events.finances.deductionAdded", "Deduction Added"),
+      description: t("admin.events.finances.deductionAddedDesc", "Deduction has been added to this event"),
+    });
   };
 
   // const handleExportEvents = () => {
@@ -2385,6 +2510,18 @@ const EventsManagement: React.FC = () => {
 
     console.log("Ticket categories being saved:", updateData.ticket_categories);
 
+    // Add deductions - send as array of deduction objects
+    if (editEventData.deductions && editEventData.deductions.length > 0) {
+      updateData.deductions = editEventData.deductions.map((d) => ({
+        name: d.name,
+        type: d.type,
+        value: d.value,
+        description: d.description || "",
+      }));
+    } else {
+      updateData.deductions = [];
+    }
+
     // Add image files if provided - handle FormData separately
     if (editEventData.mainImageFile || editEventData.venueLayoutImageFile) {
       // For file uploads, we need to use FormData
@@ -2399,7 +2536,7 @@ const EventsManagement: React.FC = () => {
         ) {
           return;
         }
-        if (key === "ticket_categories") {
+        if (key === "ticket_categories" || key === "deductions") {
           formData.append(key, JSON.stringify(updateData[key]));
         } else if (updateData[key] !== null && updateData[key] !== undefined) {
           // Convert values to strings for FormData
@@ -3024,7 +3161,14 @@ const EventsManagement: React.FC = () => {
     if (categoryName) {
       formData.append("category", categoryName);
     }
-    // total_tickets is auto-calculated from ticket categories, don't send it
+    // Calculate total_tickets from ticket categories
+    const calculatedTotalTickets = newEvent.ticketCategories.reduce(
+      (sum, cat) => sum + (cat.totalTickets || 0),
+      0
+    );
+    // Send total_tickets (backend requires it, even if it will be recalculated)
+    formData.append("total_tickets", calculatedTotalTickets.toString());
+    
     // Handle empty string for ticketLimit - default to 1
     const parsedTicketLimit =
       newEvent.ticketLimit === null ||
@@ -3034,13 +3178,13 @@ const EventsManagement: React.FC = () => {
         : typeof newEvent.ticketLimit === "string"
         ? parseInt(newEvent.ticketLimit) || 1
         : newEvent.ticketLimit;
+    // When unlimited, ticket_limit should be at least 1 (backend validation)
+    // If unlimited and we have calculated total, use that, otherwise use parsed limit (min 1)
     const ticketLimitValue = newEvent.isTicketLimitUnlimited
-      ? newEvent.totalTickets !== undefined && newEvent.totalTickets !== null
-        ? newEvent.totalTickets
-        : parsedTicketLimit !== undefined && parsedTicketLimit !== null
-        ? parsedTicketLimit
-        : 0
-      : parsedTicketLimit;
+      ? calculatedTotalTickets > 0 
+        ? calculatedTotalTickets
+        : Math.max(parsedTicketLimit, 1)
+      : Math.max(parsedTicketLimit, 1);
     formData.append("ticket_limit", ticketLimitValue.toString());
     formData.append(
       "is_ticket_limit_unlimited",
@@ -3064,35 +3208,37 @@ const EventsManagement: React.FC = () => {
     }
 
     // Add ticket categories as JSON string (FormData doesn't handle nested objects well)
-    // Always send ticket_categories, even if empty, to avoid backend errors
+    // Filter out categories with blank names and always send ticket_categories, even if empty
     const ticketCategoriesData =
       newEvent.ticketCategories && newEvent.ticketCategories.length > 0
-        ? newEvent.ticketCategories.map((cat: any) => {
-            // Ensure color is a valid hex color, default to green if invalid
-            let colorValue = cat.color || "#10B981";
-            // Validate hex color format
-            if (typeof colorValue === "string") {
-              colorValue = colorValue.trim();
-              // If it doesn't start with #, add it
-              if (colorValue && !colorValue.startsWith("#")) {
-                colorValue = "#" + colorValue;
+        ? newEvent.ticketCategories
+            .filter((cat: any) => cat.name && cat.name.trim() !== "") // Filter out categories with blank names
+            .map((cat: any) => {
+              // Ensure color is a valid hex color, default to green if invalid
+              let colorValue = cat.color || "#10B981";
+              // Validate hex color format
+              if (typeof colorValue === "string") {
+                colorValue = colorValue.trim();
+                // If it doesn't start with #, add it
+                if (colorValue && !colorValue.startsWith("#")) {
+                  colorValue = "#" + colorValue;
+                }
+                // Validate hex color pattern
+                if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
+                  colorValue = "#10B981"; // Default to green if invalid
+                }
+              } else {
+                colorValue = "#10B981";
               }
-              // Validate hex color pattern
-              if (!/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(colorValue)) {
-                colorValue = "#10B981"; // Default to green if invalid
-              }
-            } else {
-              colorValue = "#10B981";
-            }
 
-            return {
-              name: cat.name || "",
-              price: cat.price || 0,
-              total_tickets: cat.totalTickets || 0,
-              description: cat.description || "",
-              color: colorValue, // Include validated color
-            };
-          })
+              return {
+                name: cat.name.trim(), // Ensure name is trimmed and not blank
+                price: cat.price || 0,
+                total_tickets: cat.totalTickets || 0,
+                description: cat.description || "",
+                color: colorValue, // Include validated color
+              };
+            })
         : [];
     formData.append("ticket_categories", JSON.stringify(ticketCategoriesData));
 
@@ -3129,6 +3275,21 @@ const EventsManagement: React.FC = () => {
     formData.append("bathroom", newEvent.bathroom ? "true" : "false");
     formData.append("parking", newEvent.parking ? "true" : "false");
     formData.append("non_smoking", newEvent.nonSmoking ? "true" : "false");
+
+    // Add deductions - send as array of deduction objects with appliesTo field
+    // Backend will create/get deductions and associate them with the event
+    if (newEvent.deductions && newEvent.deductions.length > 0) {
+      const deductionsData = newEvent.deductions.map((d) => ({
+        name: d.name,
+        type: d.type,
+        value: d.value,
+        description: d.description || "",
+        appliesTo: d.appliesTo || "tickets", // Include appliesTo field
+      }));
+      formData.append("deductions", JSON.stringify(deductionsData));
+    } else {
+      formData.append("deductions", JSON.stringify([]));
+    }
 
     // Add child eligibility fields
     formData.append(
@@ -3268,6 +3429,7 @@ const EventsManagement: React.FC = () => {
       venueLayoutImageUrl: "",
       gallery: [],
       ticketCategories: [],
+      deductions: [],
       homePageSectionIds: [],
     });
   };
@@ -3666,9 +3828,6 @@ const EventsManagement: React.FC = () => {
                     {t("admin.events.table.sales")}
                   </TableHead>
                   <TableHead className="rtl:text-right">
-                    {t("admin.events.table.revenue")}
-                  </TableHead>
-                  <TableHead className="rtl:text-right">
                     {t("admin.events.table.actions")}
                   </TableHead>
                 </TableRow>
@@ -3676,14 +3835,14 @@ const EventsManagement: React.FC = () => {
               <TableBody>
                 {eventsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       {t("admin.events.loading")}
                     </TableCell>
                   </TableRow>
                 ) : eventsError ? (
                   <TableRow>
                     <TableCell
-                      colSpan={10}
+                      colSpan={9}
                       className="text-center py-8 text-red-500"
                     >
                       {t("admin.events.error")}:{" "}
@@ -3694,7 +3853,7 @@ const EventsManagement: React.FC = () => {
                   </TableRow>
                 ) : paginatedEvents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       {t("admin.events.noEvents")}
                     </TableCell>
                   </TableRow>
@@ -3789,39 +3948,8 @@ const EventsManagement: React.FC = () => {
                                 event.totalTickets
                               ),
                               i18nInstance.language
-                            ).replace(/\.\d+$/, "")}
+                            )}
                             %
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="rtl:text-right">
-                          <p className="font-medium number-container">
-                            {t("admin.events.metrics.organizerRevenue")}:{" "}
-                            {formatCurrencyForLocale(
-                              event.revenue - event.commission,
-                              i18nInstance.language
-                            )}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {t("admin.events.metrics.adminRevenue")}:{" "}
-                            {formatCurrencyForLocale(
-                              event.commission,
-                              i18nInstance.language
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t("admin.events.metrics.totalRevenue")}:{" "}
-                            {formatCurrencyForLocale(
-                              event.revenue,
-                              i18nInstance.language
-                            )}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Rate:{" "}
-                            {event.commissionRate?.type === "percentage"
-                              ? `${event.commissionRate.value}%`
-                              : `E£${event.commissionRate?.value}`}
                           </p>
                         </div>
                       </TableCell>
@@ -4237,7 +4365,7 @@ const EventsManagement: React.FC = () => {
 
       {/* Edit Event Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="rtl:text-right">
             <DialogTitle>{t("admin.events.dialogs.editEvent")}</DialogTitle>
             <DialogDescription>
@@ -4246,7 +4374,7 @@ const EventsManagement: React.FC = () => {
           </DialogHeader>
           {selectedEvent && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 rtl:space-x-reverse">
+              <div className="grid grid-cols-3 gap-4 rtl:space-x-reverse">
                 <div>
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.eventTitle")}
@@ -4401,7 +4529,7 @@ const EventsManagement: React.FC = () => {
                     }
                   />
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.location")}
                   </label>
@@ -4521,7 +4649,7 @@ const EventsManagement: React.FC = () => {
                     </p>
                   )}
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.mainEventImage")}
                   </label>
@@ -4540,7 +4668,7 @@ const EventsManagement: React.FC = () => {
                     {t("admin.events.form.mainEventImageDescription")}
                   </p>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.venueLayoutImage")}
                   </label>
@@ -4568,7 +4696,7 @@ const EventsManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-3">
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.description")} (About This Event)
                   </label>
@@ -4578,10 +4706,10 @@ const EventsManagement: React.FC = () => {
                       handleEditEventDataChange("description", e.target.value)
                     }
                     placeholder={t("admin.events.form.enterEventDescription")}
-                    rows={4}
+                    rows={3}
                   />
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.gatesOpenTime")}
                   </label>
@@ -4596,7 +4724,7 @@ const EventsManagement: React.FC = () => {
                     )}
                   />
                 </div>
-                <div className="col-span-2">
+                <div>
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.closedDoorsTime")}
                   </label>
@@ -4609,7 +4737,7 @@ const EventsManagement: React.FC = () => {
                     placeholder={t("admin.events.form.closedDoorsTimePlaceholder")}
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-3">
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.aboutVenue")}
                   </label>
@@ -4619,10 +4747,10 @@ const EventsManagement: React.FC = () => {
                       handleEditEventDataChange("aboutVenue", e.target.value)
                     }
                     placeholder={t("admin.events.form.aboutVenuePlaceholder")}
-                    rows={4}
+                    rows={3}
                   />
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-3">
                   <label className="text-sm font-medium rtl:text-right">
                     {t("admin.events.form.termsAndConditions")}
                   </label>
@@ -4637,7 +4765,7 @@ const EventsManagement: React.FC = () => {
                     placeholder={t(
                       "admin.events.form.termsAndConditionsPlaceholder"
                     )}
-                    rows={4}
+                    rows={3}
                   />
                 </div>
               </div>
@@ -5548,6 +5676,169 @@ const EventsManagement: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Manage Deductions Section */}
+              <div className="mt-6 border-t pt-6">
+                <h3 className="text-lg font-semibold mb-4 rtl:text-right">
+                  {t("admin.events.manageDeductions", "Manage Deductions")}
+                </h3>
+                <div className="space-y-6">
+                  {/* Part 1: Tickets Sold Revenue Deductions */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base rtl:text-right">
+                        {t("admin.events.finances.ticketRevenue", "Part 1: Tickets Sold Revenue")}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Deductions applied to tickets */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-sm font-semibold rtl:text-right">
+                            {t("admin.events.finances.deductions", "Deductions Applied")}:
+                          </h4>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setDeductionAppliesTo("tickets");
+                              setIsAddDeductionDialogOpen(true);
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                            {t("admin.events.finances.addDeduction", "Add Deduction")}
+                          </Button>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {/* TR Commission Fee (Auto-added from form) */}
+                          {editEventData.commissionRate && (
+                            <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                              <div>
+                                <span className="text-sm font-medium">TR Commission Fee</span>
+                                <p className="text-xs text-muted-foreground">
+                                  {editEventData.commissionRate.type === 'percentage' 
+                                    ? `${editEventData.commissionRate.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                                    : `E£ ${editEventData.commissionRate.value} ${t("admin.events.finances.perTicket", "per ticket")}`
+                                  }
+                                </p>
+                                <p className="text-xs text-muted-foreground italic">
+                                  {t("admin.events.finances.autoAdded", "Auto-added from form")}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          {editEventData.deductions.filter((d: any) => d.appliesTo === "tickets").length === 0 && !editEventData.commissionRate ? (
+                            <p className="text-xs text-muted-foreground rtl:text-right">
+                              {t("admin.events.finances.noDeductions", "No deductions added yet")}
+                            </p>
+                          ) : (
+                            editEventData.deductions
+                              .filter((d: any) => d.appliesTo === "tickets")
+                              .map((deduction: any) => {
+                                const actualIndex = editEventData.deductions.findIndex((d: any) => d === deduction);
+                                return (
+                                  <div key={actualIndex} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                                    <div>
+                                      <span className="text-sm font-medium">{deduction.name}</span>
+                                      <p className="text-xs text-muted-foreground">
+                                        {deduction.type === 'percentage' 
+                                          ? `${deduction.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                                          : `E£ ${deduction.value} ${t("admin.events.finances.perTicket", "per ticket")}`
+                                        }
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const updatedDeductions = editEventData.deductions.filter((_: any, i: number) => i !== actualIndex);
+                                        handleEditEventDataChange("deductions", updatedDeductions);
+                                      }}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                );
+                              })
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Part 2: NFC Card Revenue Deductions */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base rtl:text-right">
+                        {t("admin.events.finances.cardRevenue", "Part 2: NFC Card Revenue")}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Deductions applied to NFC cards */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-sm font-semibold rtl:text-right">
+                            {t("admin.events.finances.deductions", "Deductions Applied")}:
+                          </h4>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setDeductionAppliesTo("nfc_cards");
+                              setIsAddDeductionDialogOpen(true);
+                            }}
+                          >
+                            <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                            {t("admin.events.finances.addDeduction", "Add Deduction")}
+                          </Button>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {editEventData.deductions.filter((d: any) => d.appliesTo === "nfc_cards").length === 0 ? (
+                            <p className="text-xs text-muted-foreground rtl:text-right">
+                              {t("admin.events.finances.noDeductions", "No deductions added yet")}
+                            </p>
+                          ) : (
+                            editEventData.deductions
+                              .filter((d: any) => d.appliesTo === "nfc_cards")
+                              .map((deduction: any) => {
+                                const actualIndex = editEventData.deductions.findIndex((d: any) => d === deduction);
+                                return (
+                                  <div key={actualIndex} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                                    <div>
+                                      <span className="text-sm font-medium">{deduction.name}</span>
+                                      <p className="text-xs text-muted-foreground">
+                                        {deduction.type === 'percentage' 
+                                          ? `${deduction.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                                          : `E£ ${deduction.value} ${t("admin.events.finances.perTicket", "per ticket")}`
+                                        }
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        const updatedDeductions = editEventData.deductions.filter((_: any, i: number) => i !== actualIndex);
+                                        handleEditEventDataChange("deductions", updatedDeductions);
+                                      }}
+                                      className="text-red-600 hover:text-red-700"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                );
+                              })
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter className="rtl:flex-row-reverse">
@@ -5566,7 +5857,7 @@ const EventsManagement: React.FC = () => {
 
       {/* Add Event Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="rtl:text-right">
             <DialogTitle>{t("admin.events.dialogs.addEvent")}</DialogTitle>
             <DialogDescription>
@@ -5574,7 +5865,7 @@ const EventsManagement: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 rtl:space-x-reverse">
+            <div className="grid grid-cols-3 gap-4 rtl:space-x-reverse">
               <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.eventTitle")} *
@@ -5808,7 +6099,7 @@ const EventsManagement: React.FC = () => {
                   </p>
                 )}
               </div>
-              <div className="col-span-2">
+              <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.mainEventImage")}
                 </label>
@@ -5827,7 +6118,7 @@ const EventsManagement: React.FC = () => {
                   {t("admin.events.form.mainEventImageDescription")}
                 </p>
               </div>
-              <div className="col-span-2">
+              <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.location")}
                 </label>
@@ -5856,20 +6147,7 @@ const EventsManagement: React.FC = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="col-span-2">
-                <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.description")} (About This Event)
-                </label>
-                <Textarea
-                  value={newEvent.description}
-                  onChange={(e) =>
-                    handleNewEventChange("description", e.target.value)
-                  }
-                  placeholder={t("admin.events.form.enterEventDescription")}
-                  rows={4}
-                />
-              </div>
-              <div className="col-span-2">
+              <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.gatesOpenTime")}
                 </label>
@@ -5882,7 +6160,20 @@ const EventsManagement: React.FC = () => {
                   placeholder={t("admin.events.form.gatesOpenTimePlaceholder")}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-3">
+                <label className="text-sm font-medium rtl:text-right">
+                  {t("admin.events.form.description")} (About This Event)
+                </label>
+                <Textarea
+                  value={newEvent.description}
+                  onChange={(e) =>
+                    handleNewEventChange("description", e.target.value)
+                  }
+                  placeholder={t("admin.events.form.enterEventDescription")}
+                  rows={3}
+                />
+              </div>
+              <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.closedDoorsTime")}
                 </label>
@@ -5895,7 +6186,7 @@ const EventsManagement: React.FC = () => {
                   placeholder={t("admin.events.form.closedDoorsTimePlaceholder")}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-3">
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.aboutVenue")}
                 </label>
@@ -5905,10 +6196,10 @@ const EventsManagement: React.FC = () => {
                     handleNewEventChange("aboutVenue", e.target.value)
                   }
                   placeholder={t("admin.events.form.aboutVenuePlaceholder")}
-                  rows={4}
+                  rows={3}
                 />
               </div>
-              <div className="col-span-2">
+              <div className="col-span-3">
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.termsAndConditions")}
                 </label>
@@ -5920,29 +6211,10 @@ const EventsManagement: React.FC = () => {
                   placeholder={t(
                     "admin.events.form.termsAndConditionsPlaceholder"
                   )}
-                  rows={4}
+                  rows={3}
                 />
               </div>
-              <div className="col-span-2">
-                <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.events.form.mainEventImage")}
-                </label>
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleNewEventChange("mainImageFile", file);
-                    }
-                  }}
-                  className="cursor-pointer"
-                />
-                <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
-                  {t("admin.events.form.mainEventImageDescription")}
-                </p>
-              </div>
-              <div className="col-span-2">
+              <div>
                 <label className="text-sm font-medium rtl:text-right">
                   {t("admin.events.form.venueLayoutImage")}
                 </label>
@@ -6839,7 +7111,7 @@ const EventsManagement: React.FC = () => {
               {t("admin.events.manageDeductions", "Manage Deductions")}
             </h3>
             <div className="space-y-6">
-              {/* Part 1: Tickets Sold Revenue */}
+              {/* Part 1: Tickets Sold Revenue Deductions */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base rtl:text-right">
@@ -6847,53 +7119,87 @@ const EventsManagement: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium rtl:text-right">
-                        {t("admin.events.finances.totalTicketRevenue", "Total Ticket Revenue")}:
-                      </span>
-                      <span className="text-lg font-bold text-primary">
-                        0.00 EGP
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground rtl:text-right">
-                      {t("admin.events.finances.ticketRevenueDescription", "Money paid for tickets (excluding black card tickets)")}
-                    </p>
-                  </div>
-                  
                   {/* Deductions applied to tickets */}
                   <div className="space-y-2">
-                    <h4 className="text-sm font-semibold rtl:text-right">
-                      {t("admin.events.finances.deductions", "Deductions Applied")}:
-                    </h4>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between rtl:flex-row-reverse">
-                        <span className="text-muted-foreground">
-                          {t("admin.events.finances.ticketRunnerFee", "Ticket Runner Fee")}:
-                        </span>
-                        <span>0.00 EGP</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Final amount for organizer */}
-                  <div className="border-t pt-4">
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold rtl:text-right">
-                        {t("admin.events.finances.organizerNetProfit", "Organizer Net Profit")}:
-                      </span>
-                      <span className="text-xl font-bold text-green-600">
-                        0.00 EGP
-                      </span>
+                      <h4 className="text-sm font-semibold rtl:text-right">
+                        {t("admin.events.finances.deductions", "Deductions Applied")}:
+                      </h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setDeductionAppliesTo("tickets");
+                          setIsAddDeductionDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                        {t("admin.events.finances.addDeduction", "Add Deduction")}
+                      </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
-                      {t("admin.events.finances.organizerNetProfitDescription", "This amount will be shown to the organizer")}
-                    </p>
+                    <div className="space-y-1 text-sm">
+                      {/* TR Commission Fee (Auto-added from form) */}
+                      {newEvent.commissionRate && (
+                        <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                          <div>
+                            <span className="text-sm font-medium">TR Commission Fee</span>
+                            <p className="text-xs text-muted-foreground">
+                              {newEvent.commissionRate.type === 'percentage' 
+                                ? `${newEvent.commissionRate.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                                : `E£ ${newEvent.commissionRate.value} ${t("admin.events.finances.perTicket", "per ticket")}`
+                              }
+                            </p>
+                            <p className="text-xs text-muted-foreground italic">
+                              {t("admin.events.finances.autoAdded", "Auto-added from form")}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                      {newEvent.deductions.filter(d => d.appliesTo === "tickets").length === 0 && !newEvent.commissionRate ? (
+                        <p className="text-xs text-muted-foreground rtl:text-right">
+                          {t("admin.events.finances.noDeductions", "No deductions added yet")}
+                        </p>
+                      ) : (
+                        newEvent.deductions
+                          .filter(d => d.appliesTo === "tickets")
+                          .map((deduction) => {
+                            const actualIndex = newEvent.deductions.findIndex(d => d === deduction);
+                            return (
+                              <div key={actualIndex} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                                <div>
+                                  <span className="text-sm font-medium">{deduction.name}</span>
+                                  <p className="text-xs text-muted-foreground">
+                                    {deduction.type === 'percentage' 
+                                      ? `${deduction.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                                      : `E£ ${deduction.value} ${t("admin.events.finances.perTicket", "per ticket")}`
+                                    }
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setNewEvent({
+                                      ...newEvent,
+                                      deductions: newEvent.deductions.filter((_, i) => i !== actualIndex),
+                                    });
+                                  }}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Part 2: NFC Card Revenue */}
+              {/* Part 2: NFC Card Revenue Deductions */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base rtl:text-right">
@@ -6901,18 +7207,65 @@ const EventsManagement: React.FC = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-sm font-medium rtl:text-right">
-                        {t("admin.events.finances.totalCardRevenue", "Total Card Revenue")}:
-                      </span>
-                      <span className="text-lg font-bold text-primary">
-                        {t("admin.events.finances.calculatedSeparately", "Calculated separately")}
-                      </span>
+                  {/* Deductions applied to NFC cards */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-sm font-semibold rtl:text-right">
+                        {t("admin.events.finances.deductions", "Deductions Applied")}:
+                      </h4>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setDeductionAppliesTo("nfc_cards");
+                          setIsAddDeductionDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2 rtl:ml-2 rtl:mr-0" />
+                        {t("admin.events.finances.addDeduction", "Add Deduction")}
+                      </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground rtl:text-right">
-                      {t("admin.events.finances.cardRevenueDescription", "Revenue from first-time NFC card purchases (not shown to organizer)")}
-                    </p>
+                    <div className="space-y-1 text-sm">
+                      {newEvent.deductions.filter(d => d.appliesTo === "nfc_cards").length === 0 ? (
+                        <p className="text-xs text-muted-foreground rtl:text-right">
+                          {t("admin.events.finances.noDeductions", "No deductions added yet")}
+                        </p>
+                      ) : (
+                        newEvent.deductions
+                          .filter(d => d.appliesTo === "nfc_cards")
+                          .map((deduction) => {
+                            const actualIndex = newEvent.deductions.findIndex(d => d === deduction);
+                            return (
+                              <div key={actualIndex} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                                <div>
+                                  <span className="text-sm font-medium">{deduction.name}</span>
+                                  <p className="text-xs text-muted-foreground">
+                                    {deduction.type === 'percentage' 
+                                      ? `${deduction.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                                      : `E£ ${deduction.value} ${t("admin.events.finances.perTicket", "per ticket")}`
+                                    }
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setNewEvent({
+                                      ...newEvent,
+                                      deductions: newEvent.deductions.filter((_, i) => i !== actualIndex),
+                                    });
+                                  }}
+                                  className="text-red-600 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -8457,6 +8810,111 @@ const EventsManagement: React.FC = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Add Deduction Dialog */}
+      <Dialog open={isAddDeductionDialogOpen} onOpenChange={setIsAddDeductionDialogOpen}>
+        <DialogContent className="rtl:text-right ltr:text-left">
+          <DialogHeader>
+            <DialogTitle className="rtl:text-right ltr:text-left">
+              {t("admin.events.finances.addDeduction", "Add Deduction")}
+            </DialogTitle>
+            <DialogDescription className="rtl:text-right ltr:text-left">
+              {deductionAppliesTo === "tickets" 
+                ? t("admin.events.finances.addDeductionDescTickets", "Add a new deduction that will be applied to ticket sales revenue (Part 1)")
+                : t("admin.events.finances.addDeductionDescNFC", "Add a new deduction that will be applied to NFC card revenue (Part 2)")
+              }
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                {t("admin.events.finances.deductionName", "Deduction Name")} *
+              </label>
+              <Input
+                value={newDeduction.name}
+                onChange={(e) => setNewDeduction({ ...newDeduction, name: e.target.value })}
+                placeholder={t("admin.events.finances.deductionNamePlaceholder", "e.g., Service Fee, Processing Fee")}
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                {t("admin.events.finances.deductionType", "Deduction Type")} *
+              </label>
+              <Select
+                value={newDeduction.type}
+                onValueChange={(value: "percentage" | "fixed_per_ticket") => 
+                  setNewDeduction({ ...newDeduction, type: value })
+                }
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">
+                    {t("admin.events.finances.percentage", "Percentage of Revenue")}
+                  </SelectItem>
+                  <SelectItem value="fixed_per_ticket">
+                    {t("admin.events.finances.fixedPerTicket", "Fixed Amount Per Ticket")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                {t("admin.events.finances.deductionValue", "Value")} *
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step={newDeduction.type === "percentage" ? "0.01" : "1"}
+                value={newDeduction.value}
+                onChange={(e) => setNewDeduction({ ...newDeduction, value: parseFloat(e.target.value) || 0 })}
+                placeholder={newDeduction.type === "percentage" ? "5.00" : "10.00"}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1 rtl:text-right ltr:text-left">
+                {newDeduction.type === "percentage" 
+                  ? t("admin.events.finances.percentageHint", "Enter percentage (e.g., 5 for 5%)")
+                  : t("admin.events.finances.fixedHint", "Enter amount in EGP per ticket")
+                }
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-medium rtl:text-right ltr:text-left">
+                {t("admin.events.finances.deductionDescription", "Description")} (Optional)
+              </label>
+              <Textarea
+                value={newDeduction.description}
+                onChange={(e) => setNewDeduction({ ...newDeduction, description: e.target.value })}
+                placeholder={t("admin.events.finances.deductionDescriptionPlaceholder", "Optional description for this deduction")}
+                className="mt-1"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter className="rtl:flex-row-reverse">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsAddDeductionDialogOpen(false);
+                setNewDeduction({
+                  name: "",
+                  type: "percentage",
+                  value: 0,
+                  description: "",
+                });
+                setDeductionAppliesTo("tickets");
+              }}
+            >
+              {t("admin.events.dialogs.cancel") || "Cancel"}
+            </Button>
+            <Button onClick={handleAddDeduction}>
+              {t("admin.events.finances.addDeduction", "Add Deduction")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="rtl:text-right ltr:text-left">
@@ -8520,4 +8978,5 @@ const EventsManagement: React.FC = () => {
   );
 };
 
+// Export the component
 export default EventsManagement;

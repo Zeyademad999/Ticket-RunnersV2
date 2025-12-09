@@ -13,6 +13,19 @@ interface Event {
   commission?: number;
   ticketsSold?: number;
   organizers?: any[];
+  deductions?: Array<{
+    id?: string;
+    name: string;
+    type: 'percentage' | 'fixed_per_ticket';
+    value: number;
+    description?: string;
+    appliesTo?: 'tickets' | 'nfc_cards';
+    applies_to?: 'tickets' | 'nfc_cards';
+  }>;
+  commissionRate?: {
+    type: 'percentage' | 'flat';
+    value: number;
+  };
 }
 
 interface EventFinancesReportProps {
@@ -24,16 +37,11 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [ticketRunnerProfit, setTicketRunnerProfit] = useState<any>(null);
-  const [deductions, setDeductions] = useState<any[]>([]);
 
   useEffect(() => {
     const loadFinancialData = async () => {
       setLoading(true);
       try {
-        // Load deductions
-        const deductionsData = await financesApi.getDeductions({ is_active: true });
-        setDeductions(Array.isArray(deductionsData) ? deductionsData : deductionsData?.results || []);
-
         // Load Ticket Runner profit (for admin view)
         try {
           const trProfit = await financesApi.getTicketRunnerProfit();
@@ -57,6 +65,9 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
     }
   }, [event, toast, t]);
 
+  // Use event-specific deductions (not global)
+  const eventDeductionsList = event.deductions || [];
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -67,11 +78,30 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
 
   // Calculate event-specific ticket revenue
   const eventTicketRevenue = event.revenue || 0;
-  const eventCommission = event.commission || 0;
   const eventTicketsSold = event.ticketsSold || 0;
+  
+  // Calculate commission from event's commissionRate (always use commissionRate if available)
+  const commissionRate = event.commissionRate || { type: 'percentage' as const, value: 10 };
+  let eventCommission = 0;
+  if (commissionRate) {
+    if (commissionRate.type === 'percentage') {
+      eventCommission = (eventTicketRevenue * commissionRate.value) / 100;
+    } else {
+      eventCommission = commissionRate.value * eventTicketsSold;
+    }
+  } else if (event.commission) {
+    // Fallback to event.commission only if commissionRate is not available
+    eventCommission = event.commission;
+  }
 
-  // Calculate deductions for this event
-  const eventDeductions = deductions.map(deduction => {
+  // Calculate deductions for this event - only use event-specific deductions
+  // Filter to only show deductions that apply to tickets (Part 1)
+  const ticketDeductions = eventDeductionsList.filter((d: any) => {
+    const appliesTo = d.appliesTo || d.applies_to || 'tickets';
+    return appliesTo === 'tickets';
+  });
+
+  const eventDeductions = ticketDeductions.map(deduction => {
     let amount = 0;
     if (deduction.type === 'percentage') {
       amount = (eventTicketRevenue * deduction.value) / 100;
@@ -83,6 +113,15 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
 
   const totalDeductions = eventDeductions.reduce((sum, d) => sum + d.calculatedAmount, 0) + eventCommission;
   const organizerNetProfit = eventTicketRevenue - totalDeductions;
+  
+  // Debug logging
+  console.log("Event Finances Calculation:", {
+    eventTicketRevenue,
+    eventCommission,
+    eventDeductions: eventDeductions.map(d => ({ name: d.name, amount: d.calculatedAmount })),
+    totalDeductions,
+    organizerNetProfit
+  });
 
   return (
     <div className="space-y-6">
@@ -168,38 +207,50 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
                 {t("admin.events.finances.deductions", "Deductions Applied")}:
               </h4>
               <div className="space-y-2">
-                {/* Ticket Runner Fee */}
-                <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
-                  <div>
-                    <span className="text-sm font-medium">
-                      {t("admin.events.finances.ticketRunnerFee", "Ticket Runner Fee")}
-                    </span>
-                    <p className="text-xs text-muted-foreground">
-                      {t("admin.events.finances.commission", "Commission")}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-red-600">
-                    -{formatCurrencyForLocale(eventCommission, i18n.language)}
-                  </span>
-                </div>
-
-                {/* Custom Deductions */}
-                {eventDeductions.map((deduction, index) => (
-                  <div key={deduction.id || index} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                {/* TR Commission Fee (Auto-added from form) */}
+                {event.commissionRate && (
+                  <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
                     <div>
-                      <span className="text-sm font-medium">{deduction.name}</span>
+                      <span className="text-sm font-bold">TR Commission Fee</span>
                       <p className="text-xs text-muted-foreground">
-                        {deduction.type === 'percentage' 
-                          ? `${deduction.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
-                          : `${formatCurrencyForLocale(deduction.value, i18n.language)} ${t("admin.events.finances.perTicket", "per ticket")}`
+                        {event.commissionRate.type === 'percentage' 
+                          ? `${event.commissionRate.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                          : `${formatCurrencyForLocale(event.commissionRate.value, i18n.language)} ${t("admin.events.finances.perTicket", "per ticket")}`
                         }
                       </p>
+                      <p className="text-xs text-muted-foreground italic">
+                        {t("admin.events.finances.autoAdded", "Auto-added from form")}
+                      </p>
                     </div>
-                    <span className="text-sm font-semibold text-red-600">
-                      -{formatCurrencyForLocale(deduction.calculatedAmount, i18n.language)}
+                    <span className="text-xl font-bold text-green-600">
+                      {formatCurrencyForLocale(eventCommission, i18n.language)}
                     </span>
                   </div>
-                ))}
+                )}
+
+                {/* Custom Deductions */}
+                {eventDeductions.length === 0 && !event.commissionRate ? (
+                  <p className="text-xs text-muted-foreground rtl:text-right">
+                    {t("admin.events.finances.noDeductions", "No deductions added yet")}
+                  </p>
+                ) : (
+                  eventDeductions.map((deduction, index) => (
+                    <div key={deduction.id || index} className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                      <div>
+                        <span className="text-sm font-medium">{deduction.name}</span>
+                        <p className="text-xs text-muted-foreground">
+                          {deduction.type === 'percentage' 
+                            ? `${deduction.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                            : `${formatCurrencyForLocale(deduction.value, i18n.language)} ${t("admin.events.finances.perTicket", "per ticket")}`
+                          }
+                        </p>
+                      </div>
+                      <span className="text-sm font-semibold text-red-600">
+                        -{formatCurrencyForLocale(deduction.calculatedAmount, i18n.language)}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -272,7 +323,7 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
                     {t("admin.events.finances.totalRevenue", "Total Revenue")}:
                   </p>
                   <p className="text-lg font-bold">
-                    {formatCurrencyForLocale(ticketRunnerProfit.total_revenue || 0, i18n.language)}
+                    {formatCurrencyForLocale(eventTicketRevenue, i18n.language)}
                   </p>
                 </div>
                 <div>
@@ -280,7 +331,7 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
                     {t("admin.events.finances.netProfit", "Net Profit")}:
                   </p>
                   <p className="text-lg font-bold text-green-600">
-                    {formatCurrencyForLocale(ticketRunnerProfit.ticket_runner_net_profit || 0, i18n.language)}
+                    {formatCurrencyForLocale(organizerNetProfit, i18n.language)}
                   </p>
                 </div>
               </div>
