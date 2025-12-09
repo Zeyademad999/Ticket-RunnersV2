@@ -195,6 +195,7 @@ class OrganizerEventAnalyticsSerializer(serializers.ModelSerializer):
     gates_open_time = serializers.SerializerMethodField()
     gender_distribution = serializers.SerializerMethodField()
     age_distribution = serializers.SerializerMethodField()
+    financial_breakdown = serializers.SerializerMethodField()
     
     class Meta:
         model = Event
@@ -203,7 +204,7 @@ class OrganizerEventAnalyticsSerializer(serializers.ModelSerializer):
             'description', 'about_venue', 'starting_price', 'featured',
             'ticket_categories', 'overall_stats', 'payout_info',
             'image_url', 'category_name', 'gates_open_time',
-            'gender_distribution', 'age_distribution'
+            'gender_distribution', 'age_distribution', 'financial_breakdown'
         ]
     
     def get_location(self, obj):
@@ -486,6 +487,116 @@ class OrganizerEventAnalyticsSerializer(serializers.ModelSerializer):
                 'total': 0,
                 'percentages': {'0-17': 0, '18-24': 0, '25-34': 0, '35-44': 0,
                                '45-54': 0, '55-64': 0, '65+': 0, 'unknown': 0}
+            }
+    
+    def get_financial_breakdown(self, obj):
+        """
+        Calculate financial breakdown for this event:
+        - Ticket revenue (from sold tickets, excluding black cards)
+        - Deductions (event-specific deductions)
+        - Commission (Ticket Runner fee)
+        - Net profit (revenue - deductions - commission)
+        """
+        from tickets.models import Ticket
+        from decimal import Decimal
+        
+        try:
+            # Calculate ticket revenue (excluding black card tickets)
+            tickets = Ticket.objects.filter(
+                event=obj,
+                is_black_card=False,
+                status__in=['valid', 'used']
+            )
+            ticket_revenue = Decimal('0.00')
+            tickets_sold = tickets.count()
+            
+            for ticket in tickets:
+                ticket_revenue += Decimal(str(ticket.price))
+            
+            # Get ONLY event-specific deductions (from ManyToMany relationship)
+            # Use distinct() and order by ID to ensure no duplicates
+            event_deductions_queryset = obj.deductions.filter(is_active=True).distinct().order_by('id')
+            
+            # STRICT deduplication: First by ID, then by name+type+value combination
+            # This prevents counting the same deduction twice even if it has different IDs
+            seen_deduction_ids = set()
+            seen_deduction_keys = set()  # Track name+type+value combinations
+            event_deductions = []
+            for deduction in event_deductions_queryset:
+                # Create a unique key from name, type, and value
+                deduction_key = f"{deduction.name}_{deduction.type}_{deduction.value}"
+                
+                # Skip if we've already seen this ID OR this name+type+value combination
+                if deduction.id in seen_deduction_ids or deduction_key in seen_deduction_keys:
+                    continue
+                
+                seen_deduction_ids.add(deduction.id)
+                seen_deduction_keys.add(deduction_key)
+                event_deductions.append(deduction)
+            
+            deduction_details = []
+            total_deductions = Decimal('0.00')
+            
+            # Calculate deductions ONLY for unique event-specific deductions
+            for deduction in event_deductions:
+                if deduction.type == 'percentage':
+                    # Percentage of ticket revenue
+                    amount = deduction.calculate_amount(total_revenue=float(ticket_revenue))
+                else:  # fixed_per_ticket
+                    # Fixed amount per ticket sold
+                    amount = deduction.calculate_amount(tickets_sold=tickets_sold)
+                
+                # Add to total_deductions (each deduction counted only once)
+                total_deductions += Decimal(str(amount))
+                deduction_details.append({
+                    'id': deduction.id,  # Include ID for frontend deduplication
+                    'name': deduction.name,
+                    'type': deduction.type,
+                    'value': float(deduction.value),
+                    'amount': float(amount),
+                    'description': deduction.description or ''
+                })
+            
+            # Log for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Event {obj.id} - Event-specific deductions count: {len(event_deductions)}, IDs: {[d.id for d in event_deductions]}, Total deductions amount: {total_deductions}")
+            
+            # Calculate Ticket Runner fee (commission)
+            commission = obj.calculate_commission()
+            ticket_runner_fee = Decimal(str(commission))
+            
+            # Add Ticket Runner fee to deductions (but don't include it in the deductions array)
+            # The commission is returned separately in the response
+            total_deductions += ticket_runner_fee
+            # Note: We don't add TR fee to deduction_details since it's shown separately in the frontend
+            
+            # Calculate Organizer Net Profit
+            organizer_net_profit = ticket_revenue - total_deductions
+            
+            return {
+                'ticket_revenue': float(ticket_revenue),
+                'tickets_sold': tickets_sold,
+                'deductions': deduction_details,
+                'total_deductions': float(total_deductions),
+                'commission': float(ticket_runner_fee),  # Also return as 'commission' for frontend compatibility
+                'ticket_runner_fee': float(ticket_runner_fee),
+                'organizer_net_profit': float(organizer_net_profit)
+            }
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error calculating financial breakdown for event {obj.id}: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return {
+                'ticket_revenue': 0.0,
+                'tickets_sold': 0,
+                'deductions': [],
+                'total_deductions': 0.0,
+                'commission': 0.0,  # Also return as 'commission' for frontend compatibility
+                'ticket_runner_fee': 0.0,
+                'organizer_net_profit': 0.0
             }
 
 

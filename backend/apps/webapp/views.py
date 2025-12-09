@@ -19,7 +19,7 @@ from customers.models import Customer, Dependent
 from .authentication import CustomerJWTAuthentication
 from events.models import Event
 from tickets.models import Ticket, TicketRegistrationToken, TicketMarketplaceListing
-from nfc_cards.models import NFCCard, NFCCardAutoReload, NFCCardTransaction
+from nfc_cards.models import NFCCard, NFCCardAutoReload, NFCCardTransaction, NFCCardSettings
 import os
 from payments.models import PaymentTransaction
 from apps.webapp.models import Favorite
@@ -47,21 +47,36 @@ def normalize_mobile_number(mobile_number: str) -> str:
     # Remove any whitespace
     mobile_number = mobile_number.strip()
     
-    # If it starts with +20, return as is
+    # Remove all non-digit characters for processing
+    digits_only = re.sub(r'\D', '', mobile_number)
+    
+    # Handle case where there's an extra 0 after country code: +2001... or 2001...
+    # This happens when user inputs 01012900990 with +20, resulting in +2001012900990
+    if digits_only.startswith('2001') and len(digits_only) == 13:
+        # Remove the extra 0: 2001104484492 -> 201104484492
+        return '+20' + digits_only[3:]
+    
+    # If it starts with +20, check for extra 0
     if mobile_number.startswith('+20'):
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: +2001104484492 -> +201104484492
+            return '+20' + digits_only[3:]
         return mobile_number
     
-    # If it starts with 20 (without +), add +
-    if mobile_number.startswith('20') and len(mobile_number) >= 12:
-        return '+' + mobile_number
+    # If it starts with 20 (without +), add + and check for extra 0
+    if digits_only.startswith('20') and len(digits_only) >= 12:
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: 2001104484492 -> +201104484492
+            return '+20' + digits_only[3:]
+        return '+' + digits_only
     
     # If it starts with 0 (Egyptian local format), replace 0 with +20
-    if mobile_number.startswith('0') and len(mobile_number) == 11:
-        return '+20' + mobile_number[1:]
+    if digits_only.startswith('0') and len(digits_only) == 11:
+        return '+20' + digits_only[1:]
     
-    # If it's 11 digits starting with 1 (Egyptian mobile without leading 0)
-    if mobile_number.startswith('1') and len(mobile_number) == 10:
-        return '+20' + mobile_number
+    # If it's 10 digits starting with 1 (Egyptian mobile without leading 0)
+    if digits_only.startswith('1') and len(digits_only) == 10:
+        return '+20' + digits_only
     
     # Return as is if no pattern matches
     return mobile_number
@@ -1056,7 +1071,7 @@ def validate_registration_token(request):
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
-@rate_limit_otp_request(limit=1, window=60)  # 1 request per 60 seconds
+@rate_limit_otp_request(limit=10, window=300)  # 10 requests per 5 minutes (more permissive for login)
 def user_login(request):
     """
     User login.
@@ -1072,46 +1087,39 @@ def user_login(request):
     mobile_number = serializer.validated_data['mobile_number']
     password = serializer.validated_data['password']
     
-    # Normalize mobile number to handle different formats
-    normalized_mobile = normalize_mobile_number(mobile_number)
+    # Use find_customer_by_phone to check all possible number formats
+    customer = find_customer_by_phone(mobile_number)
     
-    # Try to find customer with normalized mobile number first
-    from django.db.models import Q
-    try:
-        customer = Customer.objects.get(
-            Q(mobile_number=normalized_mobile) | 
-            Q(mobile_number=mobile_number) |
-            Q(phone=normalized_mobile) |
-            Q(phone=mobile_number)
-        )
-    except Customer.DoesNotExist:
-        raise AuthenticationError(
-            detail="Invalid mobile number or password",
-            code="INVALID_CREDENTIALS"
-        )
-    except Customer.MultipleObjectsReturned:
-        # If multiple found, prefer the one with matching mobile_number
-        customer = Customer.objects.filter(
-            Q(mobile_number=normalized_mobile) | 
-            Q(mobile_number=mobile_number)
-        ).first()
-        if not customer:
-            customer = Customer.objects.filter(
-                Q(phone=normalized_mobile) | 
-                Q(phone=mobile_number)
-            ).first()
-    
-    if not customer.check_password(password):
+    if not customer:
+        # Log for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Login attempt failed: Customer not found for phone number: {mobile_number}")
         raise AuthenticationError(
             detail="Invalid mobile number or password",
             code="INVALID_CREDENTIALS"
         )
     
-    # Check if customer is banned
+    # Log customer found for debugging
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Login attempt: Customer found - ID: {customer.id}, mobile_number: {customer.mobile_number}, phone: {customer.phone}, status: {customer.status}")
+    
+    # Check if customer is banned FIRST (before password check)
+    # This ensures banned users see the banned message, not "invalid credentials"
     if customer.status == 'banned':
+        logger.warning(f"Login attempt blocked: Banned customer ID: {customer.id}, phone: {mobile_number}")
         raise AuthenticationError(
-            detail="Your account has been banned. Please contact support for more information.",
+            detail="Your account has been banned. You cannot sign in. Please contact support for more information.",
             code="ACCOUNT_BANNED"
+        )
+    
+    # Check password only if not banned
+    if not customer.check_password(password):
+        logger.warning(f"Login attempt failed: Invalid password for customer ID: {customer.id}, phone: {mobile_number}")
+        raise AuthenticationError(
+            detail="Invalid mobile number or password",
+            code="INVALID_CREDENTIALS"
         )
     
     if customer.status != 'active':
@@ -1151,29 +1159,82 @@ def user_verify_login_otp(request):
     mobile_number = serializer.validated_data['mobile_number']
     otp_code = serializer.validated_data['otp_code']
     
-    # Normalize mobile number to handle different formats
-    normalized_mobile = normalize_mobile_number(mobile_number)
+    # Use find_customer_by_phone to check all possible number formats
+    customer = find_customer_by_phone(mobile_number)
     
-    # Try to verify OTP with normalized mobile number first
-    otp_verified = verify_otp(normalized_mobile, otp_code, 'login')
-    if not otp_verified:
-        # Fallback to original format
-        otp_verified = verify_otp(mobile_number, otp_code, 'login')
+    if not customer:
+        raise AuthenticationError("User not found")
+    
+    # Check if customer is banned FIRST (before OTP verification)
+    # This ensures banned users see the banned message, not "invalid OTP" or "user not found"
+    if customer.status == 'banned':
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"OTP login attempt blocked: Banned customer ID: {customer.id}, phone: {mobile_number}")
+        raise AuthenticationError(
+            detail="Your account has been banned. You cannot sign in. Please contact support for more information.",
+            code="ACCOUNT_BANNED"
+        )
+    
+    # Try to verify OTP with all possible number formats
+    # The OTP might have been sent to any of these formats, so we need to check all
+    normalized_mobile = normalize_mobile_number(mobile_number)
+    otp_verified = False
+    
+    # Generate all possible variations to check OTP
+    phone_variations = []
+    digits_only = re.sub(r'\D', '', mobile_number)
+    
+    # Add original and normalized
+    phone_variations.append(mobile_number.strip())
+    phone_variations.append(normalized_mobile)
+    phone_variations.append(digits_only)
+    
+    # Add customer's stored numbers
+    if customer.mobile_number:
+        phone_variations.append(customer.mobile_number)
+    if customer.phone:
+        phone_variations.append(customer.phone)
+    
+    # Generate variations similar to find_customer_by_phone
+    if digits_only.startswith('0') and len(digits_only) == 11:
+        phone_variations.append(digits_only[1:])
+        phone_variations.append('20' + digits_only[1:])
+        phone_variations.append('+20' + digits_only[1:])
+    
+    if digits_only.startswith('20') and len(digits_only) >= 12:
+        phone_variations.append('+' + digits_only)
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            without_extra_zero = '20' + digits_only[3:]
+            phone_variations.append('+' + without_extra_zero)
+            phone_variations.append('0' + digits_only[3:])
+    
+    if mobile_number.startswith('+20'):
+        phone_variations.append(mobile_number[1:])
+        phone_variations.append(mobile_number[3:])
+        digits_after_plus = re.sub(r'\D', '', mobile_number[1:])
+        if len(digits_after_plus) == 13 and digits_after_plus[2] == '0':
+            without_extra_zero = '+20' + digits_after_plus[3:]
+            phone_variations.append(without_extra_zero)
+            phone_variations.append(without_extra_zero[1:])
+            phone_variations.append('0' + digits_after_plus[3:])
+    
+    if digits_only.startswith('1') and len(digits_only) == 10:
+        phone_variations.append('20' + digits_only)
+        phone_variations.append('+20' + digits_only)
+        phone_variations.append('0' + digits_only)
+    
+    # Remove duplicates
+    unique_variations = list(set([v for v in phone_variations if v]))
+    
+    # Try to verify OTP with each variation
+    for phone_variant in unique_variations:
+        if verify_otp(phone_variant, otp_code, 'login'):
+            otp_verified = True
+            break
     
     if not otp_verified:
         raise AuthenticationError("Invalid or expired OTP")
-    
-    # Try to find customer with normalized mobile number first
-    try:
-        customer = Customer.objects.get(mobile_number=normalized_mobile)
-    except Customer.DoesNotExist:
-        # If not found, try with original format as fallback
-        try:
-            customer = Customer.objects.get(mobile_number=mobile_number)
-        except Customer.DoesNotExist:
-            raise AuthenticationError("User not found")
-    except Customer.DoesNotExist:
-        raise AuthenticationError("User not found")
     
     # Check if customer is banned before completing login
     if customer.status == 'banned':
@@ -1358,12 +1419,27 @@ def user_card_details(request):
         }, status=status.HTTP_401_UNAUTHORIZED)
     
     
-    # Get the user's active NFC card (if any)
+    # Get the user's NFC card (active first, then any other card)
     from nfc_cards.models import NFCCard
     nfc_card = NFCCard.objects.filter(customer=customer, status='active').first()
+    if not nfc_card:
+        # If no active card, get the most recent card (could be inactive/pending)
+        nfc_card = NFCCard.objects.filter(customer=customer).order_by('-created_at').first()
     
     # Extract customer first name
     customer_first_name = customer.name.split()[0] if customer.name else ""
+    
+    # Get collector information if exists
+    collector_data = None
+    if nfc_card and nfc_card.collector:
+        collector = nfc_card.collector
+        collector_data = {
+            'id': str(collector.id),
+            'name': collector.name,
+            'phone': collector.phone or collector.mobile_number,
+            'mobile_number': collector.mobile_number or collector.phone,
+            'profile_image': collector.profile_image.url if collector.profile_image else None
+        }
     
     if nfc_card:
         # Ensure dates are always returned as strings (ISO format) or empty string if None
@@ -1385,11 +1461,18 @@ def user_card_details(request):
         }
     
     # Return response matching frontend interface
-    return Response({
+    response_data = {
         'customer_first_name': customer_first_name,
         'nfc_card': card_data,
         'wallet': wallet_data
-    }, status=status.HTTP_200_OK)
+    }
+    
+    # Add collector information if exists
+    if collector_data:
+        response_data['collector'] = collector_data
+        response_data['authorized_collector'] = collector_data  # For backward compatibility
+    
+    return Response(response_data, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -2306,11 +2389,16 @@ def user_nfc_card_status(request):
     # (Both card fee and renewal cost are charged together in the first purchase)
     needs_renewal_cost = not has_paid_card_fee
     
+    # Get pricing from settings
+    settings = NFCCardSettings.get_settings()
+    
     return Response({
         'has_nfc_card': has_active_card,
         'has_paid_card_fee': has_paid_card_fee,
         'needs_card_fee': needs_card_fee,
-        'needs_renewal_cost': needs_renewal_cost
+        'needs_renewal_cost': needs_renewal_cost,
+        'first_purchase_cost': float(settings.first_purchase_cost),
+        'renewal_fee': float(settings.renewal_fee),
     }, status=status.HTTP_200_OK)
 
 
@@ -3887,12 +3975,13 @@ def user_nfc_card_request(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Create card request (status will be pending until assigned by merchant/admin)
+    settings = NFCCardSettings.get_settings()
     card = NFCCard.objects.create(
         customer=customer,
         status='pending',
         serial_number=f"CARD-{uuid.uuid4().hex[:12].upper()}",
         issue_date=timezone.now().date(),
-        expiry_date=timezone.now().date() + timedelta(days=365)  # 1 year from issue date
+        expiry_date=timezone.now().date() + timedelta(days=settings.card_validity_days)
     )
     
     return Response({
@@ -4048,17 +4137,52 @@ def find_customer_by_phone(phone_number: str):
     if digits_only.startswith('20') and len(digits_only) >= 12:
         phone_variations.append('+' + digits_only)
         phone_variations.append(digits_only)
+        
+        # Handle case where there's an extra 0 after country code: 2001... -> 201...
+        # This happens when user inputs 01012900990 with +20, resulting in +201012900990
+        # Should also try +2011012900990 (removing the extra 0)
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: 2001104484492 -> 201104484492
+            without_extra_zero = '20' + digits_only[3:]
+            phone_variations.append('+' + without_extra_zero)
+            phone_variations.append(without_extra_zero)
+            # Also try the local format: 01104484492
+            phone_variations.append('0' + digits_only[3:])
     
     # If it starts with +20, try without +
     if phone_number.startswith('+20'):
         phone_variations.append(phone_number[1:])  # Remove +
         phone_variations.append(phone_number[3:])  # Remove +20
+        
+        # Handle case where there's an extra 0: +2001... -> try +201... and 01...
+        digits_after_plus = re.sub(r'\D', '', phone_number[1:])  # Get digits after +
+        if len(digits_after_plus) == 13 and digits_after_plus[2] == '0':
+            # Remove the extra 0: +2001104484492 -> +201104484492
+            without_extra_zero = '+20' + digits_after_plus[3:]
+            phone_variations.append(without_extra_zero)
+            phone_variations.append(without_extra_zero[1:])  # Without +
+            # Also try local format: 01104484492
+            phone_variations.append('0' + digits_after_plus[3:])
     
     # If it's 10 digits starting with 1, try with country code
     if digits_only.startswith('1') and len(digits_only) == 10:
         phone_variations.append('20' + digits_only)
         phone_variations.append('+20' + digits_only)
         phone_variations.append('0' + digits_only)
+    
+    # Also try variations with common formatting (spaces, dashes, parentheses)
+    # For example: +20 11 0448 4492, 011-0448-4492, etc.
+    if digits_only.startswith('0') and len(digits_only) == 11:
+        # Try formatted versions: 011-0448-4492, 011 0448 4492
+        formatted = f"{digits_only[:3]}-{digits_only[3:7]}-{digits_only[7:]}"
+        phone_variations.append(formatted)
+        formatted = f"{digits_only[:3]} {digits_only[3:7]} {digits_only[7:]}"
+        phone_variations.append(formatted)
+        # With country code: +20 11 0448 4492
+        country_formatted = f"+20 {digits_only[1:3]} {digits_only[3:7]} {digits_only[7:]}"
+        phone_variations.append(country_formatted)
+        country_formatted = f"+20-{digits_only[1:3]}-{digits_only[3:7]}-{digits_only[7:]}"
+        phone_variations.append(country_formatted)
     
     # Remove duplicates while preserving order
     seen = set()
@@ -4070,11 +4194,93 @@ def find_customer_by_phone(phone_number: str):
     
     # Search in both phone and mobile_number fields
     try:
+        # First try exact match with all variations
         customer = Customer.objects.filter(
             Q(phone__in=unique_variations) | Q(mobile_number__in=unique_variations)
         ).first()
-        return customer
-    except Exception:
+        
+        if customer:
+            return customer
+        
+        # If not found, try with trimmed values (database might have extra spaces)
+        for variation in unique_variations:
+            variation_clean = variation.strip()
+            if not variation_clean:
+                continue
+                
+            # Try exact match with trimmed values
+            customer = Customer.objects.filter(
+                Q(phone__exact=variation_clean) | Q(mobile_number__exact=variation_clean)
+            ).first()
+            if customer:
+                return customer
+        
+        # Last resort: Compare by digits only (most reliable method)
+        # Extract digits from input and normalize
+        input_digits = re.sub(r'\D', '', phone_number)
+        input_normalized = normalize_mobile_number(phone_number)
+        input_normalized_digits = re.sub(r'\D', '', input_normalized)
+        
+        # Generate all possible digit variations for comparison
+        digit_variations = [input_digits]
+        if input_normalized_digits and input_normalized_digits != input_digits:
+            digit_variations.append(input_normalized_digits)
+        
+        # Add variations based on input format
+        if input_digits.startswith('0') and len(input_digits) == 11:
+            digit_variations.append(input_digits[1:])  # Without leading 0
+            digit_variations.append('20' + input_digits[1:])  # With country code
+        elif input_digits.startswith('1') and len(input_digits) == 10:
+            digit_variations.append('20' + input_digits)  # With country code
+            digit_variations.append('0' + input_digits)  # With leading 0
+        elif input_digits.startswith('20') and len(input_digits) >= 12:
+            digit_variations.append(input_digits[2:])  # Without country code
+            if len(input_digits) == 12:
+                digit_variations.append('0' + input_digits[2:])  # With leading 0
+        
+        # Remove duplicates
+        digit_variations = list(set(digit_variations))
+        
+        # Search for customers whose phone/mobile_number digits match any variation
+        # Limit search to customers whose numbers might match (performance optimization)
+        # Check if any variation starts with common prefixes
+        search_prefixes = []
+        for var in digit_variations[:3]:  # Use first 3 variations for prefix search
+            if len(var) >= 3:
+                search_prefixes.append(var[:3])
+        
+        if search_prefixes:
+            # Filter customers whose phone numbers start with any of our prefixes
+            prefix_q = Q()
+            for prefix in search_prefixes:
+                prefix_q |= Q(phone__startswith=prefix) | Q(mobile_number__startswith=prefix)
+            all_customers = Customer.objects.filter(
+                (Q(phone__isnull=False) | Q(mobile_number__isnull=False)) & prefix_q
+            ).only('id', 'phone', 'mobile_number')[:500]
+        else:
+            # Fallback: check all customers (limited)
+            all_customers = Customer.objects.filter(
+                Q(phone__isnull=False) | Q(mobile_number__isnull=False)
+            ).only('id', 'phone', 'mobile_number')[:500]
+        
+        for cust in all_customers:
+            # Extract digits from customer's stored numbers
+            cust_phone_digits = re.sub(r'\D', '', cust.phone) if cust.phone else None
+            cust_mobile_digits = re.sub(r'\D', '', cust.mobile_number) if cust.mobile_number else None
+            
+            # Compare digits - if any variation matches, we found the customer
+            for var_digits in digit_variations:
+                if var_digits and (
+                    (cust_phone_digits and var_digits == cust_phone_digits) or
+                    (cust_mobile_digits and var_digits == cust_mobile_digits)
+                ):
+                    return Customer.objects.get(id=cust.id)
+        
+        return None
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error in find_customer_by_phone: {str(e)}", exc_info=True)
         return None
 
 
@@ -4110,13 +4316,18 @@ def find_customer_by_phone_api(request):
     }, status=status.HTTP_200_OK)
 
 
-@api_view(['POST'])
+@api_view(['POST', 'DELETE'])
 @permission_classes([IsAuthenticated])
 def user_nfc_card_assign_collector(request):
     """
-    Assign a collector to collect NFC card on behalf of the owner.
+    Assign or remove a collector to collect NFC card on behalf of the owner.
     POST /api/v1/users/nfc-cards/assign-collector/
     Body: { "collector_phone": "01104484492" }
+    
+    DELETE /api/v1/users/nfc-cards/assign-collector/
+    Removes the assigned collector
+    
+    Note: User only needs to have paid the card fee, not necessarily have an active card yet.
     """
     customer_id = request.user.id if hasattr(request.user, 'id') else None
     if not customer_id:
@@ -4131,6 +4342,58 @@ def user_nfc_card_assign_collector(request):
             'error': {'code': 'NOT_FOUND', 'message': 'User not found'}
         }, status=status.HTTP_404_NOT_FOUND)
     
+    # Check if user has paid the card fee
+    has_paid_card_fee = PaymentTransaction.objects.filter(
+        customer=owner,
+        status='completed'
+    ).exists()
+    
+    if not has_paid_card_fee:
+        return Response({
+            'error': {
+                'code': 'PAYMENT_REQUIRED',
+                'message': 'You need to pay the initial NFC card purchase fee before you can assign a collector. Please pay for your card first.'
+            }
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Get the owner's active NFC card, or create a pending one if it doesn't exist
+    card = None
+    try:
+        card = NFCCard.objects.get(customer=owner, status='active')
+    except NFCCard.DoesNotExist:
+        # Check if there's any card (even inactive) for this customer
+        existing_card = NFCCard.objects.filter(customer=owner).order_by('-created_at').first()
+        if existing_card:
+            card = existing_card
+        else:
+            # Create a pending card if user has paid but no card exists yet
+            # This allows collector assignment before physical card is assigned
+            # The card will be updated with real serial number when merchant assigns it
+            from datetime import timedelta
+            settings = NFCCardSettings.get_settings()
+            issue_date = timezone.now().date()
+            expiry_date = issue_date + timedelta(days=settings.card_validity_days)
+            
+            card = NFCCard.objects.create(
+                customer=owner,
+                serial_number=f"PENDING-{uuid.uuid4().hex[:12].upper()}",
+                status='inactive',  # Will be activated when merchant assigns physical card
+                issue_date=issue_date,
+                expiry_date=expiry_date,
+            )
+    except NFCCard.MultipleObjectsReturned:
+        # If multiple active cards, get the most recent one
+        card = NFCCard.objects.filter(customer=owner, status='active').order_by('-created_at').first()
+    
+    # Handle DELETE request - remove collector
+    if request.method == 'DELETE':
+        card.collector = None
+        card.save(update_fields=['collector'])
+        return Response({
+            'message': 'Collector removed successfully'
+        }, status=status.HTTP_200_OK)
+    
+    # Handle POST request - assign collector
     collector_phone = request.data.get('collector_phone')
     if not collector_phone:
         return Response({
@@ -4153,17 +4416,6 @@ def user_nfc_card_assign_collector(request):
         return Response({
             'error': {'code': 'INVALID_COLLECTOR', 'message': 'You cannot assign yourself as collector'}
         }, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Get the owner's active NFC card
-    try:
-        card = NFCCard.objects.get(customer=owner, status='active')
-    except NFCCard.DoesNotExist:
-        return Response({
-            'error': {'code': 'CARD_NOT_FOUND', 'message': 'You do not have an active NFC card'}
-        }, status=status.HTTP_404_NOT_FOUND)
-    except NFCCard.MultipleObjectsReturned:
-        # If multiple active cards, get the most recent one
-        card = NFCCard.objects.filter(customer=owner, status='active').order_by('-created_at').first()
     
     # Assign collector
     card.collector = collector

@@ -4,6 +4,7 @@ Serializers for customers app.
 from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from .models import Customer
+import re
 
 
 def normalize_mobile_number(mobile_number: str) -> str:
@@ -17,21 +18,36 @@ def normalize_mobile_number(mobile_number: str) -> str:
     # Remove any whitespace
     mobile_number = mobile_number.strip()
     
-    # If it starts with +20, return as is
+    # Remove all non-digit characters for processing
+    digits_only = re.sub(r'\D', '', mobile_number)
+    
+    # Handle case where there's an extra 0 after country code: +2001... or 2001...
+    # This happens when user inputs 01012900990 with +20, resulting in +2001012900990
+    if digits_only.startswith('2001') and len(digits_only) == 13:
+        # Remove the extra 0: 2001104484492 -> 201104484492
+        return '+20' + digits_only[3:]
+    
+    # If it starts with +20, check for extra 0
     if mobile_number.startswith('+20'):
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: +2001104484492 -> +201104484492
+            return '+20' + digits_only[3:]
         return mobile_number
     
-    # If it starts with 20 (without +), add +
-    if mobile_number.startswith('20') and len(mobile_number) >= 12:
-        return '+' + mobile_number
+    # If it starts with 20 (without +), add + and check for extra 0
+    if digits_only.startswith('20') and len(digits_only) >= 12:
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: 2001104484492 -> +201104484492
+            return '+20' + digits_only[3:]
+        return '+' + digits_only
     
     # If it starts with 0 (Egyptian local format), replace 0 with +20
-    if mobile_number.startswith('0') and len(mobile_number) == 11:
-        return '+20' + mobile_number[1:]
+    if digits_only.startswith('0') and len(digits_only) == 11:
+        return '+20' + digits_only[1:]
     
     # If it's 10 digits starting with 1 (Egyptian mobile without leading 0)
-    if mobile_number.startswith('1') and len(mobile_number) == 10:
-        return '+20' + mobile_number
+    if digits_only.startswith('1') and len(digits_only) == 10:
+        return '+20' + digits_only
     
     # Return as is if no pattern matches
     return mobile_number

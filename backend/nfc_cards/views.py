@@ -2,12 +2,12 @@
 Views for nfc_cards app.
 """
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from core.permissions import IsAdmin
-from .models import NFCCard
-from .serializers import NFCCardSerializer
+from core.permissions import IsAdmin, IsSuperAdmin
+from .models import NFCCard, NFCCardSettings
+from .serializers import NFCCardSerializer, NFCCardSettingsSerializer
 from .filters import NFCCardFilter
 import logging
 
@@ -76,3 +76,26 @@ class NFCCardViewSet(viewsets.ModelViewSet):
         card.customer = to_customer
         card.save()
         return Response(NFCCardSerializer(card).data)
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([IsAuthenticated, IsSuperAdmin])
+def nfc_card_settings(request):
+    """
+    Get or update NFC card settings (pricing and deactivation).
+    GET /api/nfc-cards/settings/
+    PUT /api/nfc-cards/settings/
+    """
+    settings = NFCCardSettings.get_settings()
+    
+    if request.method == 'GET':
+        serializer = NFCCardSettingsSerializer(settings)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    # PUT - Update settings
+    serializer = NFCCardSettingsSerializer(settings, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save(updated_by=request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

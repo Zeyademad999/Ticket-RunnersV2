@@ -81,28 +81,41 @@ class EventViewSet(viewsets.ModelViewSet):
         Create a new event.
         POST /api/events/
         """
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        
-        # Log system action
-        ip_address = get_client_ip(request)
-        log_system_action(
-            user=request.user,
-            action='CREATE_EVENT',
-            category='event',
-            severity='INFO',
-            description=f'Created event: {serializer.instance.title}',
-            ip_address=ip_address,
-            status='SUCCESS'
-        )
-        
-        headers = self.get_success_headers(serializer.data)
-        return Response(
-            EventDetailSerializer(serializer.instance).data,
-            status=status.HTTP_201_CREATED,
-            headers=headers
-        )
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            
+            # Log system action (wrap in try-except to prevent logging errors from breaking the request)
+            try:
+                ip_address = get_client_ip(request)
+                log_system_action(
+                    user=request.user,
+                    action='CREATE_EVENT',
+                    category='event',
+                    severity='INFO',
+                    description=f'Created event: {serializer.instance.title}',
+                    ip_address=ip_address,
+                    status='SUCCESS'
+                )
+            except Exception as log_error:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.error(f"Failed to log system action for event creation: {log_error}", exc_info=True)
+                # Continue even if logging fails
+            
+            headers = self.get_success_headers(serializer.data)
+            return Response(
+                EventDetailSerializer(serializer.instance).data,
+                status=status.HTTP_201_CREATED,
+                headers=headers
+            )
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error in event creation: {e}", exc_info=True)
+            # Re-raise the exception so DRF can handle it properly
+            raise
     
     def update(self, request, *args, **kwargs):
         """
@@ -139,8 +152,9 @@ class EventViewSet(viewsets.ModelViewSet):
         
         instance = self.get_object()
         
-        # Check if event has sold tickets
-        if instance.tickets_sold > 0:
+        # Check if event has sold tickets (only prevent deletion if event is not cancelled)
+        # Allow deletion of cancelled events even if they have sold tickets
+        if instance.tickets_sold > 0 and instance.status != 'cancelled':
             raise PermissionDenied(
                 'Cannot delete event with sold tickets. Cancel the event instead.'
             )

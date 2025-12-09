@@ -11,6 +11,7 @@ from django.db.models import Q
 import hashlib
 import secrets
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -406,10 +407,12 @@ def merchant_verify_customer_otp(request):
     # Generate hashed code for card writing
     hashed_code = hashlib.sha256(f"{card.serial_number}{customer.id}{timezone.now()}".encode()).hexdigest()
     
-    # Assign card - set issue date to now, expiry to 1 year from issue
+    # Assign card - set issue date to now, expiry based on settings
     from datetime import timedelta
+    from nfc_cards.models import NFCCardSettings
+    settings = NFCCardSettings.get_settings()
     issue_date = timezone.now().date()
-    expiry_date = issue_date + timedelta(days=365)  # 1 year from issue date
+    expiry_date = issue_date + timedelta(days=settings.card_validity_days)
     
     card.customer = customer
     card.merchant = merchant
@@ -581,21 +584,36 @@ def normalize_mobile_number(mobile_number: str) -> str:
     # Remove any whitespace
     mobile_number = mobile_number.strip()
     
-    # If it starts with +20, return as is
+    # Remove all non-digit characters for processing
+    digits_only = re.sub(r'\D', '', mobile_number)
+    
+    # Handle case where there's an extra 0 after country code: +2001... or 2001...
+    # This happens when user inputs 01012900990 with +20, resulting in +2001012900990
+    if digits_only.startswith('2001') and len(digits_only) == 13:
+        # Remove the extra 0: 2001104484492 -> 201104484492
+        return '+20' + digits_only[3:]
+    
+    # If it starts with +20, check for extra 0
     if mobile_number.startswith('+20'):
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: +2001104484492 -> +201104484492
+            return '+20' + digits_only[3:]
         return mobile_number
     
-    # If it starts with 20 (without +), add +
-    if mobile_number.startswith('20') and len(mobile_number) >= 12:
-        return '+' + mobile_number
+    # If it starts with 20 (without +), add + and check for extra 0
+    if digits_only.startswith('20') and len(digits_only) >= 12:
+        if len(digits_only) == 13 and digits_only[2] == '0':
+            # Remove the extra 0: 2001104484492 -> +201104484492
+            return '+20' + digits_only[3:]
+        return '+' + digits_only
     
     # If it starts with 0 (Egyptian local format), replace 0 with +20
-    if mobile_number.startswith('0') and len(mobile_number) == 11:
-        return '+20' + mobile_number[1:]
+    if digits_only.startswith('0') and len(digits_only) == 11:
+        return '+20' + digits_only[1:]
     
     # If it's 10 digits starting with 1 (Egyptian mobile without leading 0)
-    if mobile_number.startswith('1') and len(mobile_number) == 10:
-        return '+20' + mobile_number
+    if digits_only.startswith('1') and len(digits_only) == 10:
+        return '+20' + digits_only
     
     # Return as is if no pattern matches
     return mobile_number
@@ -764,6 +782,32 @@ def merchant_validate_card(request):
     # Check if card is already assigned to a customer
     if card.customer is not None:
         logger.warning(f"❌ Card {card_serial} is already assigned to customer {card.customer.id} ({card.customer.name})")
+        
+        # Get customer profile image
+        customer_profile_image = None
+        if card.customer.profile_image:
+            try:
+                customer_profile_image = request.build_absolute_uri(card.customer.profile_image.url)
+            except (AttributeError, ValueError):
+                pass
+        
+        # Get collector information if exists
+        collector_info = None
+        if card.collector:
+            collector_profile_image = None
+            if card.collector.profile_image:
+                try:
+                    collector_profile_image = request.build_absolute_uri(card.collector.profile_image.url)
+                except (AttributeError, ValueError):
+                    pass
+            
+            collector_info = {
+                'id': str(card.collector.id),
+                'name': card.collector.name,
+                'mobile_number': card.collector.mobile_number,
+                'profile_image': collector_profile_image
+            }
+        
         return Response({
             'valid': False,
             'error': {
@@ -775,6 +819,9 @@ def merchant_validate_card(request):
                 'status': card.status,
                 'customer_name': card.customer.name,
                 'customer_mobile': card.customer.mobile_number,
+                'customer_profile_image': customer_profile_image,
+                'collector': collector_info,
+                'authorized_collector': collector_info  # For backward compatibility
             }
         }, status=status.HTTP_200_OK)
     

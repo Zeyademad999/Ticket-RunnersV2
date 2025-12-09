@@ -11,7 +11,7 @@ class EventFilter(django_filters.FilterSet):
     Filter set for Event model.
     """
     status = django_filters.ChoiceFilter(choices=Event.STATUS_CHOICES)
-    organizer = django_filters.NumberFilter(field_name='organizer__id')
+    organizer = django_filters.NumberFilter(field_name='organizers__id')
     category = django_filters.NumberFilter(field_name='category__id')
     artist = django_filters.CharFilter(field_name='artist_name', lookup_expr='icontains')
     date_from = django_filters.DateFilter(field_name='date', lookup_expr='gte')

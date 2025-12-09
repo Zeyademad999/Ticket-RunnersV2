@@ -437,15 +437,55 @@ def handle_payment_redirect(request):
                 print(f"DEBUG: NFC card payment completed for transaction {order_id}", flush=True)
                 logger.info(f"NFC card payment completed for transaction {order_id}, action: {nfc_card_data.get('action', 'unknown')}")
                 
-                # NFC card payment is complete - card will be assigned/renewed by merchant
-                # Just mark transaction as completed (already done above)
+                action = nfc_card_data.get('action', 'buy')
+                
+                # If action is 'renew', extend the card's expiry date
+                if action == 'renew':
+                    try:
+                        from nfc_cards.models import NFCCard
+                        from datetime import timedelta
+                        from django.utils import timezone
+                        
+                        # Get the customer's active card
+                        customer = transaction.customer
+                        active_card = NFCCard.objects.filter(
+                            customer=customer,
+                            status='active'
+                        ).order_by('-created_at').first()
+                        
+                        if active_card:
+                            # Get settings for card validity period
+                            from nfc_cards.models import NFCCardSettings
+                            settings = NFCCardSettings.get_settings()
+                            validity_days = settings.card_validity_days
+                            
+                            # Extend expiry date by validity period from current expiry date (or from now if expired)
+                            current_expiry = active_card.expiry_date
+                            if current_expiry and current_expiry > timezone.now().date():
+                                # Card not expired yet - extend from current expiry
+                                new_expiry = current_expiry + timedelta(days=validity_days)
+                            else:
+                                # Card expired or no expiry - extend from today
+                                new_expiry = timezone.now().date() + timedelta(days=validity_days)
+                            
+                            active_card.expiry_date = new_expiry
+                            active_card.save(update_fields=['expiry_date'])
+                            
+                            logger.info(f"Card {active_card.serial_number} renewed. New expiry date: {new_expiry}")
+                            print(f"DEBUG: Card {active_card.serial_number} renewed. New expiry date: {new_expiry}", flush=True)
+                        else:
+                            logger.warning(f"No active card found for customer {customer.id} to renew")
+                            print(f"DEBUG: No active card found for customer {customer.id} to renew", flush=True)
+                    except Exception as e:
+                        logger.error(f"Error renewing card for transaction {order_id}: {str(e)}", exc_info=True)
+                        print(f"DEBUG: ERROR renewing card: {str(e)}", flush=True)
+                        # Continue anyway - payment is still successful
                 
                 # Get transaction ID from query params or use order_id
                 transaction_id = query_params.get('transactionId') or order_id
                 
                 # Redirect to NFC card payment confirmation page
                 from urllib.parse import urlencode
-                action = nfc_card_data.get('action', 'buy')
                 confirmation_params = urlencode({
                     'transactionId': transaction_id,
                     'orderId': order_id,
@@ -654,6 +694,7 @@ def handle_payment_webhook(request):
             payment_type = existing_response.get('payment_type', 'booking')
             booking_data = existing_response.get('booking_data', {})
             transfer_data = existing_response.get('transfer_data', {})
+            nfc_card_data = existing_response.get('nfc_card_data', {})
             event_id = existing_response.get('event_id')
             ticket_id = existing_response.get('ticket_id')
             
@@ -664,6 +705,8 @@ def handle_payment_webhook(request):
                 updated_response['booking_data'] = booking_data
             if transfer_data:
                 updated_response['transfer_data'] = transfer_data
+            if nfc_card_data:
+                updated_response['nfc_card_data'] = nfc_card_data
             if event_id:
                 updated_response['event_id'] = event_id
             if ticket_id:
@@ -687,6 +730,44 @@ def handle_payment_webhook(request):
                         logger.error(f"Webhook: Transfer processing returned False for transaction {order_id}")
                 except Exception as e:
                     logger.error(f"Webhook: Error processing transfer for transaction {order_id}: {str(e)}", exc_info=True)
+            elif payment_type == 'nfc_card':
+                # Process NFC card payment (renewal)
+                nfc_card_data = existing_response.get('nfc_card_data', {})
+                action = nfc_card_data.get('action', 'buy')
+                logger.info(f"Webhook: NFC card payment completed for transaction {order_id}, action: {action}")
+                
+                # If action is 'renew', extend the card's expiry date
+                if action == 'renew':
+                    try:
+                        from nfc_cards.models import NFCCard
+                        from datetime import timedelta
+                        from django.utils import timezone
+                        
+                        # Get the customer's active card
+                        customer = transaction.customer
+                        active_card = NFCCard.objects.filter(
+                            customer=customer,
+                            status='active'
+                        ).order_by('-created_at').first()
+                        
+                        if active_card:
+                            # Extend expiry date by 1 year from current expiry date (or from now if expired)
+                            current_expiry = active_card.expiry_date
+                            if current_expiry and current_expiry > timezone.now().date():
+                                # Card not expired yet - extend from current expiry
+                                new_expiry = current_expiry + timedelta(days=365)
+                            else:
+                                # Card expired or no expiry - extend from today
+                                new_expiry = timezone.now().date() + timedelta(days=365)
+                            
+                            active_card.expiry_date = new_expiry
+                            active_card.save(update_fields=['expiry_date'])
+                            
+                            logger.info(f"Webhook: Card {active_card.serial_number} renewed. New expiry date: {new_expiry}")
+                        else:
+                            logger.warning(f"Webhook: No active card found for customer {customer.id} to renew")
+                    except Exception as e:
+                        logger.error(f"Webhook: Error renewing card for transaction {order_id}: {str(e)}", exc_info=True)
             else:
                 # Create tickets if payment successful (booking)
                 tickets_created = _create_tickets_from_payment(transaction)

@@ -252,6 +252,13 @@ class Event(models.Model):
         default=False,
         help_text="Non-smoking policy at the venue"
     )
+    deductions = models.ManyToManyField(
+        'finances.Deduction',
+        related_name='events',
+        blank=True,
+        verbose_name="Deductions",
+        help_text="Deductions applied to this event's ticket sales revenue"
+    )
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     

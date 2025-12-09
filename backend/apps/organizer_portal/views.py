@@ -389,6 +389,58 @@ def organizer_dashboard_stats(request):
         
         logger.info(f"=== Final stats: total={total_events}, running={running_events}, live={live_events}, completed={completed_events} ===")
         
+        # Calculate net revenues: sum of organizer net profits from all events (after deductions)
+        # This is the total revenue minus all deductions (including commission) for all events
+        from decimal import Decimal
+        from finances.models import Deduction
+        
+        total_revenues = float(tickets_qs.filter(status__in=['valid', 'used']).aggregate(
+            total=Sum('price')
+        )['total'] or 0)
+        
+        # Calculate total deductions and commission for all events
+        total_deductions = Decimal('0.00')
+        total_commission = Decimal('0.00')
+        
+        for event in events:
+            # Get tickets for this event (excluding black cards)
+            event_tickets = Ticket.objects.filter(
+                event=event,
+                is_black_card=False,
+                status__in=['valid', 'used']
+            )
+            event_ticket_revenue = Decimal('0.00')
+            event_tickets_sold = event_tickets.count()
+            
+            for ticket in event_tickets:
+                event_ticket_revenue += Decimal(str(ticket.price))
+            
+            # Get event-specific deductions (deduplicated by name+type+value)
+            event_deductions_queryset = event.deductions.filter(is_active=True).distinct().order_by('id')
+            seen_deduction_keys = set()
+            unique_event_deductions = []
+            
+            for deduction in event_deductions_queryset:
+                deduction_key = f"{deduction.name}_{deduction.type}_{deduction.value}"
+                if deduction_key not in seen_deduction_keys:
+                    seen_deduction_keys.add(deduction_key)
+                    unique_event_deductions.append(deduction)
+            
+            # Calculate deductions for this event
+            for deduction in unique_event_deductions:
+                if deduction.type == 'percentage':
+                    amount = deduction.calculate_amount(total_revenue=float(event_ticket_revenue))
+                else:  # fixed_per_ticket
+                    amount = deduction.calculate_amount(tickets_sold=event_tickets_sold)
+                total_deductions += Decimal(str(amount))
+            
+            # Calculate commission for this event
+            commission = event.calculate_commission()
+            total_commission += Decimal(str(commission))
+        
+        # Net revenues = total revenues - total deductions - total commission
+        net_revenues = Decimal(str(total_revenues)) - total_deductions - total_commission
+        
         stats = {
             'total_events': total_events,
             'running_events': running_events,
@@ -397,12 +449,8 @@ def organizer_dashboard_stats(request):
             'available_tickets': available_tickets,
             'total_tickets_sold': tickets_sold,
             'total_attendees': tickets_qs.filter(status='used').count(),
-            'total_revenues': float(tickets_qs.filter(status__in=['valid', 'used']).aggregate(
-                total=Sum('price')
-            )['total'] or 0),
-            'net_revenues': float(payouts.filter(status='completed').aggregate(
-                total=Sum('amount')
-            )['total'] or 0),
+            'total_revenues': total_revenues,
+            'net_revenues': float(net_revenues),
             'total_processed_payouts': float(payouts.filter(status='completed').aggregate(
                 total=Sum('amount')
             )['total'] or 0),
@@ -506,7 +554,7 @@ def organizer_event_detail(request, event_id):
                         event_id = int(event_id)
                     except ValueError:
                         pass
-            event = Event.objects.select_related('venue', 'category').prefetch_related('organizers', 'ticket_categories').get(id=event_id, organizers=organizer)
+            event = Event.objects.select_related('venue', 'category').prefetch_related('organizers', 'ticket_categories', 'deductions').get(id=event_id, organizers=organizer)
         except (ValueError, TypeError) as e:
             import logging
             logger = logging.getLogger(__name__)
@@ -522,6 +570,8 @@ def organizer_event_detail(request, event_id):
         logger = logging.getLogger(__name__)
         logger.info(f"Event {event_id} ticket categories count: {event.ticket_categories.count()}")
         logger.info(f"Serializer ticket_categories: {serializer.data.get('ticket_categories', [])}")
+        logger.info(f"Financial breakdown: {serializer.data.get('financial_breakdown', 'NOT FOUND')}")
+        logger.info(f"Event deductions count: {event.deductions.count()}")
         
         return Response(serializer.data, status=status.HTTP_200_OK)
     except Event.DoesNotExist:

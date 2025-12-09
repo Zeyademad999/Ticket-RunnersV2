@@ -2,7 +2,7 @@
 Serializers for finances app.
 """
 from rest_framework import serializers
-from .models import Expense, Payout, CompanyFinance, ProfitShare, Settlement, Deposit, ProfitWithdrawal, Deduction
+from .models import Expense, Payout, CompanyFinance, ProfitShare, Settlement, Deposit, ProfitWithdrawal, Deduction, Owner, OwnerWallet, OwnerWalletTransaction
 
 
 class ExpenseSerializer(serializers.ModelSerializer):
@@ -69,9 +69,44 @@ class ProfitWithdrawalSerializer(serializers.ModelSerializer):
 
 class DeductionSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
+    appliesTo = serializers.CharField(source='applies_to', required=False, default='tickets')
     
     class Meta:
         model = Deduction
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class OwnerWalletTransactionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OwnerWalletTransaction
+        fields = '__all__'
+        read_only_fields = ['id', 'timestamp']
+
+
+class OwnerWalletSerializer(serializers.ModelSerializer):
+    owner_name = serializers.CharField(source='owner.name', read_only=True)
+    card_number = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = OwnerWallet
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'last_updated']
+    
+    def get_card_number(self, obj):
+        return obj.owner.generate_card_number()
+
+
+class OwnerSerializer(serializers.ModelSerializer):
+    wallet = OwnerWalletSerializer(read_only=True)
+    card_number = serializers.SerializerMethodField()
+    wallet_balance = serializers.DecimalField(source='wallet.balance', read_only=True, max_digits=12, decimal_places=2)
+    
+    class Meta:
+        model = Owner
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_card_number(self, obj):
+        return obj.generate_card_number()
 

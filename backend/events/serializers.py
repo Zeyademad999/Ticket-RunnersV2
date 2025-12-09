@@ -167,6 +167,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
     venue_layout_image = serializers.ImageField(required=False, allow_null=True, read_only=False)
     venue_layout_image_url = serializers.SerializerMethodField(read_only=True)
     starting_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    deductions = serializers.SerializerMethodField()
     
     class Meta:
         model = Event
@@ -180,7 +181,7 @@ class EventDetailSerializer(serializers.ModelSerializer):
             'child_eligibility_enabled', 'child_eligibility_rule_type',
             'child_eligibility_min_age', 'child_eligibility_max_age',
             'wheelchair_access', 'bathroom', 'parking', 'non_smoking',
-            'created_at', 'updated_at'
+            'deductions', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
@@ -355,7 +356,15 @@ class EventDetailSerializer(serializers.ModelSerializer):
                 'type': 'percentage',
                 'value': float(first_organizer.commission_rate * 100)  # Convert decimal to percentage
             }
-        return {'type': 'percentage', 'value': 10.0}  # Default 10%
+            return {'type': 'percentage', 'value': 10.0}  # Default 10%
+    
+    def get_deductions(self, obj):
+        """Get deductions with appliesTo field properly mapped."""
+        from finances.serializers import DeductionSerializer
+        deductions = obj.deductions.all()
+        if deductions.exists():
+            return DeductionSerializer(deductions, many=True).data
+        return []
 
 
 class EventCreateSerializer(serializers.ModelSerializer):
@@ -378,8 +387,13 @@ class EventCreateSerializer(serializers.ModelSerializer):
             'child_eligibility_min_age', 'child_eligibility_max_age',
             'wheelchair_access', 'bathroom', 'parking', 'non_smoking',
             'ticket_categories', 'created_at', 'updated_at'
+            # Note: 'deductions' is NOT in fields list - handled manually in to_internal_value and create methods
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'total_tickets': {'required': False, 'allow_null': True},
+            'ticket_limit': {'required': False},
+        }
     
     def to_internal_value(self, data):
         """Handle ticket_categories as JSON string from FormData and category validation."""
@@ -393,7 +407,10 @@ class EventCreateSerializer(serializers.ModelSerializer):
             data_dict = {}
             for key in data.keys():
                 values = data.getlist(key)
-                if len(values) == 1:
+                # For organizers, always keep as list (even if single value)
+                if key == 'organizers':
+                    data_dict[key] = values
+                elif len(values) == 1:
                     data_dict[key] = values[0]
                 else:
                     data_dict[key] = values
@@ -421,6 +438,37 @@ class EventCreateSerializer(serializers.ModelSerializer):
                 except (ValueError, TypeError):
                     # It's already a name string, keep it
                     pass
+        
+        # Handle organizers - ensure it's always a list (can be one or multiple)
+        if 'organizers' in data:
+            organizers_value = data.get('organizers')
+            logger.info(f"Processing organizers: type={type(organizers_value)}, value={organizers_value}")
+            
+            if isinstance(organizers_value, str):
+                # Single organizer as string - convert to list
+                try:
+                    # Try to parse as integer ID
+                    organizer_id = int(organizers_value)
+                    data['organizers'] = [organizer_id]
+                except (ValueError, TypeError):
+                    # If not a number, treat as empty list
+                    logger.warning(f"Invalid organizer ID format: {organizers_value}")
+                    data['organizers'] = []
+            elif isinstance(organizers_value, list):
+                # Already a list - ensure all values are integers
+                try:
+                    data['organizers'] = [int(org_id) for org_id in organizers_value if org_id]
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Error converting organizer IDs to integers: {e}")
+                    data['organizers'] = []
+            elif organizers_value is None:
+                data['organizers'] = []
+            else:
+                logger.warning(f"organizers is unexpected type: {type(organizers_value)}, setting to empty list")
+                data['organizers'] = []
+        else:
+            logger.info("No organizers in data")
+            data['organizers'] = []
         
         # Normalize boolean fields from FormData strings
         bool_fields = ['is_ticket_limit_unlimited', 'child_eligibility_enabled', 'ticket_transfer_enabled', 'wheelchair_access', 'bathroom', 'parking', 'non_smoking']
@@ -459,7 +507,39 @@ class EventCreateSerializer(serializers.ModelSerializer):
         else:
             logger.info("No ticket_categories in data")
         
-        return super().to_internal_value(data)
+        # Handle deductions - similar to ticket_categories
+        if 'deductions' in data:
+            deductions_value = data.get('deductions')
+            logger.info(f"Processing deductions: type={type(deductions_value)}, value={deductions_value}")
+            
+            if isinstance(deductions_value, str):
+                try:
+                    parsed = json.loads(deductions_value)
+                    logger.info(f"Parsed deductions from JSON string: {parsed}")
+                    data['deductions'] = parsed
+                except (json.JSONDecodeError, TypeError) as e:
+                    logger.error(f"Failed to parse deductions JSON: {e}")
+                    data['deductions'] = []
+            elif isinstance(deductions_value, list):
+                logger.info(f"deductions already a list: {deductions_value}")
+                data['deductions'] = deductions_value
+            else:
+                logger.warning(f"deductions is unexpected type: {type(deductions_value)}, setting to empty list")
+                data['deductions'] = []
+        else:
+            logger.info("No deductions in data")
+            data['deductions'] = []
+        
+        # Store deductions separately since it's not in fields list (to avoid ManyToMany validation)
+        deductions_data = data.pop('deductions', [])
+        
+        # Call super to validate other fields
+        validated_data = super().to_internal_value(data)
+        
+        # Add deductions back to validated_data so create method can access it
+        validated_data['deductions'] = deductions_data
+        
+        return validated_data
     
     def validate_date(self, value):
         from django.utils import timezone
@@ -470,8 +550,17 @@ class EventCreateSerializer(serializers.ModelSerializer):
         return value
     
     def validate_total_tickets(self, value):
+        if value is None:
+            # Allow None/empty, will be calculated from ticket categories
+            return 0
         if value < 0:
             raise serializers.ValidationError('Total tickets cannot be negative.')
+        return value
+    
+    def validate_ticket_limit(self, value):
+        if value is None or value < 1:
+            # Ensure ticket_limit is at least 1
+            return 1
         return value
     
     def create(self, validated_data):
@@ -479,9 +568,11 @@ class EventCreateSerializer(serializers.ModelSerializer):
         import logging
         logger = logging.getLogger(__name__)
         
+        # Pop these fields before validation to avoid ManyToMany validation errors
         ticket_categories_data = validated_data.pop('ticket_categories', [])
         organizers_data = validated_data.pop('organizers', [])
-        logger.info(f"Creating event with ticket_categories: {ticket_categories_data}, organizers: {organizers_data}")
+        deductions_data = validated_data.pop('deductions', [])
+        logger.info(f"Creating event with ticket_categories: {ticket_categories_data}, organizers: {organizers_data}, deductions: {deductions_data}")
         
         # Handle category - get or create by name
         category_name = validated_data.pop('category', None)
@@ -495,11 +586,23 @@ class EventCreateSerializer(serializers.ModelSerializer):
         
         validated_data['category'] = category_obj
         
+        # Ensure total_tickets is set (default to 0 if not provided, will be calculated from categories)
+        if 'total_tickets' not in validated_data or validated_data.get('total_tickets') is None:
+            validated_data['total_tickets'] = 0
+        
         # Ensure ticket limit honours unlimited flag
+        # When unlimited, ticket_limit should be at least 1 (backend validation requires >= 1)
         if validated_data.get('is_ticket_limit_unlimited'):
             total_tickets = validated_data.get('total_tickets') or validated_data.get('ticket_limit')
-            if total_tickets:
+            if total_tickets and total_tickets > 0:
                 validated_data['ticket_limit'] = total_tickets
+            elif validated_data.get('ticket_limit', 0) < 1:
+                # Ensure ticket_limit is at least 1 even when unlimited
+                validated_data['ticket_limit'] = 1
+        else:
+            # Ensure ticket_limit is at least 1 even when not unlimited
+            if validated_data.get('ticket_limit', 0) < 1:
+                validated_data['ticket_limit'] = 1
 
         # Create the event
         event = Event.objects.create(**validated_data)
@@ -515,6 +618,11 @@ class EventCreateSerializer(serializers.ModelSerializer):
             min_price = None
             for category_data in ticket_categories_data:
                 try:
+                    # Skip categories with blank names
+                    if not category_data.get('name') or not category_data.get('name', '').strip():
+                        logger.warning(f"Skipping ticket category with blank name: {category_data}")
+                        continue
+                    
                     # Ensure color is set - use default if empty or None
                     if not category_data.get('color') or category_data.get('color', '').strip() == '':
                         category_data['color'] = '#10B981'
@@ -546,12 +654,66 @@ class EventCreateSerializer(serializers.ModelSerializer):
         else:
             logger.info(f"No ticket categories to create (data: {ticket_categories_data})")
         
+        # Handle deductions - create or get Deduction objects and associate with event
+        if isinstance(deductions_data, list) and len(deductions_data) > 0:
+            from finances.models import Deduction
+            deduction_objects = []
+            request = self.context.get('request') if self.context else None
+            user = request.user if request and hasattr(request, 'user') and request.user.is_authenticated else None
+            
+            for deduction_data in deductions_data:
+                try:
+                    # Skip if name is empty
+                    if not deduction_data.get('name') or not deduction_data.get('name', '').strip():
+                        logger.warning(f"Skipping deduction with blank name: {deduction_data}")
+                        continue
+                    
+                    # Create or get deduction
+                    deduction, created = Deduction.objects.get_or_create(
+                        name=deduction_data.get('name', '').strip(),
+                        type=deduction_data.get('type', 'percentage'),
+                        applies_to=deduction_data.get('appliesTo', 'tickets'),
+                        defaults={
+                            'value': deduction_data.get('value', 0),
+                            'description': deduction_data.get('description', ''),
+                            'is_active': True,
+                            'created_by': user,
+                        }
+                    )
+                    # Update value, description, and applies_to if deduction already exists
+                    if not created:
+                        deduction.value = deduction_data.get('value', deduction.value)
+                        deduction.description = deduction_data.get('description', deduction.description)
+                        deduction.applies_to = deduction_data.get('appliesTo', deduction.applies_to)
+                        deduction.is_active = True
+                        deduction.save()
+                    deduction_objects.append(deduction)
+                    logger.info(f"{'Created' if created else 'Found'} deduction: {deduction.name} for event {event.id}")
+                except Exception as e:
+                    logger.error(f"Error creating/getting deduction: {e}, data: {deduction_data}", exc_info=True)
+                    # Continue processing other deductions even if one fails
+            
+            # Associate deductions with event
+            if deduction_objects:
+                try:
+                    event.deductions.set(deduction_objects)
+                    logger.info(f"Associated {len(deduction_objects)} deductions with event {event.id}")
+                except Exception as e:
+                    logger.error(f"Error associating deductions with event: {e}", exc_info=True)
+                    # Don't fail the entire event creation if deductions association fails
+                logger.info(f"Associated {len(deduction_objects)} deductions with event {event.id}")
+        else:
+            # Clear deductions if empty list
+            event.deductions.clear()
+            logger.info(f"No deductions to associate (data: {deductions_data})")
+        
         return event
     
     def update(self, instance, validated_data):
         """Update event and ticket categories."""
         ticket_categories_data = validated_data.pop('ticket_categories', None)
         organizers_data = validated_data.pop('organizers', None)
+        deductions_data = validated_data.pop('deductions', None)
         
         # Handle category - get or create by name
         category_name = validated_data.pop('category', None)
@@ -608,6 +770,43 @@ class EventCreateSerializer(serializers.ModelSerializer):
         # Update organizers if provided (even if empty list, to clear existing)
         if organizers_data is not None:
             instance.organizers.set(organizers_data)
+        
+        # Update deductions if provided (even if empty list, to clear existing)
+        if deductions_data is not None:
+            from finances.models import Deduction
+            if isinstance(deductions_data, list) and len(deductions_data) > 0:
+                deduction_objects = []
+                for deduction_data in deductions_data:
+                    try:
+                        # Create or get deduction
+                        deduction, created = Deduction.objects.get_or_create(
+                            name=deduction_data.get('name', '').strip(),
+                            type=deduction_data.get('type', 'percentage'),
+                            defaults={
+                                'value': deduction_data.get('value', 0),
+                                'description': deduction_data.get('description', ''),
+                                'is_active': True,
+                                'created_by': self.context.get('request').user if self.context.get('request') else None,
+                            }
+                        )
+                        # Update value and description if deduction already exists
+                        if not created:
+                            deduction.value = deduction_data.get('value', deduction.value)
+                            deduction.description = deduction_data.get('description', deduction.description)
+                            deduction.is_active = True
+                            deduction.save()
+                        deduction_objects.append(deduction)
+                        logger.info(f"{'Created' if created else 'Found'} deduction: {deduction.name} for event {instance.id}")
+                    except Exception as e:
+                        logger.error(f"Error creating/getting deduction: {e}, data: {deduction_data}")
+                
+                # Associate deductions with event
+                instance.deductions.set(deduction_objects)
+                logger.info(f"Associated {len(deduction_objects)} deductions with event {instance.id}")
+            else:
+                # Clear deductions if empty list
+                instance.deductions.clear()
+                logger.info(f"Cleared deductions for event {instance.id}")
         
         # Update ticket categories if provided (even if empty list, to clear existing)
         if ticket_categories_data is not None:

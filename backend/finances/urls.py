@@ -6,6 +6,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     ExpenseViewSet, PayoutViewSet, CompanyFinanceViewSet,
     ProfitShareViewSet, SettlementViewSet, DepositViewSet, ProfitWithdrawalViewSet, DeductionViewSet,
+    OwnerViewSet,
     ticket_runner_profit, organizer_profit
 )
 
@@ -18,6 +19,7 @@ router.register(r'settlements', SettlementViewSet, basename='settlement')
 router.register(r'deposits', DepositViewSet, basename='deposit')
 router.register(r'withdrawals', ProfitWithdrawalViewSet, basename='profit-withdrawal')
 router.register(r'deductions', DeductionViewSet, basename='deduction')
+router.register(r'owners', OwnerViewSet, basename='owner')
 
 urlpatterns = [
     path('', include(router.urls)),
