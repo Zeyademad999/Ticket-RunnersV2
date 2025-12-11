@@ -16,7 +16,7 @@ from users.models import Organizer
 from events.models import Event, TicketCategory
 from tickets.models import Ticket
 from finances.models import Payout
-from core.otp_service import create_and_send_otp, verify_otp
+from core.otp_service import create_and_send_otp, verify_otp, get_otp_validation_error
 from core.exceptions import AuthenticationError, ValidationError
 from core.permissions import IsOrganizer, IsAdmin
 from .models import EventEditRequest
@@ -147,7 +147,8 @@ def organizer_verify_otp(request):
     otp_code = serializer.validated_data['otp_code']
     
     if not verify_otp(mobile, otp_code, 'login'):
-        raise AuthenticationError("Invalid or expired OTP")
+        error_msg = get_otp_validation_error(mobile, otp_code, 'login')
+        raise AuthenticationError(error_msg)
     
     # Handle multiple organizers with same contact_mobile
     organizers = Organizer.objects.filter(contact_mobile=mobile)
@@ -832,7 +833,8 @@ def organizer_change_password(request):
     
     # Verify OTP
     if not verify_otp(organizer.contact_mobile, otp_code, 'forgot_password'):
-        raise AuthenticationError("Invalid or expired OTP")
+        error_msg = get_otp_validation_error(organizer.contact_mobile, otp_code, 'forgot_password')
+        raise AuthenticationError(error_msg)
     
     # Set new password
     organizer.set_password(new_password)
@@ -892,7 +894,8 @@ def organizer_reset_password(request):
         raise ValidationError("mobile, otp_code, and new_password are required")
     
     if not verify_otp(mobile, otp_code, 'forgot_password'):
-        raise AuthenticationError("Invalid or expired OTP")
+        error_msg = get_otp_validation_error(mobile, otp_code, 'forgot_password')
+        raise AuthenticationError(error_msg)
     
     # Handle multiple organizers with same contact_mobile
     organizers = Organizer.objects.filter(contact_mobile=mobile)

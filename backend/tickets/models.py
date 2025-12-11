@@ -284,6 +284,14 @@ class TicketMarketplaceListing(models.Model):
     terms_accepted = models.BooleanField(default=False)
     terms_accepted_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True, db_index=True)
+    seller_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="Price set by the seller for this listing (display only)"
+    )
     created_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
@@ -308,3 +316,40 @@ class TicketMarketplaceListing(models.Model):
         """
         self.is_active = False
         self.save(update_fields=['is_active'])
+
+
+class MarketplaceSettings(models.Model):
+    """
+    Marketplace validation settings (singleton model).
+    """
+    max_allowed_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=10000.00,
+        validators=[MinValueValidator(0)],
+        help_text="Maximum allowed price for marketplace ticket listings (in EGP)"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        'authentication.AdminUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='marketplace_settings_updates'
+    )
+    
+    class Meta:
+        db_table = 'marketplace_settings'
+        verbose_name = 'Marketplace Settings'
+        verbose_name_plural = 'Marketplace Settings'
+    
+    def __str__(self):
+        return f"Marketplace Settings (Max Price: {self.max_allowed_price} EGP)"
+    
+    @classmethod
+    def get_settings(cls):
+        """
+        Get or create the singleton marketplace settings instance.
+        """
+        settings, created = cls.objects.get_or_create(pk=1)
+        return settings

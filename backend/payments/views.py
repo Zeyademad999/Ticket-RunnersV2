@@ -456,8 +456,8 @@ def handle_payment_redirect(request):
                         if active_card:
                             # Get settings for card validity period
                             from nfc_cards.models import NFCCardSettings
-                            settings = NFCCardSettings.get_settings()
-                            validity_days = settings.card_validity_days
+                            nfc_settings = NFCCardSettings.get_settings()
+                            validity_days = nfc_settings.card_validity_days
                             
                             # Extend expiry date by validity period from current expiry date (or from now if expired)
                             current_expiry = active_card.expiry_date
@@ -1145,6 +1145,16 @@ def _process_transfer_payment(transaction):
             ticket.assigned_email = transfer_data.get('recipient_email', '').strip() or None
         
         ticket.save()
+        
+        # Auto-remove ticket from marketplace when transferred
+        from tickets.models import TicketMarketplaceListing
+        marketplace_listings = TicketMarketplaceListing.objects.filter(
+            ticket=ticket,
+            is_active=True
+        )
+        for listing in marketplace_listings:
+            listing.deactivate()
+            logger.info(f"Auto-deactivated marketplace listing for transferred ticket {ticket_id} (listing ID: {listing.id})")
         
         if recipient:
             logger.info(f"Successfully processed transfer for ticket {ticket_id} to {recipient.name} (transfer ID: {transfer.id})")

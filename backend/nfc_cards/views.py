@@ -76,6 +76,74 @@ class NFCCardViewSet(viewsets.ModelViewSet):
         card.customer = to_customer
         card.save()
         return Response(NFCCardSerializer(card).data)
+    
+    @action(detail=True, methods=['post'])
+    def mark_as_expired(self, request, pk=None):
+        """
+        Mark an NFC card as expired.
+        This will set the card status to 'expired' and set expiry_date to today.
+        Works for both assigned and unassigned cards.
+        POST /api/nfc-cards/{id}/mark_as_expired/
+        """
+        from django.utils import timezone
+        from datetime import date
+        
+        card = self.get_object()
+        
+        # Set card as expired (works for both assigned and unassigned cards)
+        card.status = 'expired'
+        card.expiry_date = date.today()
+        card.save(update_fields=['status', 'expiry_date'])
+        
+        logger.info(f"Card {card.serial_number} marked as expired by admin {request.user.id} (customer: {card.customer.name if card.customer else 'unassigned'})")
+        
+        return Response({
+            'message': 'Card marked as expired successfully',
+            'card': NFCCardSerializer(card).data
+        }, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def mark_as_unpaid(self, request, pk=None):
+        """
+        Mark an NFC card as unpaid.
+        This will delete the customer's payment transaction so they need to pay again.
+        POST /api/nfc-cards/{id}/mark_as_unpaid/
+        """
+        from payments.models import PaymentTransaction
+        
+        card = self.get_object()
+        
+        if not card.customer:
+            return Response(
+                {'error': 'Card is not assigned to a customer'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        customer = card.customer
+        
+        # Delete all completed payment transactions for this customer
+        # This will make the system think they haven't paid for the card
+        deleted_count = PaymentTransaction.objects.filter(
+            customer=customer,
+            status='completed'
+        ).delete()[0]
+        
+        # Optionally, also set the card status to inactive or expired
+        # and clear the card assignment
+        card.status = 'inactive'
+        card.customer = None
+        card.assigned_at = None
+        card.issue_date = None
+        card.expiry_date = None
+        card.save(update_fields=['status', 'customer', 'assigned_at', 'issue_date', 'expiry_date'])
+        
+        logger.info(f"Card {card.serial_number} marked as unpaid by admin {request.user.id}. Deleted {deleted_count} payment transactions for customer {customer.id}")
+        
+        return Response({
+            'message': 'Card marked as unpaid successfully. Customer will need to pay again.',
+            'deleted_transactions': deleted_count,
+            'card': NFCCardSerializer(card).data
+        }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET', 'PUT'])

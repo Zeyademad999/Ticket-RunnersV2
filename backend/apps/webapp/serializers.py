@@ -166,7 +166,7 @@ class PublicEventSerializer(serializers.ModelSerializer):
             'organizer_name', 'organizer_id', 'organizer', 'category_id', 'category_name', 'status',
             'featured', 'total_tickets', 'ticket_limit', 'ticket_transfer_enabled',
             'thumbnail_path', 'starting_price', 'image', 'venue_layout_image', 'ticket_categories',
-            'tickets_available',
+            'tickets_available', 'marketplace_max_price',
             'child_eligibility_enabled', 'child_eligibility_rule_type',
             'child_eligibility_min_age', 'child_eligibility_max_age',
             'wheelchair_access', 'bathroom', 'parking', 'non_smoking'
@@ -317,9 +317,39 @@ class TicketSerializer(serializers.ModelSerializer):
     
     def get_buyer_name(self, obj):
         """Get buyer's name (original purchaser)."""
+        # Check if ticket was assigned by admin using payment transaction
+        from payments.models import PaymentTransaction
+        payment = PaymentTransaction.objects.filter(ticket=obj).order_by('-created_at').first()
+        is_admin_assigned = payment and payment.payment_method in ['admin_assigned', 'paid_outside_system']
+        
         # Use buyer field if available, otherwise fallback to customer
         buyer = obj.buyer if hasattr(obj, 'buyer') and obj.buyer else obj.customer
         if buyer:
+            # If ticket has assigned_mobile, it's an assigned ticket
+            # Check if it was assigned by admin (via payment method or buyer is admin)
+            if obj.assigned_mobile:
+                # Check payment method first (most reliable)
+                if is_admin_assigned:
+                    return 'System Admin'
+                
+                # Check if buyer is an admin user
+                if hasattr(buyer, 'user') and buyer.user:
+                    if buyer.user.is_staff or buyer.user.is_superuser:
+                        return 'System Admin'
+                
+                # If ticket has assigned_mobile and buyer != customer, it's an assigned ticket
+                # For admin-assigned tickets created before the fix, buyer might be the assigned customer
+                # In this case, if buyer == customer and ticket is assigned, it's likely admin-assigned
+                if hasattr(obj, 'customer') and obj.customer:
+                    # If buyer == customer but ticket is assigned, it might be admin-assigned (old tickets)
+                    # Show System Admin for all assigned tickets to be safe
+                    return 'System Admin'
+            
+            # Check if buyer is an admin user (has user with is_staff or is_superuser)
+            if hasattr(buyer, 'user') and buyer.user:
+                if buyer.user.is_staff or buyer.user.is_superuser:
+                    return 'System Admin'
+            
             return buyer.name or ''
         return ''
     
@@ -597,6 +627,8 @@ class TicketMarketplaceListingSerializer(serializers.ModelSerializer):
             return str(obj.ticket.event.image)
         return None
     
+    seller_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=False)
+    
     class Meta:
         model = TicketMarketplaceListing
         fields = [
@@ -604,6 +636,6 @@ class TicketMarketplaceListingSerializer(serializers.ModelSerializer):
             'event_id', 'event_title', 'event_date', 'event_time', 'event_location', 
             'event_category', 'event_image',
             'seller_name', 'seller_mobile', 'seller_email',
-            'listed_at', 'is_active', 'terms_accepted_at', 'is_my_listing'
+            'listed_at', 'is_active', 'terms_accepted_at', 'is_my_listing', 'seller_price'
         ]
         read_only_fields = ['id', 'listed_at', 'is_active']

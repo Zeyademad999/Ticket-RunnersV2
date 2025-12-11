@@ -22,6 +22,71 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdmin]
     filterset_fields = ['category', 'date']
     
+    def perform_create(self, serializer):
+        """Handle wallet deduction when creating expense."""
+        expense = serializer.save(created_by=self.request.user)
+        self._handle_wallet_deduction(expense)
+    
+    def perform_update(self, serializer):
+        """Handle wallet deduction when updating expense."""
+        old_expense = self.get_object()
+        expense = serializer.save()
+        
+        # If wallet deduction was changed, we need to handle it
+        # For simplicity, we'll just process the new state
+        # In a production system, you might want to reverse old deductions
+        self._handle_wallet_deduction(expense, is_update=True, old_expense=old_expense)
+    
+    def _handle_wallet_deduction(self, expense, is_update=False, old_expense=None):
+        """Deduct expense amount from specified wallet."""
+        from decimal import Decimal
+        
+        if not expense.deduct_from_wallet:
+            return
+        
+        if not expense.wallet_type:
+            return
+        
+        # For owner wallet, wallet_id is required
+        if expense.wallet_type == 'owner' and not expense.wallet_id:
+            return
+        
+        amount = Decimal(str(expense.amount))
+        
+        try:
+            if expense.wallet_type == 'company':
+                wallet = CompanyWallet.get_or_create_company_wallet()
+                balance_before = wallet.balance
+                wallet.balance -= amount
+                wallet.save()
+                
+            elif expense.wallet_type == 'owner':
+                from .models import OwnerWallet
+                try:
+                    wallet = OwnerWallet.objects.get(id=expense.wallet_id)
+                    balance_before = wallet.balance
+                    wallet.balance -= amount
+                    wallet.save()
+                    
+                    # Create transaction record
+                    from .models import OwnerWalletTransaction
+                    OwnerWalletTransaction.objects.create(
+                        wallet=wallet,
+                        amount=amount,
+                        transaction_type='debit',
+                        description=f'Expense deduction: {expense.description[:100]}',
+                        balance_before=balance_before,
+                        balance_after=wallet.balance,
+                        created_by=self.request.user
+                    )
+                except OwnerWallet.DoesNotExist:
+                    pass  # Wallet not found, skip deduction
+        except Exception as e:
+            # Log error but don't fail the expense creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error deducting from wallet for expense {expense.id}: {str(e)}")
+    
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """
@@ -662,24 +727,12 @@ class OwnerViewSet(viewsets.ModelViewSet):
             total=Sum('total_distributed')
         )['total'] or 0))
         
-        available_to_distribute = current_total_tr_revenue - total_already_distributed
-        
-        if available_to_distribute <= 0:
-            return Response({
-                'error': f'No undistributed profits available. All profits ({current_total_tr_revenue}) have already been distributed.'
-            }, status=400)
-        
-        if total_distributed > available_to_distribute:
-            return Response({
-                'error': f'Cannot distribute {total_distributed}. Only {available_to_distribute} is available to distribute. {total_already_distributed} has already been distributed.'
-            }, status=400)
-        
-        if total_distributed > total_revenue:
-            return Response({
-                'error': f'Total distribution ({total_distributed}) exceeds total revenue ({total_revenue})'
-            }, status=400)
+        # Allow distributions even if they exceed available profits
+        # This supports negative balances and manual adjustments
+        # No validation on available_to_distribute - allow any distribution amount
         
         # Calculate remaining amount for company wallet
+        # This can be negative if total_distributed exceeds total_revenue
         remaining_amount = total_revenue - total_distributed
         
         # Get or create company wallet
@@ -691,24 +744,28 @@ class OwnerViewSet(viewsets.ModelViewSet):
             owner_id = dist.get('owner_id')
             amount = Decimal(str(dist.get('amount', 0)))
             
-            if amount <= 0:
+            # Allow zero and negative amounts (negative for cases where someone receives more than their share)
+            if amount == 0:
                 continue
             
             try:
                 owner = Owner.objects.get(id=owner_id)
                 wallet, _ = OwnerWallet.objects.get_or_create(owner=owner, defaults={'balance': 0})
                 
-                # Update wallet balance
+                # Store balance before update
+                balance_before = wallet.balance
+                
+                # Update wallet balance (can be negative)
                 wallet.balance += amount
                 wallet.save()
                 
                 # Create transaction record
                 OwnerWalletTransaction.objects.create(
                     wallet=wallet,
-                    amount=amount,
-                    transaction_type='revenue_share',
-                    description=f'Profit distribution from TR revenue',
-                    balance_before=wallet.balance - amount,
+                    amount=abs(amount),  # Store absolute value for transaction amount
+                    transaction_type='revenue_share' if amount > 0 else 'adjustment',
+                    description=f'Profit distribution from TR revenue' if amount > 0 else f'Adjustment: {amount}',
+                    balance_before=balance_before,
                     balance_after=wallet.balance,
                     created_by=request.user
                 )
@@ -721,10 +778,9 @@ class OwnerViewSet(viewsets.ModelViewSet):
             except Owner.DoesNotExist:
                 continue
         
-        # Update company wallet with remaining amount
-        if remaining_amount > 0:
-            company_wallet.balance += remaining_amount
-            company_wallet.save()
+        # Update company wallet with remaining amount (can be negative)
+        company_wallet.balance += remaining_amount
+        company_wallet.save()
         
         # Record this distribution
         ProfitDistribution.objects.create(

@@ -20,6 +20,7 @@ urlpatterns = [
     path('verify-customer-otp/', views.merchant_verify_customer_otp, name='merchant-verify-customer-otp'),
     path('verify-customer/<str:mobile>/', views.merchant_verify_customer, name='merchant-verify-customer'),
     path('send-customer-otp/', views.merchant_send_customer_otp, name='merchant-send-customer-otp'),
+    path('check-customer-card-status/', views.merchant_check_customer_card_status, name='merchant-check-customer-card-status'),
     
     # Cards
     path('cards/', views.merchant_cards_list, name='merchant-cards-list'),

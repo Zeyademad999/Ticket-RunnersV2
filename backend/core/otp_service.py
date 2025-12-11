@@ -167,23 +167,37 @@ def create_and_send_otp(phone_number: str, purpose: str, app_name: str = "Ticket
     code = generate_otp_code()
     expires_at = timezone.now() + timedelta(minutes=5)
     
-    # Invalidate any existing unused OTPs for the same phone and purpose
-    OTP.objects.filter(
-        phone_number=phone_number,
-        purpose=purpose,
-        used=False,
-        expires_at__gt=timezone.now()
-    ).update(used=True)
+    # Normalize email addresses to lowercase for consistent storage and lookup
+    # This ensures case-insensitive email OTP verification
+    normalized_identifier = phone_number.lower() if purpose == 'email_verification' and '@' in phone_number else phone_number
     
-    # Create new OTP
+    # Invalidate any existing unused OTPs for the same phone/email and purpose
+    # Use case-insensitive lookup for emails
+    if purpose == 'email_verification' and '@' in phone_number:
+        OTP.objects.filter(
+            phone_number__iexact=phone_number,
+            purpose=purpose,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).update(used=True)
+    else:
+        OTP.objects.filter(
+            phone_number=phone_number,
+            purpose=purpose,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).update(used=True)
+    
+    # Create new OTP - store normalized email in lowercase
     otp = OTP.objects.create(
-        phone_number=phone_number,
+        phone_number=normalized_identifier,
         code=code,
         purpose=purpose,
         expires_at=expires_at
     )
     
     # For email verification, send email instead of SMS
+    # Use original email (not normalized) for sending to preserve case in email
     if purpose == 'email_verification':
         email_success = send_email_otp(phone_number, code, app_name)
         if not email_success:
@@ -205,7 +219,7 @@ def verify_otp(phone_number: str, code: str, purpose: str) -> bool:
     Verify OTP code against the most recent OTP sent.
     
     Args:
-        phone_number: Phone number associated with OTP
+        phone_number: Phone number or email address associated with OTP
         code: OTP code to verify (will be converted to string and stripped)
         purpose: Purpose of OTP
     
@@ -215,13 +229,26 @@ def verify_otp(phone_number: str, code: str, purpose: str) -> bool:
     # Normalize the code (convert to string, strip whitespace)
     code = str(code).strip() if code else ""
     
-    # Get the most recent unused OTP for this phone number and purpose
-    otp = OTP.objects.filter(
-        phone_number=phone_number,
-        purpose=purpose,
-        used=False,
-        expires_at__gt=timezone.now()
-    ).order_by('-created_at').first()
+    # Normalize email addresses to lowercase for case-insensitive lookup
+    # Emails are stored in lowercase in the OTP table
+    if purpose == 'email_verification' and '@' in phone_number:
+        lookup_identifier = phone_number.lower()
+        # Use case-insensitive lookup for emails
+        otp = OTP.objects.filter(
+            phone_number__iexact=phone_number,
+            purpose=purpose,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).order_by('-created_at').first()
+    else:
+        lookup_identifier = phone_number
+        # Use exact match for phone numbers
+        otp = OTP.objects.filter(
+            phone_number=phone_number,
+            purpose=purpose,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).order_by('-created_at').first()
     
     if otp:
         # Normalize stored code for comparison
@@ -249,6 +276,77 @@ def verify_otp(phone_number: str, code: str, purpose: str) -> bool:
         logger.warning(f"No OTPs found for {phone_number} (purpose: {purpose}). User needs to request a new OTP.")
     
     return False
+
+
+def get_otp_validation_error(phone_number: str, code: str, purpose: str) -> str:
+    """
+    Get detailed error message for OTP validation failure.
+    
+    Args:
+        phone_number: Phone number associated with OTP
+        code: OTP code that was attempted
+        purpose: Purpose of OTP
+    
+    Returns:
+        str: Detailed error message explaining why OTP validation failed
+    """
+    # Normalize the code
+    code = str(code).strip() if code else ""
+    
+    # Check if code is empty or invalid format
+    if not code:
+        return "Please enter a valid 6-digit OTP code."
+    
+    if len(code) != 6 or not code.isdigit():
+        return "OTP code must be exactly 6 digits. Please check and try again."
+    
+    # Normalize email addresses to lowercase for case-insensitive lookup
+    if purpose == 'email_verification' and '@' in phone_number:
+        lookup_identifier = phone_number.lower()
+        # Use case-insensitive lookup for emails
+        valid_otp = OTP.objects.filter(
+            phone_number__iexact=phone_number,
+            purpose=purpose,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).order_by('-created_at').first()
+        
+        recent_otp = OTP.objects.filter(
+            phone_number__iexact=phone_number,
+            purpose=purpose
+        ).order_by('-created_at').first()
+    else:
+        lookup_identifier = phone_number
+        # Use exact match for phone numbers
+        valid_otp = OTP.objects.filter(
+            phone_number=phone_number,
+            purpose=purpose,
+            used=False,
+            expires_at__gt=timezone.now()
+        ).order_by('-created_at').first()
+        
+        recent_otp = OTP.objects.filter(
+            phone_number=phone_number,
+            purpose=purpose
+        ).order_by('-created_at').first()
+    
+    if valid_otp:
+        # There's a valid OTP, so the code entered must be wrong
+        return "The OTP code you entered is incorrect. Please check the code and try again."
+    
+    if not recent_otp:
+        return "No OTP code was found. Please request a new OTP code first."
+    
+    # Check if OTP was already used
+    if recent_otp.used:
+        return "This OTP code has already been used. Please request a new OTP code."
+    
+    # Check if OTP has expired
+    if recent_otp.expires_at < timezone.now():
+        return "This OTP code has expired. Please request a new OTP code."
+    
+    # Fallback (shouldn't reach here)
+    return "The OTP code you entered is incorrect. Please check the code and try again."
 
 
 def cleanup_expired_otps():

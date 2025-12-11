@@ -4,6 +4,7 @@ Views for WebApp Portal (User-Facing).
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
+from core.permissions import IsAdmin
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -18,13 +19,13 @@ import json
 from customers.models import Customer, Dependent
 from .authentication import CustomerJWTAuthentication
 from events.models import Event
-from tickets.models import Ticket, TicketRegistrationToken, TicketMarketplaceListing
+from tickets.models import Ticket, TicketRegistrationToken, TicketMarketplaceListing, MarketplaceSettings
 from nfc_cards.models import NFCCard, NFCCardAutoReload, NFCCardTransaction, NFCCardSettings
 import os
 from payments.models import PaymentTransaction
 from apps.webapp.models import Favorite
 from users.models import MerchantLocation
-from core.otp_service import create_and_send_otp, verify_otp
+from core.otp_service import create_and_send_otp, verify_otp, get_otp_validation_error
 from core.rate_limiting import rate_limit_otp_request
 from core.exceptions import AuthenticationError, ValidationError
 import re
@@ -226,10 +227,12 @@ def user_verify_otp(request):
         if not email:
             raise ValidationError("Email address missing for email-based verification")
         if not verify_otp(email, otp_code, 'email_verification'):
-            raise ValidationError("Invalid or expired OTP")
+            error_msg = get_otp_validation_error(email, otp_code, 'email_verification')
+            raise ValidationError(error_msg)
     else:
         if not verify_otp(mobile_number, otp_code, 'registration'):
-            raise ValidationError("Invalid or expired OTP")
+            error_msg = get_otp_validation_error(mobile_number, otp_code, 'registration')
+            raise ValidationError(error_msg)
     
     # Mark verification as complete in cache
     registration_data['mobile_verified'] = True
@@ -355,7 +358,8 @@ def user_verify_email_otp(request):
     
     # Verify email OTP (using email as phone_number for OTP lookup)
     if not verify_otp(email, otp_code, 'email_verification'):
-        raise ValidationError("Invalid or expired email OTP")
+        error_msg = get_otp_validation_error(email, otp_code, 'email_verification')
+        raise ValidationError(error_msg)
     
     # Check if user already exists (account was already created)
     if Customer.objects.filter(mobile_number=mobile_number).exists():
@@ -1234,7 +1238,9 @@ def user_verify_login_otp(request):
             break
     
     if not otp_verified:
-        raise AuthenticationError("Invalid or expired OTP")
+        # Try to get detailed error message using the original mobile number
+        error_msg = get_otp_validation_error(mobile_number, otp_code, 'login')
+        raise AuthenticationError(error_msg)
     
     # Check if customer is banned before completing login
     if customer.status == 'banned':
@@ -2609,19 +2615,7 @@ def user_verify_password_reset_otp(request):
         # Verify OTP
         if not verify_otp(mobile_number, otp_code, 'forgot_password'):
             logger.warning(f"Invalid OTP for {mobile_number}")
-            
-            # Provide more helpful error message
-            if recent_otps.exists():
-                latest_otp = recent_otps.first()
-                if latest_otp.used:
-                    error_msg = "This OTP has already been used. Please request a new OTP."
-                elif latest_otp.expires_at < timezone.now():
-                    error_msg = "This OTP has expired. Please request a new OTP."
-                else:
-                    error_msg = "Invalid OTP code. Please check and try again."
-            else:
-                error_msg = "No OTP found. Please request a new OTP first."
-            
+            error_msg = get_otp_validation_error(mobile_number, otp_code, 'forgot_password')
             # Use ValidationError instead of AuthenticationError for OTP validation failures
             # This returns 400 instead of 401, which is more appropriate
             raise ValidationError(error_msg)
@@ -2698,7 +2692,8 @@ def user_reset_password(request):
         # Verify OTP
         if not verify_otp(mobile_number, otp_code, 'forgot_password'):
             logger.warning(f"Invalid OTP for password reset: {mobile_number}")
-            raise AuthenticationError("Invalid or expired OTP")
+            error_msg = get_otp_validation_error(mobile_number, otp_code, 'forgot_password')
+            raise AuthenticationError(error_msg)
         
         try:
             customer = Customer.objects.get(mobile_number=mobile_number)
@@ -3030,11 +3025,13 @@ def user_verify_and_change_mobile(request):
     
     # Verify current mobile OTP (using login purpose)
     if not verify_otp(customer.mobile_number, current_mobile_otp, 'login'):
-        raise AuthenticationError("Invalid or expired OTP for current mobile number")
+        error_msg = get_otp_validation_error(customer.mobile_number, current_mobile_otp, 'login')
+        raise AuthenticationError(f"Current mobile number verification failed: {error_msg}")
     
     # Verify new mobile OTP (using mobile_change purpose)
     if not verify_otp(new_mobile, new_mobile_otp, 'mobile_change'):
-        raise AuthenticationError("Invalid or expired OTP for new mobile number")
+        error_msg = get_otp_validation_error(new_mobile, new_mobile_otp, 'mobile_change')
+        raise AuthenticationError(f"New mobile number verification failed: {error_msg}")
     
     # Check if new mobile is already taken
     if Customer.objects.filter(mobile_number=new_mobile).exclude(id=customer_id).exists():
@@ -3079,7 +3076,8 @@ def user_send_current_email_otp(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Send OTP to current email using email_verification purpose
-    otp, success = create_and_send_otp(customer.email, 'email_verification', app_name="TicketRunners")
+    # Email will be normalized to lowercase in create_and_send_otp for consistent storage
+    otp, success = create_and_send_otp(customer.email.strip(), 'email_verification', app_name="TicketRunners")
     
     if not success:
         return Response({
@@ -3117,6 +3115,9 @@ def user_send_new_email_otp(request):
     if not new_email:
         raise ValidationError("new_email is required")
     
+    # Normalize email (strip whitespace and convert to lowercase for comparison)
+    new_email = new_email.strip()
+    
     # Validate email format
     from django.core.validators import validate_email
     try:
@@ -3127,7 +3128,7 @@ def user_send_new_email_otp(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if new email is same as current
-    if new_email.lower() == customer.email.lower():
+    if new_email.lower() == customer.email.lower() if customer.email else False:
         return Response({
             'error': {'code': 'SAME_EMAIL', 'message': 'New email must be different from current email'}
         }, status=status.HTTP_400_BAD_REQUEST)
@@ -3139,6 +3140,7 @@ def user_send_new_email_otp(request):
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Send OTP to new email using email_verification purpose
+    # Email will be normalized to lowercase in create_and_send_otp for consistent storage
     otp, success = create_and_send_otp(new_email, 'email_verification', app_name="TicketRunners")
     
     if not success:
@@ -3179,13 +3181,21 @@ def user_verify_and_change_email(request):
     if not all([current_email_otp, new_email, new_email_otp]):
         raise ValidationError("current_email_otp, new_email, and new_email_otp are required")
     
+    # Normalize emails (strip whitespace)
+    new_email = new_email.strip() if new_email else None
+    current_email = customer.email.strip() if customer.email else None
+    
     # Verify current email OTP (using email_verification purpose)
-    if not verify_otp(customer.email, current_email_otp, 'email_verification'):
-        raise AuthenticationError("Invalid or expired OTP for current email address")
+    # verify_otp handles case-insensitive email lookup internally
+    if not verify_otp(current_email, current_email_otp, 'email_verification'):
+        error_msg = get_otp_validation_error(current_email, current_email_otp, 'email_verification')
+        raise AuthenticationError(f"Current email address verification failed: {error_msg}")
     
     # Verify new email OTP (using email_verification purpose)
+    # verify_otp handles case-insensitive email lookup internally
     if not verify_otp(new_email, new_email_otp, 'email_verification'):
-        raise AuthenticationError("Invalid or expired OTP for new email address")
+        error_msg = get_otp_validation_error(new_email, new_email_otp, 'email_verification')
+        raise AuthenticationError(f"New email address verification failed: {error_msg}")
     
     # Check if new email is already taken
     if Customer.objects.filter(email__iexact=new_email).exclude(id=customer_id).exists():
@@ -3704,6 +3714,18 @@ def user_ticket_transfer(request, ticket_id):
         to_customer=recipient,  # Will be None if recipient doesn't exist yet
         status='completed'
     )
+    
+    # Auto-remove ticket from marketplace when transferred
+    from tickets.models import TicketMarketplaceListing
+    import logging
+    logger = logging.getLogger(__name__)
+    marketplace_listings = TicketMarketplaceListing.objects.filter(
+        ticket=ticket,
+        is_active=True
+    )
+    for listing in marketplace_listings:
+        listing.deactivate()
+        logger.info(f"Auto-deactivated marketplace listing for transferred ticket {ticket.id} (listing ID: {listing.id})")
     
     return Response({
         'message': 'Ticket transferred successfully',
@@ -4779,10 +4801,54 @@ def marketplace_listings_list(request):
                 'error': {'code': 'ACCOUNT_INACTIVE', 'message': 'Your account is not active. Please contact support to activate your account.'}
             }, status=status.HTTP_403_FORBIDDEN)
         
-        # Check if already listed
+        # Check if this exact ticket is already listed (active)
         if TicketMarketplaceListing.objects.filter(ticket=ticket, is_active=True).exists():
             return Response({
                 'error': {'code': 'VALIDATION_ERROR', 'message': 'This ticket is already listed on the marketplace'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if user has already listed this exact ticket before (even if inactive)
+        # This prevents re-listing the same ticket
+        existing_listing = TicketMarketplaceListing.objects.filter(
+            ticket=ticket,
+            customer=customer
+        ).first()
+        
+        if existing_listing:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'You have already listed this ticket before. You cannot list the same ticket more than once.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate seller_price - REQUIRED
+        seller_price = request.data.get('seller_price')
+        if seller_price is None:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Seller price is required. Please enter your asking price.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            seller_price = Decimal(str(seller_price))
+            if seller_price < 0:
+                return Response({
+                    'error': {'code': 'VALIDATION_ERROR', 'message': 'Seller price cannot be negative'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Check against event's max allowed price (or global default if not set)
+            max_allowed_price = None
+            if event.marketplace_max_price is not None:
+                max_allowed_price = event.marketplace_max_price
+            else:
+                # Fallback to global settings if event doesn't have a specific limit
+                marketplace_settings = MarketplaceSettings.get_settings()
+                max_allowed_price = marketplace_settings.max_allowed_price
+            
+            if seller_price > max_allowed_price:
+                return Response({
+                    'error': {'code': 'VALIDATION_ERROR', 'message': f'Seller price cannot exceed the maximum allowed price of {max_allowed_price} EGP for this event'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Invalid seller price format'}
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Create listing
@@ -4791,7 +4857,8 @@ def marketplace_listings_list(request):
             customer=customer,
             terms_accepted=True,
             terms_accepted_at=timezone.now(),
-            is_active=True
+            is_active=True,
+            seller_price=seller_price
         )
         
         serializer = TicketMarketplaceListingSerializer(listing, context={'request': request})
@@ -5038,3 +5105,71 @@ def marketplace_filter_options(request):
             'max': float(price_range['max_price']) if price_range['max_price'] else 0
         }
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET', 'PUT'])
+@permission_classes([AllowAny])  # GET is public, PUT will check admin inside
+def marketplace_settings(request):
+    """
+    Get or update marketplace settings.
+    GET /api/v1/marketplace/settings/ - Public (anyone can read max price)
+    PUT /api/v1/marketplace/settings/ - Admin only
+    """
+    if request.method == 'GET':
+        try:
+            settings = MarketplaceSettings.get_settings()
+            return Response({
+                'max_allowed_price': float(settings.max_allowed_price),
+                'updated_at': settings.updated_at.isoformat() if settings.updated_at else None,
+                'updated_by': settings.updated_by.username if settings.updated_by else None
+            })
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error fetching marketplace settings: {str(e)}", exc_info=True)
+            return Response({
+                'error': {'code': 'SERVER_ERROR', 'message': f'Error fetching settings: {str(e)}'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    elif request.method == 'PUT':
+        # PUT requires admin authentication
+        if not request.user.is_authenticated or not hasattr(request.user, 'adminuser'):
+            return Response({
+                'error': {'code': 'PERMISSION_DENIED', 'message': 'Admin authentication required'}
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        max_allowed_price = request.data.get('max_allowed_price')
+        if max_allowed_price is None:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'max_allowed_price is required'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            max_allowed_price = Decimal(str(max_allowed_price))
+            if max_allowed_price < 0:
+                return Response({
+                    'error': {'code': 'VALIDATION_ERROR', 'message': 'max_allowed_price cannot be negative'}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except (ValueError, TypeError):
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Invalid max_allowed_price format'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            settings = MarketplaceSettings.get_settings()
+            settings.max_allowed_price = max_allowed_price
+            settings.updated_by = request.user  # request.user is already AdminUser instance
+            settings.save()
+            
+            return Response({
+                'max_allowed_price': float(settings.max_allowed_price),
+                'updated_at': settings.updated_at.isoformat() if settings.updated_at else None,
+                'updated_by': settings.updated_by.username if settings.updated_by else None
+            })
+        except Exception as e:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error updating marketplace settings: {str(e)}", exc_info=True)
+            return Response({
+                'error': {'code': 'SERVER_ERROR', 'message': f'Error updating settings: {str(e)}'}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

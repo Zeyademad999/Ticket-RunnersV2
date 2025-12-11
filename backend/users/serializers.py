@@ -91,6 +91,31 @@ class UsherSerializer(serializers.ModelSerializer):
     
     def update(self, instance, validated_data):
         events = validated_data.pop('events', None)
+        is_team_leader = validated_data.get('is_team_leader', False)
+        
+        # If making team leader, assign all events and all ticket categories
+        if is_team_leader and not instance.is_team_leader:
+            from events.models import Event, TicketCategory
+            # Get all events
+            all_events = Event.objects.all()
+            # Get all unique ticket category names from all events
+            all_ticket_categories = set()
+            for event in all_events:
+                categories = TicketCategory.objects.filter(event=event)
+                for cat in categories:
+                    if cat.name:
+                        all_ticket_categories.add(cat.name)
+            # Set ticket categories
+            validated_data['ticket_categories'] = list(all_ticket_categories)
+            # Set events to all events
+            events = list(all_events)
+        # If removing team leader, clear events and ticket categories if not explicitly provided
+        elif not is_team_leader and instance.is_team_leader:
+            if events is None:
+                events = []
+            if 'ticket_categories' not in validated_data:
+                validated_data['ticket_categories'] = []
+        
         usher = super().update(instance, validated_data)
         if events is not None:
             usher.events.set(events)

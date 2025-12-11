@@ -45,22 +45,34 @@ class TicketViewSet(viewsets.ModelViewSet):
         """
         Create a new ticket (admin only).
         POST /api/tickets/
+        Supports assigning tickets to customers by phone number (assigned_mobile).
         """
         from events.models import Event
         from customers.models import Customer
         from payments.models import PaymentTransaction
+        from tickets.models import TicketRegistrationToken
         from decimal import Decimal
         import uuid
+        import logging
+        logger = logging.getLogger(__name__)
         
         event_id = request.data.get('event_id')
         customer_id = request.data.get('customer_id')
         category = request.data.get('category')
         price = request.data.get('price', 0)
         paid_outside_system = request.data.get('paid_outside_system', False)
+        assigned_mobile = request.data.get('assigned_mobile')
+        assigned_email = request.data.get('assigned_email')
         
-        if not all([event_id, customer_id, category]):
+        if not all([event_id, category]):
             return Response({
-                'error': {'code': 'VALIDATION_ERROR', 'message': 'event_id, customer_id, and category are required.'}
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'event_id and category are required.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Either customer_id or assigned_mobile must be provided
+        if not customer_id and not assigned_mobile:
+            return Response({
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Either customer_id or assigned_mobile is required.'}
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Price is required unless paid outside system
@@ -71,59 +83,194 @@ class TicketViewSet(viewsets.ModelViewSet):
         
         try:
             event = Event.objects.get(id=event_id)
-            customer = Customer.objects.get(id=customer_id)
         except Event.DoesNotExist:
             return Response({
                 'error': {'code': 'NOT_FOUND', 'message': 'Event not found.'}
             }, status=status.HTTP_404_NOT_FOUND)
-        except Customer.DoesNotExist:
+        
+        # Determine the customer - either from customer_id or by phone number
+        customer = None
+        assigned_customer = None
+        
+        # If assigned_mobile is provided, normalize it and find customer by phone number
+        if assigned_mobile:
+            assigned_mobile = assigned_mobile.strip()
+            
+            # Normalize the phone number (handle all formats)
+            from apps.webapp.views import normalize_mobile_number, find_customer_by_phone
+            normalized_mobile = normalize_mobile_number(assigned_mobile)
+            
+            # Use normalized phone number for customer lookup and ticket assignment
+            assigned_mobile = normalized_mobile
+            
+            # Find customer using the comprehensive search function
+            assigned_customer = find_customer_by_phone(assigned_mobile)
+            
+            # If customer found, ensure it's active
+            if assigned_customer and assigned_customer.status != 'active':
+                assigned_customer = None
+        
+        # If customer_id is provided, get that customer
+        if customer_id:
+            try:
+                customer = Customer.objects.get(id=customer_id)
+            except Customer.DoesNotExist:
+                return Response({
+                    'error': {'code': 'NOT_FOUND', 'message': 'Customer not found.'}
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Determine ticket owner:
+        # 1. If assigned_customer found (by phone), use them
+        # 2. Otherwise, use customer from customer_id
+        # 3. If neither exists, we need at least customer_id
+        ticket_owner = assigned_customer or customer
+        
+        # If no customer found, we need customer_id
+        if not ticket_owner:
             return Response({
-                'error': {'code': 'NOT_FOUND', 'message': 'Customer not found.'}
-            }, status=status.HTTP_404_NOT_FOUND)
+                'error': {'code': 'VALIDATION_ERROR', 'message': 'Customer not found. Please provide a valid customer_id or ensure the phone number matches an existing customer.'}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Determine buyer: 
+        # - If ticket is assigned (assigned_mobile provided), buyer is the admin's customer profile
+        # - Otherwise, buyer is the ticket owner
+        # This ensures admin-assigned tickets show "System Admin" as the buyer
+        if assigned_mobile:
+            # Admin is assigning ticket - get admin's customer profile as buyer
+            admin_customer_profile = None
+            if hasattr(request.user, 'customer_profile') and request.user.customer_profile:
+                admin_customer_profile = request.user.customer_profile
+            else:
+                # If admin doesn't have a customer profile, try to find or create one
+                try:
+                    # Try to find existing customer profile by admin's email or username
+                    admin_customer_profile = Customer.objects.filter(
+                        email=request.user.email
+                    ).first()
+                    if not admin_customer_profile:
+                        # Create a customer profile for the admin
+                        admin_customer_profile = Customer.objects.create(
+                            user=request.user,
+                            name=request.user.get_full_name() or request.user.username,
+                            email=request.user.email or f"{request.user.username}@system.local",
+                            phone=request.user.email or "",
+                            mobile_number="",
+                            status='active'
+                        )
+                except Exception as e:
+                    logger.warning(f"Could not create/get admin customer profile: {e}")
+                    # Last resort: use assigned customer, but serializer will check if user is admin
+                    # This shouldn't happen in normal operation
+                    admin_customer_profile = customer
+            ticket_buyer = admin_customer_profile
+        else:
+            # Regular ticket purchase - buyer is the ticket owner
+            ticket_buyer = ticket_owner
         
         # Generate unique ticket number
-        ticket_number = f"{event.id}-{customer.id}-{uuid.uuid4().hex[:8]}"
+        if ticket_owner:
+            ticket_number = f"{event.id}-{ticket_owner.id}-{uuid.uuid4().hex[:8]}"
+        else:
+            # For assigned tickets without existing customer, use a temporary ID
+            ticket_number = f"{event.id}-ASSIGNED-{uuid.uuid4().hex[:8]}"
         
         # Create ticket
         ticket = Ticket.objects.create(
             event=event,
-            customer=customer,
-            buyer=customer,  # Set buyer to customer (who received the ticket)
+            customer=ticket_owner,  # May be None for assigned tickets
+            buyer=ticket_buyer,  # Admin if assigned, otherwise ticket owner
             category=category,
             price=Decimal(str(price)) if price else Decimal('0'),
             status='valid',
-            ticket_number=ticket_number
+            ticket_number=ticket_number,
+            assigned_mobile=assigned_mobile,
+            assigned_email=assigned_email,
         )
         
         # Create payment transaction if not paid outside system
         # This ensures payment_status shows as 'completed'
         try:
-            if not paid_outside_system and price and Decimal(str(price)) > 0:
-                PaymentTransaction.objects.create(
-                    customer=customer,
-                    ticket=ticket,
-                    amount=Decimal(str(price)),
-                    payment_method='admin_assigned',  # Mark as admin-assigned
-                    status='completed',
-                    transaction_id=f"ADMIN-{uuid.uuid4().hex[:16]}"
-                )
-            elif paid_outside_system:
-                # Even if paid outside system, create a transaction to mark as completed
-                # This ensures the ticket shows as paid
-                PaymentTransaction.objects.create(
-                    customer=customer,
-                    ticket=ticket,
-                    amount=Decimal(str(price)) if price else Decimal('0'),
-                    payment_method='paid_outside_system',
-                    status='completed',
-                    transaction_id=f"OUTSIDE-{uuid.uuid4().hex[:16]}"
-                )
+            if ticket_owner:
+                if not paid_outside_system and price and Decimal(str(price)) > 0:
+                    PaymentTransaction.objects.create(
+                        customer=ticket_owner,
+                        ticket=ticket,
+                        amount=Decimal(str(price)),
+                        payment_method='admin_assigned',  # Mark as admin-assigned
+                        status='completed',
+                        transaction_id=f"ADMIN-{uuid.uuid4().hex[:16]}"
+                    )
+                elif paid_outside_system:
+                    PaymentTransaction.objects.create(
+                        customer=ticket_owner,
+                        ticket=ticket,
+                        amount=Decimal(str(price)) if price else Decimal('0'),
+                        payment_method='paid_outside_system',
+                        status='completed',
+                        transaction_id=f"OUTSIDE-{uuid.uuid4().hex[:16]}"
+                    )
         except Exception as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.error(f"Error creating payment transaction for ticket {ticket.id}: {str(e)}", exc_info=True)
             # Don't fail the ticket creation if payment transaction creation fails
-            # The serializer will still show payment_status as 'completed' due to the fallback logic
+        
+        # Handle notifications for assigned tickets (similar to customer-to-customer flow)
+        # Always send notification if assigned_mobile is provided (admin is assigning to this phone number)
+        if assigned_mobile:
+            assigned_mobile = assigned_mobile.strip() if assigned_mobile else None
+            if not assigned_mobile:
+                logger.warning(f"Ticket {ticket.id} has empty assigned_mobile, skipping notification")
+            else:
+                from core.notification_service import (
+                    send_ticket_assignment_sms,
+                    send_ticket_assignment_email,
+                    is_egyptian_number,
+                )
+                
+                purchaser_name = request.user.get_full_name() or request.user.username or "Admin"
+                is_egypt = is_egyptian_number(assigned_mobile)
+                
+                logger.info(f"Processing notification for admin-assigned ticket {ticket.id}, assigned_mobile: {assigned_mobile}")
+                
+                if assigned_customer:
+                    # Existing user - send notifications immediately
+                    logger.info(f"Sending notifications to existing user {assigned_customer.id} for ticket {ticket.id}, phone: {assigned_mobile}")
+                    try:
+                        if is_egypt:
+                            sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=None)
+                            logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                        else:
+                            logger.info(f"Skipping SMS for ticket {ticket.id} (international number)")
+                        # Always send email if email is provided
+                        if assigned_email or assigned_customer.email:
+                            send_ticket_assignment_email(ticket, purchaser_name, registration_token=None)
+                    except Exception as e:
+                        logger.error(f"Error sending notifications for ticket {ticket.id}: {str(e)}", exc_info=True)
+                else:
+                    # New user - create registration token and send notifications
+                    print("=" * 80)
+                    print("🆕 NEW USER DETECTED (ADMIN ASSIGNMENT) - Creating registration token")
+                    print(f"   Ticket ID: {ticket.id}")
+                    print(f"   Assigned Mobile: {assigned_mobile}")
+                    print(f"   Event: {ticket.event.title}")
+                    print("=" * 80)
+                    logger.info(f"Creating registration token for new user {assigned_mobile} for ticket {ticket.id}")
+                    registration_token = TicketRegistrationToken.create_for_ticket(ticket, assigned_mobile)
+                    # Refresh from database to ensure it's saved
+                    registration_token.refresh_from_db()
+                    print(f"✅ Token saved to database. Token ID: {registration_token.id}")
+                    logger.info(f"Registration token created and saved: ID={registration_token.id}, token (first 20): {registration_token.token[:20]}..., phone: {registration_token.phone_number}")
+                    try:
+                        if is_egypt:
+                            sms_result = send_ticket_assignment_sms(ticket, purchaser_name, registration_token=registration_token)
+                            print(f"📱 SMS Send Result: {sms_result}")
+                            logger.info(f"SMS result for ticket {ticket.id}: {sms_result}")
+                        else:
+                            logger.info(f"Skipping SMS for ticket {ticket.id} (international number)")
+                        # Always send email if email is provided
+                        if assigned_email:
+                            send_ticket_assignment_email(ticket, purchaser_name, registration_token=registration_token)
+                    except Exception as e:
+                        logger.error(f"Error sending notifications for ticket {ticket.id}: {str(e)}", exc_info=True)
         
         # Log system action
         ip_address = get_client_ip(request)
@@ -351,6 +498,15 @@ class TicketViewSet(viewsets.ModelViewSet):
         # Update ticket customer
         ticket.customer = to_customer
         ticket.save()
+        
+        # Auto-remove ticket from marketplace when transferred
+        from tickets.models import TicketMarketplaceListing
+        marketplace_listings = TicketMarketplaceListing.objects.filter(
+            ticket=ticket,
+            is_active=True
+        )
+        for listing in marketplace_listings:
+            listing.deactivate()
         
         # Log system action
         ip_address = get_client_ip(request)

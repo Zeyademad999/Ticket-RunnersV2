@@ -92,5 +92,6 @@ urlpatterns = [
     path('marketplace/listings/<uuid:listing_id>/', views.marketplace_listing_delete, name='marketplace-listing-delete'),
     path('marketplace/my-listings/', views.marketplace_my_listings, name='marketplace-my-listings'),
     path('marketplace/filter-options/', views.marketplace_filter_options, name='marketplace-filter-options'),
+    path('marketplace/settings/', views.marketplace_settings, name='marketplace-settings'),
 ]
 

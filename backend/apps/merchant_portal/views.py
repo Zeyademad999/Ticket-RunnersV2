@@ -18,9 +18,11 @@ logger = logging.getLogger(__name__)
 from users.models import Merchant
 from nfc_cards.models import NFCCard
 from customers.models import Customer
-from core.otp_service import create_and_send_otp, verify_otp
+from payments.models import PaymentTransaction
+from core.otp_service import create_and_send_otp, verify_otp, get_otp_validation_error
 from core.exceptions import AuthenticationError, ValidationError
 from core.permissions import IsMerchant
+import json
 from .serializers import (
     MerchantLoginSerializer, MerchantOTPSerializer,
     MerchantProfileSerializer, CardAssignmentSerializer,
@@ -133,7 +135,8 @@ def merchant_verify_otp(request):
     otp_code = serializer.validated_data['otp_code']
     
     if not verify_otp(mobile, otp_code, 'login'):
-        raise AuthenticationError("Invalid or expired OTP")
+        error_msg = get_otp_validation_error(mobile, otp_code, 'login')
+        raise AuthenticationError(error_msg)
     
     try:
         merchant = Merchant.objects.get(mobile_number=mobile)
@@ -192,40 +195,56 @@ def merchant_dashboard_stats(request):
     Get merchant dashboard statistics.
     GET /api/merchant/dashboard-stats/
     """
-    merchant = request.merchant
-    
-    # Cards assigned to this merchant
-    merchant_cards = NFCCard.objects.filter(merchant=merchant)
-    
-    # Available cards: Cards assigned to this merchant that are not yet assigned to customers
-    # These are cards that this merchant can assign to customers
-    available_cards = merchant_cards.filter(
-        status='active',
-        customer__isnull=True  # Not assigned to any customer yet
-    )
-    
-    stats = {
-        'available_cards': available_cards.count(),  # Cards assigned to merchant but not to customers
-        'delivered_cards': merchant_cards.filter(status='active', delivered_at__isnull=False).count(),
-        'assigned_cards': merchant_cards.filter(status='active', assigned_at__isnull=False).count(),
-        'total_cards': merchant_cards.count(),  # Total cards assigned to this merchant
-    }
-    
-    # Recent activity (last 10 card assignments by this merchant)
-    recent_activity = merchant_cards.filter(assigned_at__isnull=False).order_by('-assigned_at')[:10]
-    activity_data = []
-    for card in recent_activity:
-        activity_data.append({
-            'card_serial': card.serial_number,
-            'customer_name': card.customer.name if card.customer else 'N/A',
-            'customer_mobile': card.customer.mobile_number if card.customer else 'N/A',
-            'assigned_at': card.assigned_at.isoformat() if card.assigned_at else None,
-            'delivered_at': card.delivered_at.isoformat() if card.delivered_at else None,
-        })
-    
-    stats['recent_activity'] = activity_data
-    
-    return Response(stats, status=status.HTTP_200_OK)
+    try:
+        merchant = request.merchant
+        
+        # Get merchant locations for this merchant
+        from users.models import MerchantLocation
+        merchant_locations = MerchantLocation.objects.filter(merchant=merchant)
+        
+        # Cards assigned to this merchant's locations
+        # NFCCard.merchant is a ForeignKey to MerchantLocation, not Merchant
+        merchant_cards = NFCCard.objects.filter(merchant__in=merchant_locations)
+        
+        # Available cards: Cards assigned to this merchant that are not yet assigned to customers
+        # These are cards that this merchant can assign to customers
+        available_cards = merchant_cards.filter(
+            status='active',
+            customer__isnull=True  # Not assigned to any customer yet
+        )
+        
+        stats = {
+            'available_cards': available_cards.count(),  # Cards assigned to merchant but not to customers
+            'delivered_cards': merchant_cards.filter(status='active', delivered_at__isnull=False).count(),
+            'assigned_cards': merchant_cards.filter(status='active', assigned_at__isnull=False).count(),
+            'total_cards': merchant_cards.count(),  # Total cards assigned to this merchant
+        }
+        
+        # Recent activity (last 10 card assignments by this merchant)
+        recent_activity = merchant_cards.filter(assigned_at__isnull=False).order_by('-assigned_at')[:10]
+        activity_data = []
+        for card in recent_activity:
+            activity_data.append({
+                'card_serial': card.serial_number,
+                'customer_name': card.customer.name if card.customer else 'N/A',
+                'customer_mobile': card.customer.mobile_number if card.customer else 'N/A',
+                'assigned_at': card.assigned_at.isoformat() if card.assigned_at else None,
+                'delivered_at': card.delivered_at.isoformat() if card.delivered_at else None,
+            })
+        
+        stats['recent_activity'] = activity_data
+        
+        return Response(stats, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in merchant_dashboard_stats: {str(e)}")
+        logger.error(traceback.format_exc())
+        return Response({
+            'error': {
+                'code': 'INTERNAL_ERROR',
+                'message': f'An error occurred: {str(e)}'
+            }
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -263,6 +282,15 @@ def merchant_assign_card(request):
             'error': {'code': 'CARD_NOT_FOUND', 'message': 'This card was not added. Please contact Ticket Runners.'}
         }, status=status.HTTP_404_NOT_FOUND)
     
+    # Check if card is expired
+    from django.utils import timezone
+    from datetime import date
+    if card.status == 'expired' or (card.expiry_date and card.expiry_date < date.today()):
+        logger.warning(f"❌ Card {card_serial} is expired - rejecting assignment")
+        return Response({
+            'error': {'code': 'CARD_EXPIRED', 'message': 'This card has expired. Please contact Ticket Runners to renew the card.'}
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
     # Check if card is already assigned to a customer
     if card.customer is not None:
         logger.warning(f"❌ Card {card_serial} is already assigned to customer {card.customer.id} ({card.customer.name})")
@@ -282,9 +310,9 @@ def merchant_assign_card(request):
                 }, status=status.HTTP_400_BAD_REQUEST)
         except Customer.DoesNotExist:
             # Customer doesn't exist, but card is assigned to someone else
-            logger.warning(f"Card {card_serial} already assigned, but customer {customer_mobile} not found")
+            logger.warning(f"Card {card_serial} already assigned to customer {card.customer.id if card.customer else 'unknown'}, but customer {customer_mobile} not found")
             return Response({
-                'error': {'code': 'CARD_ALREADY_ASSIGNED', 'message': 'This card is already assigned to another customer'}
+                'error': {'code': 'CARD_ALREADY_ASSIGNED', 'message': f'This card is already assigned to another customer ({card.customer.name if card.customer else "unknown"})'}
             }, status=status.HTTP_400_BAD_REQUEST)
     
     logger.info(f"Card {card_serial} is not assigned, proceeding with assignment")
@@ -302,6 +330,18 @@ def merchant_assign_card(request):
     if customer.status != 'active':
         return Response({
             'error': {'code': 'CUSTOMER_INACTIVE', 'message': 'Customer account is not active'}
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check NFC card payment status
+    card_status = get_customer_nfc_card_status(customer)
+    if not card_status['can_assign_card']:
+        logger.warning(f"❌ Cannot assign card to customer {customer.mobile_number}: {card_status['status']} - {card_status['message']}")
+        return Response({
+            'error': {
+                'code': 'CARD_PAYMENT_REQUIRED',
+                'message': card_status['message'],
+                'card_status': card_status['status']
+            }
         }, status=status.HTTP_400_BAD_REQUEST)
     
     # Send OTP to customer (use normalized mobile number)
@@ -356,7 +396,8 @@ def merchant_verify_customer_otp(request):
         # Verify OTP (use normalized mobile number)
         if not verify_otp(normalized_mobile, otp_code, 'customer_verification'):
             logger.warning(f"Invalid OTP for customer {customer_mobile}")
-            raise AuthenticationError("Invalid or expired OTP")
+            error_msg = get_otp_validation_error(normalized_mobile, otp_code, 'customer_verification')
+            raise AuthenticationError(error_msg)
     else:
         logger.info(f"Photo verification used for customer {customer_mobile} - OTP verification skipped")
     
@@ -373,6 +414,15 @@ def merchant_verify_customer_otp(request):
         return Response({
             'error': {'code': 'CARD_NOT_FOUND', 'message': 'This card was not added. Please contact Ticket Runners.'}
         }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if card is expired
+    from django.utils import timezone
+    from datetime import date
+    if card.status == 'expired' or (card.expiry_date and card.expiry_date < date.today()):
+        logger.warning(f"❌ Card {card_serial} is expired - rejecting assignment")
+        return Response({
+            'error': {'code': 'CARD_EXPIRED', 'message': 'This card has expired. Please contact Ticket Runners to renew the card.'}
+        }, status=status.HTTP_400_BAD_REQUEST)
     
     # Check if card is already assigned to a customer
     if card.customer is not None:
@@ -404,6 +454,18 @@ def merchant_verify_customer_otp(request):
             'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
         }, status=status.HTTP_404_NOT_FOUND)
     
+    # Check NFC card payment status before completing assignment
+    card_status = get_customer_nfc_card_status(customer)
+    if not card_status['can_assign_card']:
+        logger.warning(f"❌ Cannot assign card to customer {customer.mobile_number}: {card_status['status']} - {card_status['message']}")
+        return Response({
+            'error': {
+                'code': 'CARD_PAYMENT_REQUIRED',
+                'message': card_status['message'],
+                'card_status': card_status['status']
+            }
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
     # Generate hashed code for card writing
     hashed_code = hashlib.sha256(f"{card.serial_number}{customer.id}{timezone.now()}".encode()).hexdigest()
     
@@ -414,8 +476,20 @@ def merchant_verify_customer_otp(request):
     issue_date = timezone.now().date()
     expiry_date = issue_date + timedelta(days=settings.card_validity_days)
     
+    # Get merchant location for this merchant (optional)
+    # NFCCard.merchant is a ForeignKey to MerchantLocation, not Merchant
+    from users.models import MerchantLocation
+    merchant_location = MerchantLocation.objects.filter(merchant=merchant).first()
+    
+    # If no location exists, we can still assign the card without setting merchant location
+    # The merchant field is optional on NFCCard
+    if merchant_location:
+        card.merchant = merchant_location
+        logger.info(f"Assigning card to merchant location: {merchant_location.id}")
+    else:
+        logger.warning(f"No merchant location found for merchant {merchant.id}, assigning card without merchant location")
+    
     card.customer = customer
-    card.merchant = merchant
     card.assigned_at = timezone.now()
     card.issue_date = issue_date
     card.expiry_date = expiry_date
@@ -437,6 +511,39 @@ def merchant_verify_customer_otp(request):
 
 @api_view(['GET'])
 @permission_classes([IsMerchant])
+def merchant_check_customer_card_status(request):
+    """
+    Check customer's NFC card payment status.
+    GET /api/merchant/check-customer-card-status/?mobile=<phone_number>
+    """
+    customer_mobile = request.query_params.get('mobile')
+    if not customer_mobile:
+        return Response({
+            'error': {'code': 'MISSING_PARAMETER', 'message': 'mobile parameter is required'}
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        normalized_mobile = normalize_mobile_number(customer_mobile)
+        customer = Customer.objects.get(mobile_number=normalized_mobile)
+    except Customer.DoesNotExist:
+        return Response({
+            'error': {'code': 'CUSTOMER_NOT_FOUND', 'message': 'Customer not found'}
+        }, status=status.HTTP_404_NOT_FOUND)
+    
+    card_status = get_customer_nfc_card_status(customer)
+    
+    return Response({
+        'customer': {
+            'id': str(customer.id),
+            'name': customer.name,
+            'mobile_number': customer.mobile_number
+        },
+        'card_status': card_status
+    }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+@permission_classes([IsMerchant])
 def merchant_cards_list(request):
     """
     List merchant's cards and available cards.
@@ -444,29 +551,45 @@ def merchant_cards_list(request):
     - If status='available': Returns all unassigned cards from admin NFC section
     - Otherwise: Returns cards assigned to this merchant
     """
-    merchant = request.merchant
-    status_filter = request.query_params.get('status')
-    search = request.query_params.get('search')
-    
-    # Show cards assigned to this merchant
-    cards = NFCCard.objects.filter(merchant=merchant).select_related('customer', 'collector')
-    
-    # Apply status filter if provided
-    if status_filter == 'available':
-        # Available cards: assigned to merchant but not to customers
-        cards = cards.filter(status='active', customer__isnull=True)
-    elif status_filter:
-        cards = cards.filter(status=status_filter)
-    
-    # Apply search filter
-    if search:
-        cards = cards.filter(
-            Q(serial_number__icontains=search) |
-            Q(customer__mobile_number__icontains=search)
-        )
-    
-    serializer = NFCCardSerializer(cards, many=True, context={'request': request})
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    try:
+        merchant = request.merchant
+        status_filter = request.query_params.get('status')
+        search = request.query_params.get('search')
+        
+        # Get merchant locations for this merchant
+        from users.models import MerchantLocation
+        merchant_locations = MerchantLocation.objects.filter(merchant=merchant)
+        
+        # Show cards assigned to this merchant's locations
+        # NFCCard.merchant is a ForeignKey to MerchantLocation, not Merchant
+        cards = NFCCard.objects.filter(merchant__in=merchant_locations).select_related('customer', 'collector')
+        
+        # Apply status filter if provided
+        if status_filter == 'available':
+            # Available cards: assigned to merchant but not to customers
+            cards = cards.filter(status='active', customer__isnull=True)
+        elif status_filter:
+            cards = cards.filter(status=status_filter)
+        
+        # Apply search filter
+        if search:
+            cards = cards.filter(
+                Q(serial_number__icontains=search) |
+                Q(customer__mobile_number__icontains=search)
+            )
+        
+        serializer = NFCCardSerializer(cards, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        import traceback
+        logger.error(f"Error in merchant_cards_list: {str(e)}")
+        logger.error(traceback.format_exc())
+        return Response({
+            'error': {
+                'code': 'INTERNAL_ERROR',
+                'message': f'An error occurred: {str(e)}'
+            }
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET', 'PUT'])
@@ -562,7 +685,8 @@ def merchant_verify_mobile_change(request):
         raise ValidationError("new_mobile and otp_code are required")
     
     if not verify_otp(new_mobile, otp_code, 'mobile_change'):
-        raise AuthenticationError("Invalid or expired OTP")
+        error_msg = get_otp_validation_error(new_mobile, otp_code, 'mobile_change')
+        raise AuthenticationError(error_msg)
     
     merchant.mobile_number = new_mobile
     merchant.save(update_fields=['mobile_number'])
@@ -571,6 +695,55 @@ def merchant_verify_mobile_change(request):
         'message': 'Mobile number updated successfully',
         'mobile': new_mobile
     }, status=status.HTTP_200_OK)
+
+
+def get_customer_nfc_card_status(customer):
+    """
+    Get customer's NFC card payment status.
+    Returns a dictionary with status information.
+    """
+    from nfc_cards.models import NFCCardSettings
+    
+    # Check if customer has any active NFC card
+    has_active_card = NFCCard.objects.filter(
+        customer=customer,
+        status='active'
+    ).exists()
+    
+    # Check if customer has already made any completed payment transaction
+    # If they have, they've already paid both the NFC card fee and renewal cost in their first purchase
+    has_paid_for_new_card = PaymentTransaction.objects.filter(
+        customer=customer,
+        status='completed'
+    ).exists()
+    
+    # Check if customer has paid for renewal (same as new card payment)
+    has_paid_for_renewal = has_paid_for_new_card
+    
+    # Customer can assign card if:
+    # 1. They have an active card, OR
+    # 2. They have paid for a new card (completed payment transaction exists)
+    can_assign_card = has_active_card or has_paid_for_new_card
+    
+    # Determine status message
+    if has_active_card:
+        status = 'has_active_card'
+        message = 'Customer has an active NFC card'
+    elif has_paid_for_new_card:
+        status = 'paid_awaiting_card'
+        message = 'Customer has paid for NFC card and is awaiting card assignment'
+    else:
+        status = 'payment_required'
+        message = 'Customer needs to pay for NFC card before assignment'
+    
+    return {
+        'has_active_card': has_active_card,
+        'has_paid_for_new_card': has_paid_for_new_card,
+        'has_paid_for_renewal': has_paid_for_renewal,
+        'can_assign_card': can_assign_card,
+        'status': status,
+        'message': message
+    }
 
 
 def normalize_mobile_number(mobile_number: str) -> str:
@@ -776,6 +949,19 @@ def merchant_validate_card(request):
             'error': {
                 'code': 'CARD_NOT_FOUND',
                 'message': 'This card was not added. Please contact Ticket Runners.'
+            }
+        }, status=status.HTTP_200_OK)
+    
+    # Check if card is expired
+    from django.utils import timezone
+    from datetime import date
+    if card.status == 'expired' or (card.expiry_date and card.expiry_date < date.today()):
+        logger.warning(f"❌ Card {card_serial} is expired")
+        return Response({
+            'valid': False,
+            'error': {
+                'code': 'CARD_EXPIRED',
+                'message': 'This card has expired. Please contact Ticket Runners to renew the card.'
             }
         }, status=status.HTTP_200_OK)
     

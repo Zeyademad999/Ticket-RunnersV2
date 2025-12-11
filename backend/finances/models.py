@@ -32,6 +32,25 @@ class Expense(models.Model):
     )
     description = models.TextField()
     date = models.DateField(default=timezone.now, db_index=True)
+    deduct_from_wallet = models.BooleanField(
+        default=False,
+        help_text="Whether to deduct this expense from a wallet"
+    )
+    wallet_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('company', 'Company Wallet'),
+            ('owner', 'Owner Wallet'),
+        ],
+        blank=True,
+        null=True,
+        help_text="Type of wallet to deduct from"
+    )
+    wallet_id = models.UUIDField(
+        blank=True,
+        null=True,
+        help_text="ID of the wallet to deduct from (required if deduct_from_wallet is True)"
+    )
     created_by = models.ForeignKey(
         'authentication.AdminUser',
         on_delete=models.SET_NULL,
@@ -486,8 +505,7 @@ class OwnerWallet(models.Model):
         max_digits=12,
         decimal_places=2,
         default=0,
-        validators=[MinValueValidator(0)],
-        help_text="Current wallet balance"
+        help_text="Current wallet balance (can be negative)"
     )
     last_updated = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(default=timezone.now)

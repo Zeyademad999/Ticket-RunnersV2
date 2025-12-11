@@ -88,7 +88,7 @@ class EventAdmin(admin.ModelAdmin):
         }),
         ('Tickets & Pricing', {
             'description': 'Ticket configuration and pricing',
-            'fields': ('total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited', 'starting_price', 'ticket_transfer_enabled')
+            'fields': ('total_tickets', 'ticket_limit', 'is_ticket_limit_unlimited', 'starting_price', 'ticket_transfer_enabled', 'marketplace_max_price')
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),

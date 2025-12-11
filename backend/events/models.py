@@ -177,6 +177,14 @@ class Event(models.Model):
         help_text="Allow attendees to purchase up to the total number of available tickets (no per-order cap)"
     )
     ticket_transfer_enabled = models.BooleanField(default=True)
+    marketplace_max_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        help_text="Maximum allowed price for marketplace ticket listings for this event (in EGP). Leave empty to use global default."
+    )
     transfer_fee_type = models.CharField(
         max_length=20,
         choices=[('percentage', 'Percentage'), ('flat', 'Flat Amount')],

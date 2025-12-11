@@ -98,11 +98,16 @@ def usher_login(request):
         )
     
     # Verify usher is assigned to this event
-    if event not in usher.events.all():
-        raise AuthenticationError(
-            detail=f'Usher "{usher.name}" is not assigned to event "{event.title}"',
-            code='EVENT_NOT_ASSIGNED'
-        )
+    # Team leaders can access all events, so skip the check for them
+    if not usher.is_team_leader:
+        # Refresh the events relationship to ensure we have the latest data
+        # Use exists() for better performance and to avoid loading all events
+        is_assigned = usher.events.filter(id=event.id).exists()
+        if not is_assigned:
+            raise AuthenticationError(
+                detail=f'Usher "{usher.name}" is not assigned to event "{event.title}"',
+                code='EVENT_NOT_ASSIGNED'
+            )
     
     # Update last active
     usher.last_active = timezone.now()
@@ -299,6 +304,22 @@ def usher_scan_attendee_by_card(request, card_id):
         return Response({
             'error': {'code': 'NO_CUSTOMER', 'message': 'Card is not assigned to a customer'}
         }, status=status.HTTP_404_NOT_FOUND)
+    
+    # Check if card is expired - prevent scanning if expired
+    from django.utils import timezone
+    card_expired = False
+    if card.expiry_date:
+        card_expired = card.expiry_date < timezone.now().date()
+    
+    if card_expired or card.status == 'expired':
+        return Response({
+            'error': {
+                'code': 'CARD_EXPIRED',
+                'message': 'This NFC card has expired. The customer needs to pay renewal fees to get a valid card.',
+                'card_expired': True,
+                'card_expiry_date': card.expiry_date.isoformat() if card.expiry_date else None
+            }
+        }, status=status.HTTP_403_FORBIDDEN)
     
     customer = card.customer
     
@@ -722,11 +743,21 @@ def usher_scan_attendee_by_card(request, card_id):
     
     # Prepare attendee data
     try:
+        # Check if card is expired
+        from django.utils import timezone
+        card_expired = False
+        card_expiry_date = None
+        if card.expiry_date:
+            card_expiry_date = card.expiry_date.isoformat() if card.expiry_date else None
+            card_expired = card.expiry_date < timezone.now().date() if card.expiry_date else False
+        
         attendee_data = {
             'customer_id': str(customer.id),  # Convert UUID to string
             'name': customer.name if customer.name else '',
             'photo': photo_url or None,
             'card_id': card_id,
+            'card_expiry_date': card_expiry_date,
+            'card_expired': card_expired,
             'ticket_id': str(ticket.id) if ticket and hasattr(ticket, 'id') else None,
             'ticket_status': ticket_status,
             'ticket_tier': ticket_tier,
@@ -764,6 +795,8 @@ def usher_scan_attendee_by_card(request, card_id):
                 'name': attendee_data['name'],
                 'photo': attendee_data['photo'],
                 'card_id': attendee_data['card_id'],
+                'card_expiry_date': attendee_data.get('card_expiry_date'),
+                'card_expired': attendee_data.get('card_expired', False),
                 'ticket_id': str(ticket.id) if ticket and hasattr(ticket, 'id') else None,
                 'ticket_status': attendee_data['ticket_status'],
                 'ticket_tier': attendee_data['ticket_tier'],

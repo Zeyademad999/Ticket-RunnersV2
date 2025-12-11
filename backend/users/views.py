@@ -464,8 +464,12 @@ class UsherViewSet(viewsets.ModelViewSet):
         if len(password) < 6:
             raise ValidationError("Password must be at least 6 characters long")
         
-        # Check if username already exists (for different usher)
-        existing_user = AdminUser.objects.filter(username=username).exclude(id=usher.user.id if usher.user else None).first()
+        # Check if username already exists (for different active usher)
+        # Only check active users - deleted users should not block username reuse
+        existing_user = AdminUser.objects.filter(
+            username=username,
+            is_active=True
+        ).exclude(id=usher.user.id if usher.user else None).first()
         if existing_user:
             raise ValidationError(f"Username '{username}' is already taken by another user")
         
@@ -542,6 +546,9 @@ class UsherViewSet(viewsets.ModelViewSet):
         """
         Override destroy to prevent deletion of team leaders unless replaced.
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
         usher = self.get_object()
         
         # Check if usher is a team leader
@@ -582,6 +589,14 @@ class UsherViewSet(viewsets.ModelViewSet):
             usher.save()
         
         # Proceed with deletion
+        # Deactivate or delete the associated AdminUser when usher is deleted
+        if usher.user:
+            # Deactivate the AdminUser instead of deleting it
+            # This allows the username to be reused but preserves audit trail
+            usher.user.is_active = False
+            usher.user.save(update_fields=['is_active'])
+            logger.info(f"Deactivated AdminUser {usher.user.username} for deleted usher {usher.id}")
+        
         return super().destroy(request, *args, **kwargs)
 
 
