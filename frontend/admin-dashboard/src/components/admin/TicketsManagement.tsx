@@ -161,11 +161,79 @@ const TicketsManagement: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [assignPhoneNumber, setAssignPhoneNumber] = useState<string>("");
   const [assignPhoneDialCode, setAssignPhoneDialCode] = useState<string>(DEFAULT_DIAL_CODE);
+  const [assignEmail, setAssignEmail] = useState<string>("");
   const [assignPrice, setAssignPrice] = useState<number>(0);
   const [paidOutsideSystem, setPaidOutsideSystem] = useState<boolean>(false);
   const [eventSearchValue, setEventSearchValue] = useState<string>("");
   const [selectedEventDetails, setSelectedEventDetails] = useState<any>(null);
   const [eventTicketCategories, setEventTicketCategories] = useState<any[]>([]);
+  const [isDialCodeManuallyChanged, setIsDialCodeManuallyChanged] = useState<boolean>(false);
+
+  // Helper function to sanitize phone number (remove non-digits)
+  const sanitizeNumber = (value: string) => value.replace(/[^\d]/g, "");
+
+  // Enhanced function to find dial code from various formats
+  const findDialCode = (value: string): { dialCode: CountryDialCode | undefined; remainingNumber: string } => {
+    if (!value) return { dialCode: undefined, remainingNumber: "" };
+    
+    // Remove all non-digit characters except + for matching
+    // Also handle "00" international prefix (replace with +)
+    let normalized = value.replace(/[\s\-\(\)]/g, "");
+    if (normalized.startsWith("00")) {
+      normalized = "+" + normalized.slice(2);
+    }
+    
+    // Try to find matching dial code (longest first to avoid partial matches)
+    const sortedDialCodes = [...COUNTRY_DIAL_CODES].sort((a, b) => b.dial_code.length - a.dial_code.length);
+    
+    for (const country of sortedDialCodes) {
+      // Remove + from dial code for comparison
+      const dialCodeDigits = country.dial_code.replace(/[^\d]/g, "");
+      const dialCodeWithPlus = country.dial_code;
+      
+      // Check various formats:
+      // 1. Starts with full dial code including +
+      // 2. Starts with dial code digits (without +)
+      // 3. Normalized value starts with dial code digits
+      if (normalized.startsWith(dialCodeWithPlus)) {
+        const remaining = normalized.slice(dialCodeWithPlus.length);
+        return { dialCode: country, remainingNumber: remaining };
+      } else if (normalized.startsWith(dialCodeDigits)) {
+        const remaining = normalized.slice(dialCodeDigits.length);
+        return { dialCode: country, remainingNumber: remaining };
+      }
+    }
+    
+    return { dialCode: undefined, remainingNumber: normalized };
+  };
+
+  // Auto-detect dial code when phone number is pasted or changed (if not manually changed)
+  useEffect(() => {
+    if (isDialCodeManuallyChanged || !assignPhoneNumber) {
+      return;
+    }
+
+    // Check if input contains a country code
+    const sanitized = sanitizeNumber(assignPhoneNumber);
+    const mightContainDialCode = assignPhoneNumber.startsWith("+") || assignPhoneNumber.startsWith("00") || sanitized.length > 12;
+    
+    if (mightContainDialCode) {
+      // Try to detect dial code from the input
+      const { dialCode: detectedDialCode, remainingNumber } = findDialCode(assignPhoneNumber);
+      
+      if (detectedDialCode) {
+        // Found a dial code, update both dial code and local number
+        // Normalize the remaining number (remove leading 0 for Egyptian numbers)
+        let normalizedRemaining = remainingNumber;
+        if (detectedDialCode.dial_code === "+20" && normalizedRemaining.startsWith("0") && normalizedRemaining.length === 11) {
+          normalizedRemaining = normalizedRemaining.substring(1);
+        }
+        
+        setAssignPhoneDialCode(detectedDialCode.dial_code);
+        setAssignPhoneNumber(normalizedRemaining);
+      }
+    }
+  }, [assignPhoneNumber, isDialCodeManuallyChanged]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -1112,6 +1180,7 @@ const TicketsManagement: React.FC = () => {
     setSelectedCategory("");
     setAssignPhoneNumber("");
     setAssignPhoneDialCode(DEFAULT_DIAL_CODE);
+    setAssignEmail("");
     setAssignPrice(0);
     setPaidOutsideSystem(false);
     setEventSearchValue("");
@@ -1137,17 +1206,8 @@ const TicketsManagement: React.FC = () => {
 
   const handleAssignTicketAction = async () => {
     // Validate required fields
-    // Category is only required if event has ticket categories
-    const categoryRequired = eventTicketCategories.length > 0;
-    
-    // Normalize phone number: remove leading 0 for Egyptian numbers when country code is +20
-    let normalizedPhoneNumber = assignPhoneNumber;
-    if (assignPhoneDialCode === "+20" && normalizedPhoneNumber.startsWith("0") && normalizedPhoneNumber.length === 11) {
-      normalizedPhoneNumber = normalizedPhoneNumber.substring(1);
-    }
-    const fullPhoneNumber = assignPhoneDialCode + normalizedPhoneNumber;
-    
-    if (!selectedEventId || (categoryRequired && !selectedCategory) || !assignPhoneNumber || (!paidOutsideSystem && !assignPrice)) {
+    // Category is required - either from ticket categories or manual entry
+    if (!selectedEventId || !selectedCategory || !assignPhoneNumber || (!paidOutsideSystem && !assignPrice)) {
       toast({
         title: t("common.error"),
         description: t("admin.tickets.toast.requiredFields") || "All required fields must be filled",
@@ -1156,8 +1216,40 @@ const TicketsManagement: React.FC = () => {
       return;
     }
 
-    // Find customer by phone number (try with and without dial code)
+    // Validate email if country code is not Egyptian (for email notifications)
+    const isEgyptian = assignPhoneDialCode === "+20";
+    if (!isEgyptian && !assignEmail) {
+      toast({
+        title: t("common.error"),
+        description: t("admin.tickets.toast.emailRequiredForNonEgyptian") || "Email is required for non-Egyptian phone numbers",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Normalize phone number: handle all formats
+    // Remove leading 0 for Egyptian numbers when country code is +20
+    let normalizedPhoneNumber = assignPhoneNumber;
+    if (assignPhoneDialCode === "+20" && normalizedPhoneNumber.startsWith("0") && normalizedPhoneNumber.length === 11) {
+      normalizedPhoneNumber = normalizedPhoneNumber.substring(1);
+    }
+    
+    // If the phone number already contains the country code, extract just the number part
+    const sanitized = sanitizeNumber(assignPhoneNumber);
+    const dialCodeDigits = assignPhoneDialCode.replace(/[^\d]/g, "");
+    if (sanitized.startsWith(dialCodeDigits) && sanitized.length > dialCodeDigits.length) {
+      // Phone number already includes country code, extract the remaining part
+      normalizedPhoneNumber = sanitized.substring(dialCodeDigits.length);
+      // For Egyptian numbers, remove leading 0 if present
+      if (assignPhoneDialCode === "+20" && normalizedPhoneNumber.startsWith("0") && normalizedPhoneNumber.length === 11) {
+        normalizedPhoneNumber = normalizedPhoneNumber.substring(1);
+      }
+    }
+    
+    const fullPhoneNumber = assignPhoneDialCode + normalizedPhoneNumber;
+
     try {
+      // Find customer by phone number (try with and without dial code)
       const { customersApi } = await import("@/lib/api/adminApi");
       // Search with both original and normalized phone numbers
       const customersResponse = await customersApi.getCustomers({
@@ -1176,16 +1268,7 @@ const TicketsManagement: React.FC = () => {
         }
       );
 
-      if (!customer) {
-        toast({
-          title: t("common.error"),
-          description: t("admin.tickets.toast.customerNotFound") || "Customer not found with this phone number",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Determine category name - if from ticket categories, use the category name
+      // Determine category name - if from ticket categories, use the category name, otherwise use manual entry
       let categoryName = selectedCategory;
       if (eventTicketCategories.length > 0) {
         const category = eventTicketCategories.find((cat: any) => 
@@ -1196,14 +1279,33 @@ const TicketsManagement: React.FC = () => {
         }
       }
 
-      // Create ticket
-      createTicketMutation.mutate({
-        event_id: selectedEventId,
-        customer_id: customer.id.toString(),
-        category: categoryName,
-        price: paidOutsideSystem ? 0 : assignPrice,
-        paid_outside_system: paidOutsideSystem,
-      });
+      // If customer exists, assign directly to them
+      // If customer doesn't exist, create assigned ticket (backend will handle notification)
+      if (customer) {
+        createTicketMutation.mutate({
+          event_id: selectedEventId,
+          customer_id: customer.id.toString(),
+          category: categoryName,
+          price: paidOutsideSystem ? 0 : assignPrice,
+          paid_outside_system: paidOutsideSystem,
+          assigned_mobile: fullPhoneNumber,
+          assigned_email: assignEmail || undefined,
+        });
+      } else {
+        // Customer doesn't exist - create assigned ticket
+        // We need to use a system/admin customer or create a placeholder
+        // For now, we'll create the ticket with assigned_mobile and assigned_email
+        // The backend should handle this case
+        createTicketMutation.mutate({
+          event_id: selectedEventId,
+          customer_id: null, // Will be handled by backend
+          category: categoryName,
+          price: paidOutsideSystem ? 0 : assignPrice,
+          paid_outside_system: paidOutsideSystem,
+          assigned_mobile: fullPhoneNumber,
+          assigned_email: assignEmail || undefined,
+        });
+      }
     } catch (error: any) {
       toast({
         title: t("common.error"),
@@ -1535,11 +1637,18 @@ const TicketsManagement: React.FC = () => {
                 <SelectItem value="all">
                   {t("admin.tickets.filters.allCategories")}
                 </SelectItem>
-                {uniqueCategories.map((category: string) => (
-                  <SelectItem key={category} value={category}>
-                    {t(`admin.tickets.categories.${category?.toLowerCase().replace(/\s+/g, '') || 'regular'}`) || category}
-                  </SelectItem>
-                ))}
+                {uniqueCategories.map((category: string) => {
+                  const categoryKey = category?.toLowerCase().replace(/\s+/g, '') || 'regular';
+                  const translationKey = `admin.tickets.categories.${categoryKey}`;
+                  const translated = t(translationKey);
+                  // If translation returns the key itself, use the original category name
+                  const displayName = translated !== translationKey ? translated : category;
+                  return (
+                    <SelectItem key={category} value={category}>
+                      {displayName}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
 
@@ -1706,7 +1815,13 @@ const TicketsManagement: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">
-                        {t(`admin.tickets.categories.${ticket.category?.toLowerCase().replace(/\s+/g, '') || 'regular'}`) || ticket.category}
+                        {(() => {
+                          const categoryKey = ticket.category?.toLowerCase().replace(/\s+/g, '') || 'regular';
+                          const translationKey = `admin.tickets.categories.${categoryKey}`;
+                          const translated = t(translationKey);
+                          // If translation returns the key itself, use the original category name
+                          return translated !== translationKey ? translated : ticket.category;
+                        })()}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -2085,7 +2200,15 @@ const TicketsManagement: React.FC = () => {
                   <p className="text-sm font-medium text-muted-foreground">
                     {t("admin.tickets.form.category")}
                   </p>
-                  <p>{t(`admin.tickets.categories.${selectedTicket.category?.toLowerCase().replace(/\s+/g, '') || 'regular'}`) || selectedTicket.category}</p>
+                  <p>
+                    {(() => {
+                      const categoryKey = selectedTicket.category?.toLowerCase().replace(/\s+/g, '') || 'regular';
+                      const translationKey = `admin.tickets.categories.${categoryKey}`;
+                      const translated = t(translationKey);
+                      // If translation returns the key itself, use the original category name
+                      return translated !== translationKey ? translated : selectedTicket.category;
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
@@ -2205,13 +2328,28 @@ const TicketsManagement: React.FC = () => {
                                   const eventDetails = await eventsApi.getEvent(event.id);
                                   setSelectedEventDetails(eventDetails);
                                   
-                                  // Get ticket categories if available
-                                  const categories = eventDetails.ticket_categories || eventDetails.ticketCategories || [];
-                                  setEventTicketCategories(categories);
+                                  // Get ticket categories if available - check multiple possible field names
+                                  const categories = eventDetails.ticket_categories_read || 
+                                                    eventDetails.ticket_categories || 
+                                                    eventDetails.ticketCategories || 
+                                                    [];
+                                  
+                                  // Map categories to ensure they have the right structure
+                                  const mappedCategories = categories.map((cat: any) => ({
+                                    id: cat.id?.toString() || cat.id,
+                                    name: cat.name || "",
+                                    price: parseFloat(cat.price) || 0,
+                                    totalTickets: cat.total_tickets || 0,
+                                    soldTickets: cat.sold_tickets || 0,
+                                    description: cat.description || "",
+                                    color: cat.color || "#10B981",
+                                  }));
+                                  
+                                  setEventTicketCategories(mappedCategories);
                                   
                                   // If event has categories, don't auto-fill price (wait for category selection)
                                   // If no categories, auto-fill with starting price
-                                  if (categories.length === 0) {
+                                  if (mappedCategories.length === 0) {
                                     if (eventDetails.starting_price) {
                                       setAssignPrice(parseFloat(eventDetails.starting_price) || 0);
                                     } else if (eventDetails.price) {
@@ -2247,76 +2385,84 @@ const TicketsManagement: React.FC = () => {
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.tickets.form.category")} {eventTicketCategories.length > 0 ? "*" : ""}
+                  {t("admin.tickets.form.category")} *
                 </label>
-                <Select
-                  value={selectedCategory || undefined}
-                  onValueChange={(value) => {
-                    setSelectedCategory(value);
-                    // If ticket categories exist, find the selected category and auto-fill its price
-                    if (eventTicketCategories.length > 0) {
-                      const category = eventTicketCategories.find((cat: any) => 
-                        cat.id?.toString() === value || cat.name === value
-                      );
-                      if (category && category.price) {
-                        setAssignPrice(parseFloat(category.price) || 0);
-                      }
-                    }
-                  }}
-                  disabled={!selectedEventId || (eventTicketCategories.length === 0 && selectedEventId)}
-                >
-                  <SelectTrigger className={eventTicketCategories.length === 0 && selectedEventId ? "opacity-60" : ""}>
-                    <SelectValue
-                      placeholder={selectedEventId 
-                        ? (eventTicketCategories.length > 0 
-                            ? t("admin.tickets.form.selectCategory") 
-                            : t("admin.tickets.form.selectCategoryOptional"))
-                        : t("admin.tickets.form.selectEventFirst")}
-                    />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {eventTicketCategories.length > 0 ? (
-                      eventTicketCategories.map((category: any) => {
-                        const categoryValue = category.id?.toString() || category.name || `category-${category.id || Math.random()}`;
-                        return (
-                          <SelectItem 
-                            key={category.id || category.name || categoryValue} 
-                            value={categoryValue}
-                          >
-                            {category.name} - {formatCurrencyForLocale(parseFloat(category.price) || 0, i18n.language)}
-                          </SelectItem>
+                {selectedEventId ? (
+                  eventTicketCategories.length > 0 ? (
+                    <Select
+                      value={selectedCategory || undefined}
+                      onValueChange={(value) => {
+                        setSelectedCategory(value);
+                        // If ticket categories exist, find the selected category and auto-fill its price
+                        const category = eventTicketCategories.find((cat: any) => 
+                          cat.id?.toString() === value || cat.name === value
                         );
-                      })
-                    ) : selectedEventId ? (
-                      <SelectItem value="none" disabled>
-                        {t("admin.tickets.form.noCategoriesAvailable")}
-                      </SelectItem>
-                    ) : (
-                      <SelectItem value="none" disabled>
-                        {t("admin.tickets.form.selectEventFirst")}
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-                {eventTicketCategories.length > 0 && (
+                        if (category && category.price) {
+                          setAssignPrice(parseFloat(category.price) || 0);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={t("admin.tickets.form.selectCategory")}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {eventTicketCategories.map((category: any) => {
+                          const categoryValue = category.id?.toString() || category.name || `category-${category.id || Math.random()}`;
+                          return (
+                            <SelectItem 
+                              key={category.id || category.name || categoryValue} 
+                              value={categoryValue}
+                            >
+                              {category.name} - {formatCurrencyForLocale(parseFloat(category.price) || 0, i18n.language)}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                      placeholder={t("admin.tickets.form.enterCategory") || "Enter category name"}
+                    />
+                  )
+                ) : (
+                  <Input
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    placeholder={t("admin.tickets.form.selectEventFirst")}
+                    disabled={true}
+                  />
+                )}
+                {eventTicketCategories.length > 0 && selectedEventId && (
                   <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
                     {t("admin.tickets.form.selectCategoryToAutoFill")}
                   </p>
                 )}
                 {eventTicketCategories.length === 0 && selectedEventId && (
                   <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
-                    {t("admin.tickets.form.categoryNotAvailable")}
+                    {t("admin.tickets.form.enterCategoryManually")}
+                  </p>
+                )}
+                {!selectedEventId && (
+                  <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                    {t("admin.tickets.form.selectEventFirst")}
                   </p>
                 )}
               </div>
               <div className="col-span-2">
                 <label className="text-sm font-medium rtl:text-right">
-                  {t("admin.tickets.form.phoneNumber")}
+                  {t("admin.tickets.form.phoneNumber")} *
                 </label>
                 <div className="flex gap-2">
                   <Select
                     value={assignPhoneDialCode}
-                    onValueChange={setAssignPhoneDialCode}
+                    onValueChange={(code) => {
+                      setIsDialCodeManuallyChanged(true);
+                      setAssignPhoneDialCode(code);
+                    }}
                   >
                     <SelectTrigger className="w-[180px]">
                       <SelectValue />
@@ -2334,13 +2480,60 @@ const TicketsManagement: React.FC = () => {
                     placeholder={t("admin.tickets.form.phonePlaceholder")}
                     value={assignPhoneNumber}
                     onChange={(e) => {
-                      const value = e.target.value.replace(/[^0-9]/g, '');
-                      setAssignPhoneNumber(value);
+                      const inputValue = e.target.value;
+                      
+                      // Check if input contains a country code (starts with +, 00, or has many digits)
+                      const sanitized = sanitizeNumber(inputValue);
+                      const mightContainDialCode = inputValue.startsWith("+") || inputValue.startsWith("00") || sanitized.length > 12;
+                      
+                      if (mightContainDialCode && !isDialCodeManuallyChanged) {
+                        // Try to detect dial code from the input
+                        const { dialCode: detectedDialCode, remainingNumber } = findDialCode(inputValue);
+                        
+                        if (detectedDialCode) {
+                          // Found a dial code, update both dial code and local number
+                          // Normalize the remaining number (remove leading 0 for Egyptian numbers)
+                          let normalizedRemaining = remainingNumber;
+                          if (detectedDialCode.dial_code === "+20" && normalizedRemaining.startsWith("0") && normalizedRemaining.length === 11) {
+                            normalizedRemaining = normalizedRemaining.substring(1);
+                          }
+                          
+                          setAssignPhoneDialCode(detectedDialCode.dial_code);
+                          setIsDialCodeManuallyChanged(false); // Reset flag since we auto-detected
+                          setAssignPhoneNumber(normalizedRemaining);
+                          return;
+                        }
+                      }
+                      
+                      // No dial code detected or manual dial code selected, use current dial code
+                      // Allow formatted input (spaces, dashes) but sanitize for storage
+                      const sanitizedLocal = sanitizeNumber(inputValue);
+                      setAssignPhoneNumber(sanitizedLocal);
                     }}
                     dir="ltr"
                     className="flex-1"
                   />
                 </div>
+                <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                  {t("admin.tickets.form.phoneNumberDescription") || "Ticket will be assigned to the user with this phone number"}
+                </p>
+              </div>
+              <div className="col-span-2">
+                <label className="text-sm font-medium rtl:text-right">
+                  {t("admin.tickets.form.email")} {assignPhoneDialCode !== "+20" ? "*" : ""}
+                </label>
+                <Input
+                  type="email"
+                  placeholder={t("admin.tickets.form.emailPlaceholder") || "email@example.com"}
+                  value={assignEmail}
+                  onChange={(e) => setAssignEmail(e.target.value)}
+                  dir="ltr"
+                />
+                <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                  {assignPhoneDialCode !== "+20" 
+                    ? (t("admin.tickets.form.emailRequiredForNonEgyptian") || "Required for non-Egyptian numbers (notifications via email)")
+                    : (t("admin.tickets.form.emailOptional") || "Optional - used for email notifications if phone number is not Egyptian")}
+                </p>
               </div>
               <div>
                 <label className="text-sm font-medium rtl:text-right flex items-center gap-2">
@@ -2396,11 +2589,13 @@ const TicketsManagement: React.FC = () => {
                 setSelectedCategory("");
                 setAssignPhoneNumber("");
                 setAssignPhoneDialCode(DEFAULT_DIAL_CODE);
+                setAssignEmail("");
                 setAssignPrice(0);
                 setPaidOutsideSystem(false);
                 setEventSearchValue("");
                 setSelectedEventDetails(null);
                 setEventTicketCategories([]);
+                setIsDialCodeManuallyChanged(false);
               }}
             >
               {t("admin.tickets.dialogs.cancel")}

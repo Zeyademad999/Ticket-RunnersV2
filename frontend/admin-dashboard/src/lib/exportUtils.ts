@@ -538,6 +538,7 @@ export const formatCurrency = (
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency: "EGP",
+    currencyDisplay: "code",
   }).format(value);
 };
 

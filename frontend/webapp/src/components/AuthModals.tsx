@@ -21,6 +21,7 @@ import { isBefore, parseISO } from "date-fns";
 
 import ReCAPTCHA from "react-google-recaptcha";
 import { OtpInput } from "@/components/ui/input-otp";
+import { OtpMessagePopup } from "./OtpMessagePopup";
 
 interface AuthModalsProps {
   onLoginSuccess?: () => void;
@@ -72,6 +73,9 @@ export const AuthModals: React.FC<AuthModalsProps> = ({ onLoginSuccess }) => {
   const [loginOtpError, setLoginOtpError] = useState("");
 const [loginOtpCooldown, setLoginOtpCooldown] = useState(0);
 const [isResendingLoginOtp, setIsResendingLoginOtp] = useState(false);
+  const [showOtpPopup, setShowOtpPopup] = useState(false);
+  const [otpPopupMessage, setOtpPopupMessage] = useState("");
+  const [otpPopupType, setOtpPopupType] = useState<"error" | "success">("error");
 
   // Add state for captcha
   const [captchaToken, setCaptchaToken] = useState("");
@@ -370,15 +374,30 @@ useEffect(() => {
 
   const verifyForgotPasswordOtp = async () => {
     if (!forgotPasswordOtp || forgotPasswordOtp.length !== 6) {
-      setForgotPasswordOtpError(t("auth.errors.otp_invalid"));
+      const errorMsg = t("auth.errors.otp_invalid", "Please enter a valid 6-digit OTP code.");
+      setForgotPasswordOtpError(errorMsg);
+      setOtpPopupMessage(errorMsg);
+      setOtpPopupType("error");
+      setShowOtpPopup(true);
       return;
     }
 
-    // Don't verify OTP here - just mark as ready to proceed
-    // OTP will be verified when resetting the password
-    setForgotPasswordOtpVerified(true);
-    setForgotPasswordOtpError("");
-    setShowForgotPasswordOtpModal(false);
+    try {
+      // Verify OTP first
+      await verifyPasswordResetOtp(forgotPasswordPhone, forgotPasswordOtp);
+      setForgotPasswordOtpVerified(true);
+      setForgotPasswordOtpError("");
+      setShowForgotPasswordOtpModal(false);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          t("auth.errors.otp_invalid", "Invalid OTP code. Please try again.");
+      setForgotPasswordOtpError(errorMessage);
+      setOtpPopupMessage(errorMessage);
+      setOtpPopupType("error");
+      setShowOtpPopup(true);
+    }
   };
 
   const handleForgotPasswordSubmit = async () => {
@@ -433,9 +452,22 @@ useEffect(() => {
       setNewPassword("");
       setConfirmNewPassword("");
       setForgotPasswordErrors({});
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to reset password:", error);
-      // Error is already handled in AuthContext
+      // Check if it's an OTP error
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          error.message;
+      if (errorMessage && (
+        errorMessage.toLowerCase().includes("otp") || 
+        errorMessage.toLowerCase().includes("code") ||
+        error.response?.status === 400
+      )) {
+        setOtpPopupMessage(errorMessage);
+        setOtpPopupType("error");
+        setShowOtpPopup(true);
+      }
+      // Other errors are handled in AuthContext
     }
   };
 
@@ -697,7 +729,15 @@ useEffect(() => {
                     onLoginSuccess?.();
                   }
                 } catch (error: any) {
-                  setLoginOtpError(error.message || t("auth.otpLoginErrorMessage", "Failed to verify OTP"));
+                  const errorMessage = error.response?.data?.error?.message || 
+                                     error.response?.data?.message || 
+                                     error.message || 
+                                     t("auth.otpLoginErrorMessage", "Failed to verify OTP");
+                  setLoginOtpError(errorMessage);
+                  // Show popup for OTP errors
+                  setOtpPopupMessage(errorMessage);
+                  setOtpPopupType("error");
+                  setShowOtpPopup(true);
                 }
               }}
             >
@@ -910,6 +950,14 @@ useEffect(() => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* OTP Message Popup */}
+      <OtpMessagePopup
+        isOpen={showOtpPopup}
+        onClose={() => setShowOtpPopup(false)}
+        type={otpPopupType}
+        message={otpPopupMessage}
+      />
     </>
   );
 };

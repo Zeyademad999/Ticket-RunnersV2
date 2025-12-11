@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -71,6 +72,9 @@ interface Expense {
   date: string;
   createdAt: string;
   createdBy?: string;
+  deduct_from_wallet?: boolean;
+  wallet_type?: "company" | "owner" | null;
+  wallet_id?: string | null;
 }
 
 // Backend category choices
@@ -120,6 +124,9 @@ const ExpensesManagement: React.FC = () => {
     amount: "",
     category: "",
     date: "",
+    deduct_from_wallet: false,
+    wallet_type: "" as "company" | "owner" | "",
+    wallet_id: "",
   });
 
   // Selected items for editing
@@ -152,6 +159,12 @@ const ExpensesManagement: React.FC = () => {
       
       return await financesApi.getExpenses(params);
     },
+  });
+
+  // Fetch owners for wallet selection
+  const { data: ownersData } = useQuery({
+    queryKey: ["owners"],
+    queryFn: () => financesApi.getOwners(),
   });
 
   // Transform API expenses to match Expense interface
@@ -240,7 +253,7 @@ const ExpensesManagement: React.FC = () => {
   const totalCategories = categories.filter(cat => cat.totalPayments > 0).length;
 
   // Handle expense form changes
-  const handleExpenseFormChange = (field: string, value: string) => {
+  const handleExpenseFormChange = (field: string, value: string | boolean) => {
     setExpenseForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -249,7 +262,15 @@ const ExpensesManagement: React.FC = () => {
     mutationFn: financesApi.createExpense,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      setExpenseForm({ description: "", amount: "", category: "", date: "" });
+      setExpenseForm({
+        description: "",
+        amount: "",
+        category: "",
+        date: "",
+        deduct_from_wallet: false,
+        wallet_type: "",
+        wallet_id: "",
+      });
       setShowAddExpense(false);
       toast({
         title: t("expenses.toast.expenseAdded"),
@@ -323,11 +344,34 @@ const ExpensesManagement: React.FC = () => {
       return;
     }
 
+    // Validate wallet fields if deduct_from_wallet is enabled
+    if (expenseForm.deduct_from_wallet) {
+      if (!expenseForm.wallet_type) {
+        toast({
+          title: t("expenses.toast.error"),
+          description: "Please select a wallet type",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (expenseForm.wallet_type === "owner" && !expenseForm.wallet_id) {
+        toast({
+          title: t("expenses.toast.error"),
+          description: "Please select an owner wallet",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     createExpenseMutation.mutate({
       category: expenseForm.category,
       amount: parseFloat(expenseForm.amount),
       description: expenseForm.description,
       date: expenseForm.date,
+      deduct_from_wallet: expenseForm.deduct_from_wallet,
+      wallet_type: expenseForm.deduct_from_wallet ? expenseForm.wallet_type : null,
+      wallet_id: expenseForm.deduct_from_wallet && expenseForm.wallet_type === "owner" ? expenseForm.wallet_id : null,
     });
   };
 
@@ -335,11 +379,15 @@ const ExpensesManagement: React.FC = () => {
   // Edit expense
   const handleEditExpense = (expense: Expense) => {
     setSelectedExpense(expense);
+    const expenseData = expense as any; // Type assertion to access wallet fields
     setExpenseForm({
       description: expense.description,
       amount: expense.amount.toString(),
       category: expense.category,
       date: expense.date.split("T")[0],
+      deduct_from_wallet: expenseData.deduct_from_wallet || false,
+      wallet_type: expenseData.wallet_type || "",
+      wallet_id: expenseData.wallet_id || "",
     });
     setShowEditExpense(true);
   };
@@ -348,6 +396,26 @@ const ExpensesManagement: React.FC = () => {
   const handleSaveExpenseChanges = () => {
     if (!selectedExpense) return;
 
+    // Validate wallet fields if deduct_from_wallet is enabled
+    if (expenseForm.deduct_from_wallet) {
+      if (!expenseForm.wallet_type) {
+        toast({
+          title: t("expenses.toast.error"),
+          description: "Please select a wallet type",
+          variant: "destructive",
+        });
+        return;
+      }
+      if (expenseForm.wallet_type === "owner" && !expenseForm.wallet_id) {
+        toast({
+          title: t("expenses.toast.error"),
+          description: "Please select an owner wallet",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     updateExpenseMutation.mutate({
       id: selectedExpense.id,
       data: {
@@ -355,6 +423,9 @@ const ExpensesManagement: React.FC = () => {
         amount: parseFloat(expenseForm.amount),
         description: expenseForm.description,
         date: expenseForm.date,
+        deduct_from_wallet: expenseForm.deduct_from_wallet,
+        wallet_type: expenseForm.deduct_from_wallet ? expenseForm.wallet_type : null,
+        wallet_id: expenseForm.deduct_from_wallet && expenseForm.wallet_type === "owner" ? expenseForm.wallet_id : null,
       },
     });
   };
@@ -673,6 +744,77 @@ const ExpensesManagement: React.FC = () => {
                         }
                         className="rtl:text-right"
                       />
+                    </div>
+                    
+                    {/* Wallet Deduction Section */}
+                    <div className="space-y-4 pt-4 border-t">
+                      <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                        <Checkbox
+                          id="deduct_from_wallet"
+                          checked={expenseForm.deduct_from_wallet}
+                          onCheckedChange={(checked) =>
+                            handleExpenseFormChange("deduct_from_wallet", checked as boolean)
+                          }
+                        />
+                        <Label
+                          htmlFor="deduct_from_wallet"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 rtl:text-right"
+                        >
+                          Deduct from wallet
+                        </Label>
+                      </div>
+                      
+                      {expenseForm.deduct_from_wallet && (
+                        <div className="space-y-3 pl-6 rtl:pl-0 rtl:pr-6">
+                          <div className="space-y-2">
+                            <Label htmlFor="wallet_type" className="rtl:text-right">
+                              Wallet Type
+                            </Label>
+                            <Select
+                              value={expenseForm.wallet_type}
+                              onValueChange={(value) => {
+                                handleExpenseFormChange("wallet_type", value);
+                                if (value !== "owner") {
+                                  handleExpenseFormChange("wallet_id", "");
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="rtl:text-right">
+                                <SelectValue placeholder="Select wallet type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="company">Ticket Runners Wallet</SelectItem>
+                                <SelectItem value="owner">Owner Wallet</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          {expenseForm.wallet_type === "owner" && (
+                            <div className="space-y-2">
+                              <Label htmlFor="wallet_id" className="rtl:text-right">
+                                Select Owner
+                              </Label>
+                              <Select
+                                value={expenseForm.wallet_id}
+                                onValueChange={(value) =>
+                                  handleExpenseFormChange("wallet_id", value)
+                                }
+                              >
+                                <SelectTrigger className="rtl:text-right">
+                                  <SelectValue placeholder="Select owner" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ownersData?.filter((owner: any) => owner.wallet?.id).map((owner: any) => (
+                                    <SelectItem key={owner.id} value={owner.wallet.id}>
+                                      {owner.name} ({owner.wallet?.balance ? formatCurrencyForLocale(owner.wallet.balance, i18nInstance.language) : "0.00"})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 rtl:flex-row-reverse">
@@ -1087,6 +1229,77 @@ const ExpensesManagement: React.FC = () => {
                 }
                 className="rtl:text-right"
               />
+            </div>
+            
+            {/* Wallet Deduction Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                <Checkbox
+                  id="edit_deduct_from_wallet"
+                  checked={expenseForm.deduct_from_wallet}
+                  onCheckedChange={(checked) =>
+                    handleExpenseFormChange("deduct_from_wallet", checked as boolean)
+                  }
+                />
+                <Label
+                  htmlFor="edit_deduct_from_wallet"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 rtl:text-right"
+                >
+                  Deduct from wallet
+                </Label>
+              </div>
+              
+              {expenseForm.deduct_from_wallet && (
+                <div className="space-y-3 pl-6 rtl:pl-0 rtl:pr-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit_wallet_type" className="rtl:text-right">
+                      Wallet Type
+                    </Label>
+                    <Select
+                      value={expenseForm.wallet_type}
+                      onValueChange={(value) => {
+                        handleExpenseFormChange("wallet_type", value);
+                        if (value !== "owner") {
+                          handleExpenseFormChange("wallet_id", "");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="rtl:text-right">
+                        <SelectValue placeholder="Select wallet type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="company">Ticket Runners Wallet</SelectItem>
+                        <SelectItem value="owner">Owner Wallet</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  {expenseForm.wallet_type === "owner" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_wallet_id" className="rtl:text-right">
+                        Select Owner
+                      </Label>
+                      <Select
+                        value={expenseForm.wallet_id}
+                        onValueChange={(value) =>
+                          handleExpenseFormChange("wallet_id", value)
+                        }
+                      >
+                        <SelectTrigger className="rtl:text-right">
+                          <SelectValue placeholder="Select owner" />
+                        </SelectTrigger>
+                                <SelectContent>
+                                  {ownersData?.filter((owner: any) => owner.wallet?.id).map((owner: any) => (
+                                    <SelectItem key={owner.id} value={owner.wallet.id}>
+                                      {owner.name} ({owner.wallet?.balance ? formatCurrencyForLocale(owner.wallet.balance, i18nInstance.language) : "0.00"})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2 rtl:flex-row-reverse">

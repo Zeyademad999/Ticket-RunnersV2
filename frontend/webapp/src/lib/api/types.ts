@@ -111,6 +111,9 @@ export interface EventData {
   childEligibilityMinAge?: number | null;
   childEligibilityMaxAge?: number | null;
   isUnseated?: boolean;
+  ticketLimit?: number;
+  isTicketLimitUnlimited?: boolean;
+  marketplace_max_price?: number | null; // Maximum allowed price for marketplace listings
   // Additional fields for comprehensive event details
   gallery?: EventImage[];
   venue?: VenueDetails;

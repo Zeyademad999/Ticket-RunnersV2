@@ -137,7 +137,7 @@ export const ProfileCompletionModal: React.FC<Props> = ({ open, onClose }) => {
                     <img
                       src={imagePreview}
                       alt="Profile preview"
-                      className="w-32 h-32 object-cover rounded-lg border-2 border-gray-200"
+                      className="w-32 h-32 object-contain rounded-lg border-2 border-gray-200"
                     />
                   </div>
                 </div>

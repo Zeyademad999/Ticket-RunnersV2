@@ -3,6 +3,60 @@
     background-color: #F5F7FA;
 }
 
+/* Card Expiration Warning Bar */
+.card-expiration-bar {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    width: 100%;
+    padding: 12px 20px;
+    text-align: center;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    animation: slideDown 0.3s ease-out;
+}
+
+.card-expiration-bar.expired {
+    background-color: #E53935;
+    color: #fff;
+}
+
+.card-expiration-bar.expiring-soon {
+    background-color: #FF9800;
+    color: #fff;
+}
+
+.expiration-bar-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.expiration-icon {
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.expiration-message {
+    flex: 1;
+    text-align: center;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
 .header {
     background-color: #222;
     padding: 20px;
@@ -240,7 +294,7 @@
     max-width: 600px;
     height: 600px;
     border-radius: 0;
-    object-fit: cover;
+    object-fit: contain;
     border: 3px solid hsl(81.8, 38.5%, 28%);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }

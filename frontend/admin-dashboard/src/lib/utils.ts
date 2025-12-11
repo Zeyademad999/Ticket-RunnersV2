@@ -80,6 +80,7 @@ export function formatCurrencyForLocale(
     return new Intl.NumberFormat("ar-EG", {
       style: "currency",
       currency: "EGP",
+      currencyDisplay: "code",
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     }).format(amount);
@@ -87,6 +88,7 @@ export function formatCurrencyForLocale(
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "EGP",
+    currencyDisplay: "code",
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);

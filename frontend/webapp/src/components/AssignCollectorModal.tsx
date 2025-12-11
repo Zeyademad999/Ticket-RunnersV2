@@ -244,7 +244,7 @@ export const AssignCollectorModal = ({
                   <ImageWithFallback
                     src={existingCollector.profile_image}
                     alt={existingCollector.name}
-                    className="w-16 h-16 rounded-full object-cover"
+                    className="w-16 h-16 rounded-full object-contain"
                     fallbackSrc="/public/Portrait_Placeholder.png"
                   />
                 ) : (

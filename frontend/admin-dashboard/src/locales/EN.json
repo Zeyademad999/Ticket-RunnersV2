@@ -293,9 +293,36 @@
         "paid": "Paid",
         "pending": "Pending",
         "failed": "Failed"
-      }
-    },
-    "nfc": {
+        }
+      },
+      "marketplace": {
+        "validations": {
+          "title": "Marketplace Validations",
+          "description": "Configure maximum allowed price for marketplace ticket listings",
+          "globalSettings": "Global Marketplace Settings",
+          "globalDescription": "Configure default maximum allowed price for all marketplace ticket listings",
+          "perEventSettings": "Per-Event Marketplace Settings",
+          "perEventDescription": "Configure maximum allowed price for specific events. Leave empty to use global default.",
+          "priceValidation": "Price Validation",
+          "eventPriceValidation": "Event-Specific Price Validation",
+          "maxAllowedPrice": "Maximum Allowed Price (EGP)",
+          "maxAllowedPriceDescription": "Sellers cannot list tickets at a price higher than this amount. This is used as default for events without a specific limit.",
+          "selectEvent": "Select Event",
+          "selectEventPlaceholder": "Choose an event...",
+          "noEvents": "No events found",
+          "eventMaxPrice": "Event Max Price (EGP)",
+          "useGlobalDefault": "Leave empty to use global default",
+          "eventMaxPriceDescription": "Maximum price sellers can set for this event. If empty, the global default will be used.",
+          "currentEventPrice": "Current price for this event",
+          "usingGlobalDefault": "Using global default",
+          "saveEventPrice": "Save Event Price",
+          "eventPriceSaved": "Event marketplace price saved successfully",
+          "lastUpdated": "Last updated",
+          "by": "by",
+          "saved": "Marketplace validation settings saved successfully"
+        }
+      },
+      "nfc": {
       "title": "My NFC Card",
       "description": "Manage your NFC card for seamless event entry",
       "cardStatus": "Card Status",
@@ -3312,6 +3339,9 @@
         "addUsherSubtitle": "Add a new usher to the system",
         "deleteUsher": "Delete Usher",
         "deleteUsherConfirm": "Are you sure you want to delete this usher? This action cannot be undone.",
+        "teamLeaderWarning": "⚠️ This usher is a team leader. You must select a replacement before deleting.",
+        "selectReplacement": "Select replacement usher...",
+        "noReplacementAvailable": "No other ushers available as replacement.",
         "assignEvents": "Assign Events",
         "assignEventsSubtitle": "Assign or remove events for this usher",
         "usherDetails": "Usher Details",
@@ -3435,6 +3465,7 @@
         "venues": "Venues",
         "tickets": "Tickets",
         "nfc": "NFC Cards",
+        "marketplaceValidations": "Marketplace Validations",
         "customers": "Customers",
         "homePageSections": "Home Page Sections",
         "organizers": "Organizers",
@@ -3817,6 +3848,9 @@
         "enterEventDescription": "Enter event description",
         "startingPrice": "Starting Ticket Price (E£)",
         "startingPricePlaceholder": "0.00",
+        "marketplaceMaxPrice": "Marketplace Max Price (EGP)",
+        "marketplaceMaxPricePlaceholder": "Leave empty to use global default",
+        "marketplaceMaxPriceDescription": "Maximum price sellers can set when listing tickets for this event. Leave empty to use the global default.",
         "mainEventImage": "Main Event Image",
         "mainEventImageDescription": "This image will be displayed as the main event image on the web app",
         "venueLayoutImage": "Venue Layout Image",
@@ -4158,7 +4192,19 @@
         "phonePlaceholder": "+966501234567",
         "priceAutoFilled": "Price auto-filled from selected category",
         "paidOutsideSystem": "Paid Outside System",
-        "priceDisabledOutsideSystem": "Price disabled - paid outside system"
+        "priceDisabledOutsideSystem": "Price disabled - paid outside system",
+        "email": "Email",
+        "emailPlaceholder": "email@example.com",
+        "emailRequiredForNonEgyptian": "Required for non-Egyptian numbers (notifications via email)",
+        "emailOptional": "Optional - used for email notifications if phone number is not Egyptian",
+        "phoneNumberDescription": "Ticket will be assigned to the user with this phone number",
+        "enterCategory": "Enter category name",
+        "enterCategoryManually": "Enter category name manually",
+        "selectCategoryToAutoFill": "Select a category to auto-fill the price",
+        "selectCategoryOptional": "Select category (optional)",
+        "noCategoriesAvailable": "This event has no ticket categories. Category field is optional.",
+        "categoryNotAvailable": "This event has no ticket categories. Category field is optional.",
+        "priceFromEvent": "Price from event starting price"
       },
       "events": {
         "title": "Events",
@@ -4395,6 +4441,7 @@
         "ticketUpdatedDesc": "Ticket has been successfully updated",
         "requiredFields": "All fields are required",
         "customerNotFound": "Customer not found with this phone number",
+        "emailRequiredForNonEgyptian": "Email is required for non-Egyptian phone numbers",
         "error": "An error occurred",
         "eventDetailsError": "Failed to load event details",
         "confirmDelete": "Are you sure you want to delete this ticket?"
@@ -4512,6 +4559,13 @@
           "transferCard": "Transfer Card",
           "deactivateCard": "Deactivate",
           "reactivateCard": "Reactivate",
+          "markAsExpired": "Mark as Expired",
+          "markAsUnpaid": "Mark as Unpaid",
+          "markAsExpiredSuccess": "Card Marked as Expired",
+          "markAsExpiredSuccessDesc": "Card has been marked as expired. Customer will need to renew their card.",
+          "markAsUnpaidSuccess": "Card Marked as Unpaid",
+          "markAsUnpaidSuccessDesc": "Card has been marked as unpaid. Customer will need to pay again.",
+          "error": "Error",
           "deleteCard": "Delete Card"
         },
         "stats": {

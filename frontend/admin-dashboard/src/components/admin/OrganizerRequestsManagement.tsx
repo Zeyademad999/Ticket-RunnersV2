@@ -326,7 +326,7 @@ const OrganizerRequestsManagement: React.FC = () => {
                     <img
                       src={selectedRequest.profile_image_url}
                       alt="Profile"
-                      className="w-32 h-32 object-cover rounded-md border"
+                      className="w-32 h-32 object-contain rounded-md border"
                     />
                   </div>
                 </div>

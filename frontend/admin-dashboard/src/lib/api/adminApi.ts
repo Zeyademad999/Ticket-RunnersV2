@@ -341,10 +341,12 @@ export const ticketsApi = {
    */
   createTicket: async (data: {
     event_id: string;
-    customer_id: string;
+    customer_id: string | null;
     category: string;
     price: number;
     paid_outside_system?: boolean;
+    assigned_mobile?: string;
+    assigned_email?: string;
   }) => {
     const response = await adminApi.post('/tickets/', data);
     return response.data;
@@ -546,6 +548,20 @@ export const nfcCardsApi = {
     card_validity_days?: number;
   }) => {
     const response = await adminApi.put('/nfc-cards/settings/', data);
+    return response.data;
+  },
+  /**
+   * Mark card as expired
+   */
+  markAsExpired: async (id: string) => {
+    const response = await adminApi.post(`/nfc-cards/${id}/mark_as_expired/`);
+    return response.data;
+  },
+  /**
+   * Mark card as unpaid
+   */
+  markAsUnpaid: async (id: string) => {
+    const response = await adminApi.post(`/nfc-cards/${id}/mark_as_unpaid/`);
     return response.data;
   },
 };

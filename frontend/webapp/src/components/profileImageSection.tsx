@@ -28,7 +28,7 @@ const ProfileImageSection = () => {
           <img
             src={profileImage}
             alt="Profile"
-            className="w-20 h-20 rounded-full object-cover border"
+            className="w-20 h-20 rounded-full object-contain border"
           />
         ) : (
           <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">

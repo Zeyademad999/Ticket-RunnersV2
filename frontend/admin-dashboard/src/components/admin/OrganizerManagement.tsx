@@ -1742,7 +1742,7 @@ const OrganizersManagement: React.FC = () => {
                         "/public/Portrait_Placeholder.png"
                       }
                       alt={editingOrganizer.name}
-                      className="w-12 h-12 rounded-full object-cover"
+                      className="w-12 h-12 rounded-full object-contain"
                     />
                     <Input
                       value={editingOrganizer.profileImage}

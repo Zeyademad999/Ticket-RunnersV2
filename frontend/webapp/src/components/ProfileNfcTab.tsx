@@ -122,6 +122,24 @@ export const ProfileNfcTab = (props: any) => {
     }
   };
 
+  // Check if card is expired
+  const isCardExpired = () => {
+    if (!cardDetails?.nfc_card?.card_expiry_date) {
+      return false;
+    }
+    try {
+      const expiryDate = new Date(cardDetails.nfc_card.card_expiry_date);
+      if (isNaN(expiryDate.getTime())) {
+        return false;
+      }
+      return expiryDate < new Date();
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const cardIsExpired = isCardExpired();
+
   // Handle NFC card payment (buy or renew)
   const handleNfcCardPayment = async (type: 'buy' | 'renew') => {
     try {
@@ -345,17 +363,34 @@ export const ProfileNfcTab = (props: any) => {
                   </h3>
                   <Badge
                     variant={
-                      cardDetails.nfc_card.card_status === "active" ||
-                      cardDetails.nfc_card.card_status === "Active"
+                      cardIsExpired
+                        ? "destructive"
+                        : cardDetails.nfc_card.card_status === "active" ||
+                          cardDetails.nfc_card.card_status === "Active"
                         ? "default"
                         : "secondary"
                     }
                   >
-                    {t(
-                      `profilepage.nfc.status.${cardDetails.nfc_card.card_status?.toLowerCase() || "unknown"}`
-                    )}
+                    {cardIsExpired
+                      ? t("profilepage.nfc.status.expired", "Expired")
+                      : t(
+                          `profilepage.nfc.status.${cardDetails.nfc_card.card_status?.toLowerCase() || "unknown"}`
+                        )}
                   </Badge>
                 </div>
+                {cardIsExpired && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+                    <p className="text-destructive text-sm font-semibold mb-1">
+                      {t("profilepage.nfc.cardExpired", "⚠️ Card Expired")}
+                    </p>
+                    <p className="text-destructive/80 text-sm">
+                      {t(
+                        "profilepage.nfc.cardExpiredMessage",
+                        "Your NFC card has expired. Please pay renewal fees to get a valid card."
+                      )}
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">
@@ -499,7 +534,7 @@ export const ProfileNfcTab = (props: any) => {
                     : t("profilepage.nfc.deactivateCard")}
                 </Button>
                 {/* Buy New Card Button - shown when no card or card expired */}
-                {(!hasActiveNfcCard || isExpired) && (
+                {(!hasActiveNfcCard || isExpired || cardIsExpired) && (
                   <Button
                     variant="gradient"
                     className="w-full sm:w-auto"
@@ -522,10 +557,34 @@ export const ProfileNfcTab = (props: any) => {
                     )}
                   </Button>
                 )}
+                {/* Renew Card Button - shown when card is expired */}
+                {cardIsExpired && hasActiveNfcCard && (
+                  <Button
+                    variant="gradient"
+                    className="w-full sm:w-auto"
+                    onClick={async () => {
+                      setPaymentType('renew');
+                      await handleNfcCardPayment('renew');
+                    }}
+                    disabled={loadingPaymentStatus}
+                  >
+                    {loadingPaymentStatus ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        {t("common.loading", "Loading")}
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        {t("profilepage.nfc.renewCard", "Renew Card")}
+                      </>
+                    )}
+                  </Button>
+                )}
                 <div className="space-y-2 z-30">
                   <div className="flex flex-col sm:flex-row gap-2">
-                    {/* Renew Card Button - shown when user has an active card */}
-                    {hasActiveNfcCard && cardDetails?.nfc_card && (
+                    {/* Renew Card Button - shown when user has an active card (not expired) */}
+                    {hasActiveNfcCard && cardDetails?.nfc_card && !cardIsExpired && (
                       <Button
                         variant="gradient"
                         className="w-full sm:w-auto"

@@ -50,6 +50,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { OtpMessagePopup } from "@/components/OtpMessagePopup";
 import i18n from "@/lib/i18n";
 import { COUNTRY_DIAL_CODES } from "@/constants/countryCodes";
 
@@ -74,6 +75,8 @@ const Booking = () => {
     useState<string>("credit_card");
   const [needsCardFee, setNeedsCardFee] = useState<boolean>(true); // Default to true (charge fee) until we check
   const [needsRenewalCost, setNeedsRenewalCost] = useState<boolean>(true); // Default to true (charge renewal) until we check
+  const [showValidationPopup, setShowValidationPopup] = useState(false);
+  const [validationPopupMessage, setValidationPopupMessage] = useState("");
 
   // Fetch event details when component mounts
   useEffect(() => {
@@ -142,6 +145,8 @@ const Booking = () => {
             null,
           isUnseated: apiEvent.isUnseated ?? apiEventRaw.is_unseated ?? false,
           ticketCategories: apiEvent.ticketCategories || [],
+          ticketLimit: apiEvent.ticketLimit ?? apiEventRaw.ticket_limit ?? undefined,
+          isTicketLimitUnlimited: apiEvent.isTicketLimitUnlimited ?? apiEventRaw.is_ticket_limit_unlimited ?? false,
         };
         // Debug log to verify child eligibility data
         console.log("Event data for booking:", {
@@ -174,6 +179,8 @@ const Booking = () => {
         childEligibilityMaxAge: null,
         isUnseated: false,
         ticketCategories: [],
+        ticketLimit: undefined,
+        isTicketLimitUnlimited: false,
       };
 
   // Map ticket categories from admin form - only show what was explicitly added
@@ -1140,6 +1147,27 @@ const Booking = () => {
     const isGuestAssigned = (ticket: (typeof tickets)[number]) =>
       Boolean(ticket.name?.trim()) && Boolean(ticket.mobile?.trim());
 
+    // Auto-assign to owner if only 1 ticket is being added (regardless of event ticket limit)
+    if (total === 1) {
+      if (updatedTickets[0]) {
+        updatedTickets[0] = {
+          ...updatedTickets[0],
+          isOwnerTicket: true,
+          name: user?.name || "",
+          mobile: user?.mobile_number || "",
+          email: user?.email || "",
+          mobileCountryCode: getUserCountryCode(),
+        };
+        // Clear phone error for this ticket since it's now the owner ticket
+        setPhoneErrors((prev) => {
+          const updated = { ...prev };
+          delete updated[0];
+          return updated;
+        });
+      }
+      return updatedTickets;
+    }
+
     if (total <= 1) {
       return updatedTickets;
     }
@@ -1206,13 +1234,10 @@ const Booking = () => {
 
     const currentOwner = tickets[currentOwnerIndex];
     if (currentOwner && currentOwner.ticketType === targetTicket.ticketType) {
-      toast({
-        title: t("booking.validationError", "Validation Error"),
-        description:
-          t("booking.ownerSameCategorySwitch") ||
-          "You already have a ticket in this category. Choose another category to switch your ticket.",
-        variant: "destructive",
-      });
+      const errorMessage = t("booking.ownerSameCategorySwitch") ||
+        "You already have a ticket in this category. Choose a different category if you want to switch which ticket is yours.";
+      setValidationPopupMessage(errorMessage);
+      setShowValidationPopup(true);
       return;
     }
 
@@ -1521,12 +1546,14 @@ const Booking = () => {
           updated[index].ticketType = ticketType;
         }
       });
-      return ensureOwnerTicket(
+      const result = ensureOwnerTicket(
         updated.slice(0, addOrder.length),
         addOrder.length
       );
+      // Ensure we return the full array (not just the slice)
+      return result.length === addOrder.length ? result : [...result, ...updated.slice(addOrder.length)];
     });
-  }, [addOrder]);
+  }, [addOrder, eventData.ticketLimit, eventData.isTicketLimitUnlimited, user]);
 
   const [hours, minutes] = eventData.time.split(":").map(Number);
   const timeDate = new Date();
@@ -2502,6 +2529,15 @@ const Booking = () => {
           </div>
         )}
       </main>
+
+      {/* Validation Error Popup */}
+      <OtpMessagePopup
+        isOpen={showValidationPopup}
+        onClose={() => setShowValidationPopup(false)}
+        type="error"
+        title={t("booking.validationError")}
+        message={validationPopupMessage}
+      />
     </div>
   );
 };

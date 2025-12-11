@@ -2314,7 +2314,7 @@ const AdminUserManagement: React.FC = () => {
                         "/public/Portrait_Placeholder.png"
                       }
                       alt={selectedUser.fullName}
-                      className="w-32 h-32 rounded-full object-cover mx-auto mb-4"
+                      className="w-32 h-32 rounded-full object-contain mx-auto mb-4"
                     />
                     <h3 className="text-xl font-bold rtl:text-right ltr:text-left">
                       {selectedUser.fullName}
@@ -2499,7 +2499,7 @@ const AdminUserManagement: React.FC = () => {
                         <img
                           src={profileImagePreview}
                           alt="Profile preview"
-                          className="w-16 h-16 rounded-full object-cover border"
+                          className="w-16 h-16 rounded-full object-contain border"
                         />
                         <Button
                           type="button"
@@ -2686,7 +2686,7 @@ const AdminUserManagement: React.FC = () => {
                         <img
                           src={profileImagePreview}
                           alt="Profile preview"
-                          className="w-16 h-16 rounded-full object-cover border"
+                          className="w-16 h-16 rounded-full object-contain border"
                         />
                         <Button
                           type="button"
@@ -3043,7 +3043,7 @@ const AdminUserManagement: React.FC = () => {
                     "/public/Portrait_Placeholder.png"
                   }
                   alt={selectedUser.fullName}
-                  className="w-12 h-12 rounded-full object-cover"
+                  className="w-12 h-12 rounded-full object-contain"
                 />
                 <div className="rtl:text-right ltr:text-left">
                   <h3 className="font-semibold">{selectedUser.fullName}</h3>
@@ -3189,7 +3189,7 @@ const AdminUserManagement: React.FC = () => {
                     "/public/Portrait_Placeholder.png"
                   }
                   alt={selectedUser.fullName}
-                  className="w-12 h-12 rounded-full object-cover"
+                  className="w-12 h-12 rounded-full object-contain"
                 />
                 <div className="rtl:text-right ltr:text-left">
                   <h3 className="font-semibold">{selectedUser.fullName}</h3>

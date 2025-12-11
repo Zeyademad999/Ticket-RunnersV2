@@ -133,7 +133,7 @@ export const ProfileCompletionModal: React.FC<Props> = ({ open, onClose }) => {
                     <img
                       src="/Portrait_Placeholder.png"
                       alt="Example profile photo"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       onError={(e) => {
                         // Fallback to a simple face placeholder if image fails to load
                         const target = e.target as HTMLImageElement;
@@ -180,7 +180,7 @@ export const ProfileCompletionModal: React.FC<Props> = ({ open, onClose }) => {
                     <img
                       src={imagePreview}
                       alt="Profile preview"
-                      className="w-32 h-32 object-cover rounded-lg border-2 border-green-500"
+                      className="w-32 h-32 object-contain rounded-lg border-2 border-green-500"
                     />
                   </div>
                 </div>

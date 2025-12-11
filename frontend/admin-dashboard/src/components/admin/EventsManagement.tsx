@@ -122,6 +122,7 @@ interface Event {
     value: number;
   };
   ticketTransferEnabled: boolean;
+  marketplaceMaxPrice?: string | number | null;
   childrenAllowed: boolean;
   childEligibilityEnabled: boolean;
   childEligibilityRuleType: "between" | "less_than" | "more_than" | "";
@@ -252,6 +253,7 @@ const EventsManagement: React.FC = () => {
     closedDoorsTime: "",
     termsAndConditions: "",
     startingPrice: "" as string,
+    marketplaceMaxPrice: "" as string | null,
     mainImageFile: null as File | null,
     venueLayoutImageFile: null as File | null,
     ticketTransferEnabled: false,
@@ -313,6 +315,7 @@ const EventsManagement: React.FC = () => {
     closedDoorsTime: "",
     termsAndConditions: "",
     startingPrice: "",
+    marketplaceMaxPrice: "" as string | null,
     mainImageFile: null as File | null,
     venueLayoutImageFile: null as File | null,
     ticketTransferEnabled: false,
@@ -1706,6 +1709,10 @@ const EventsManagement: React.FC = () => {
           eventDetails.starting_price?.toString() ||
           (event.startingPrice ? event.startingPrice.toString() : null) ||
           "",
+        marketplaceMaxPrice:
+          eventDetails.marketplace_max_price?.toString() ||
+          (event.marketplaceMaxPrice ? event.marketplaceMaxPrice.toString() : null) ||
+          null,
         mainImageFile: null,
         venueLayoutImageFile: null,
         ticketTransferEnabled:
@@ -2344,6 +2351,9 @@ const EventsManagement: React.FC = () => {
         editEventData.ticketTransferEnabled !== undefined
           ? editEventData.ticketTransferEnabled
           : true,
+      marketplace_max_price: editEventData.marketplaceMaxPrice
+        ? parseFloat(editEventData.marketplaceMaxPrice.toString())
+        : null,
     };
 
     // Add organizer IDs - convert string array to number array
@@ -2547,6 +2557,9 @@ const EventsManagement: React.FC = () => {
           } else {
             formData.append(key, updateData[key]);
           }
+        } else if (key === "marketplace_max_price" && updateData[key] === null) {
+          // Explicitly handle null marketplace_max_price to clear it
+          formData.append(key, "");
         }
       });
       // Add facility fields to FormData
@@ -3194,6 +3207,12 @@ const EventsManagement: React.FC = () => {
       "ticket_transfer_enabled",
       newEvent.ticketTransferEnabled.toString()
     );
+    if (newEvent.marketplaceMaxPrice) {
+      formData.append(
+        "marketplace_max_price",
+        parseFloat(newEvent.marketplaceMaxPrice.toString()).toString()
+      );
+    }
 
     // Starting price is now calculated automatically from ticket categories
     // No need to set it manually
@@ -4780,6 +4799,30 @@ const EventsManagement: React.FC = () => {
                   {t("admin.events.form.enableTicketTransfers")}
                 </span>
               </div>
+              <div>
+                <label className="text-sm font-medium rtl:text-right">
+                  {t("admin.events.form.marketplaceMaxPrice", "Marketplace Max Price (EGP)")}
+                  <span className="text-muted-foreground text-xs ml-1 rtl:mr-1">
+                    {t("admin.events.form.optional", "(optional)")}
+                  </span>
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editEventData.marketplaceMaxPrice || ""}
+                  onChange={(e) =>
+                    handleEditEventDataChange(
+                      "marketplaceMaxPrice",
+                      e.target.value || null
+                    )
+                  }
+                  placeholder={t("admin.events.form.marketplaceMaxPricePlaceholder", "Leave empty to use global default")}
+                />
+                <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                  {t("admin.events.form.marketplaceMaxPriceDescription", "Maximum price sellers can set when listing tickets for this event. Leave empty to use the global default.")}
+                </p>
+              </div>
               <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
                 <Switch
                   checked={editEventData.childrenAllowed}
@@ -6244,6 +6287,30 @@ const EventsManagement: React.FC = () => {
               <span className="text-sm">
                 {t("admin.events.form.enableTicketTransfers")}
               </span>
+            </div>
+            <div>
+              <label className="text-sm font-medium rtl:text-right">
+                {t("admin.events.form.marketplaceMaxPrice", "Marketplace Max Price (EGP)")}
+                <span className="text-muted-foreground text-xs ml-1 rtl:mr-1">
+                  {t("admin.events.form.optional", "(optional)")}
+                </span>
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={newEvent.marketplaceMaxPrice || ""}
+                onChange={(e) =>
+                  handleNewEventChange(
+                    "marketplaceMaxPrice",
+                    e.target.value || null
+                  )
+                }
+                placeholder={t("admin.events.form.marketplaceMaxPricePlaceholder", "Leave empty to use global default")}
+              />
+              <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
+                {t("admin.events.form.marketplaceMaxPriceDescription", "Maximum price sellers can set when listing tickets for this event. Leave empty to use the global default.")}
+              </p>
             </div>
             <div className="flex items-center space-x-2 rtl:flex-row-reverse rtl:space-x-reverse">
               <Switch

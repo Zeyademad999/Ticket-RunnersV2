@@ -36,6 +36,14 @@ const AssignCard: React.FC = () => {
   const [scannedSerial, setScannedSerial] = useState<string | null>(null);
   const [isScannedCardValid, setIsScannedCardValid] = useState<boolean | null>(null);
   const [cardValidationError, setCardValidationError] = useState<string | null>(null);
+  const [cardStatus, setCardStatus] = useState<{
+    has_active_card: boolean;
+    has_paid_for_new_card: boolean;
+    has_paid_for_renewal: boolean;
+    can_assign_card: boolean;
+    status: string;
+    message: string;
+  } | null>(null);
   const { t } = useTranslation();
   const { isRTL } = useLanguage();
   
@@ -94,7 +102,26 @@ const AssignCard: React.FC = () => {
       if (customerResponse.success && customerResponse.data) {
         setCustomer(customerResponse.data);
         
-        // Fees are paid in person to merchant, no check needed
+        // Check customer card payment status
+        const cardStatusResponse = await apiService.checkCustomerCardStatus(customerMobile);
+        if (cardStatusResponse.success && cardStatusResponse.data) {
+          const status = cardStatusResponse.data.card_status;
+          setCardStatus(status);
+          
+          if (!status.can_assign_card) {
+            // Show error message based on status
+            let errorMessage = status.message;
+            if (status.status === 'not_paid') {
+              errorMessage = "Customer has not paid for NFC card. Payment is required before card assignment.";
+            } else if (status.status === 'has_active_card') {
+              errorMessage = "Customer already has an active NFC card.";
+            }
+            toast.error(errorMessage, { duration: 8000 });
+            setIsVerifying(false);
+            return;
+          }
+        }
+        
         // Assign card (this sends OTP to customer automatically)
         try {
           // Use normalized serial number
@@ -379,11 +406,42 @@ const AssignCard: React.FC = () => {
             id="customerMobile"
             type="tel"
             value={customerMobile}
-            onChange={(e) => setCustomerMobile(e.target.value)}
+            onChange={(e) => {
+              setCustomerMobile(e.target.value);
+              setCardStatus(null); // Clear card status when phone number changes
+            }}
             className="input-field mt-1"
             placeholder="Enter customer mobile number"
             required
           />
+          {cardStatus && (
+            <div className={`mt-2 p-3 rounded-lg ${
+              cardStatus.can_assign_card 
+                ? 'bg-green-50 border border-green-200' 
+                : 'bg-red-50 border border-red-200'
+            }`}>
+              <div className="flex items-start">
+                <AlertCircle className={`h-5 w-5 mt-0.5 ${
+                  cardStatus.can_assign_card ? 'text-green-600' : 'text-red-600'
+                } ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    cardStatus.can_assign_card ? 'text-green-800' : 'text-red-800'
+                  }`}>
+                    {cardStatus.status === 'waiting_for_card' && 'Waiting for Card'}
+                    {cardStatus.status === 'renewal' && 'Renewal Payment'}
+                    {cardStatus.status === 'not_paid' && 'Not Paid'}
+                    {cardStatus.status === 'has_active_card' && 'Has Active Card'}
+                  </p>
+                  <p className={`text-xs mt-1 ${
+                    cardStatus.can_assign_card ? 'text-green-700' : 'text-red-700'
+                  }`}>
+                    {cardStatus.message}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <button
@@ -428,7 +486,7 @@ const AssignCard: React.FC = () => {
                 <img
                   src={customer.profile_image}
                   alt={customer.name}
-                  className="w-72 h-72 sm:w-80 sm:h-80 object-cover rounded-lg border-4 border-primary-200 shadow-xl"
+                  className="w-72 h-72 sm:w-80 sm:h-80 object-contain rounded-lg border-4 border-primary-200 shadow-xl"
                   loading="eager"
                   onError={(e) => {
                     // Fallback to placeholder if image fails to load
@@ -460,7 +518,7 @@ const AssignCard: React.FC = () => {
                   <img
                     src={customer.authorized_collector.profile_image}
                     alt={customer.authorized_collector.name}
-                    className="w-72 h-72 sm:w-80 sm:h-80 object-cover rounded-lg border-4 border-blue-300 shadow-xl"
+                    className="w-72 h-72 sm:w-80 sm:h-80 object-contain rounded-lg border-4 border-blue-300 shadow-xl"
                     loading="eager"
                     onError={(e) => {
                       // Fallback to placeholder if image fails to load

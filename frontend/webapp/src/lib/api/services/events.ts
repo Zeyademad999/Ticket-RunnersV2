@@ -368,6 +368,11 @@ export class EventsService {
       childEligibilityMinAge: apiData.child_eligibility_min_age || null,
       childEligibilityMaxAge: apiData.child_eligibility_max_age || null,
       isUnseated: apiData.is_unseated ?? false,
+      ticketLimit: apiData.ticket_limit ?? undefined,
+      isTicketLimitUnlimited: apiData.is_ticket_limit_unlimited ?? false,
+      marketplace_max_price: apiData.marketplace_max_price !== null && apiData.marketplace_max_price !== undefined 
+        ? parseFloat(apiData.marketplace_max_price) 
+        : null,
     };
   }
 

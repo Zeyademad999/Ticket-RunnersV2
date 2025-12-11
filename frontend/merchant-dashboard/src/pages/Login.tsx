@@ -42,7 +42,7 @@ const Login: React.FC = () => {
       await sendOTP(mobile, password);
       setError(""); // Clear any previous errors
       setShowOTPPopup(true);
-      toast.success("OTP sent to your mobile number", { duration: 3000 });
+      // Don't show toast - popup will be shown
       // Don't clear form fields - keep them for OTP verification
     } catch (error: any) {
       console.error("Login error:", error);
@@ -65,7 +65,7 @@ const Login: React.FC = () => {
     try {
       await verifyOTP(mobile, otp);
       setError(""); // Clear any errors
-      toast.success("Login successful!", { duration: 3000 });
+      // Don't show toast for success - just close popup and navigate
       setShowOTPPopup(false);
       // Clear form only after successful login
       setMobile("");
@@ -73,13 +73,7 @@ const Login: React.FC = () => {
       navigate("/dashboard");
     } catch (error: any) {
       console.error("OTP verification error:", error);
-      const errorMessage = error?.message || error?.response?.data?.error?.message || error?.response?.data?.message || "OTP verification failed. Please try again.";
-      toast.error(errorMessage, { 
-        duration: 6000,
-        style: {
-          maxWidth: '500px',
-        },
-      });
+      // Error will be shown in the OTP popup itself, don't show toast
       // Don't close popup on error - let user try again
       throw error;
     }
@@ -88,15 +82,9 @@ const Login: React.FC = () => {
   const handleResendOTP = async () => {
     try {
       await sendOTP(mobile, password);
-      toast.success("OTP resent successfully", { duration: 3000 });
+      // Don't show toast - popup will handle display
     } catch (error: any) {
-      const errorMessage = error?.message || error?.response?.data?.error?.message || error?.response?.data?.message || "Failed to resend OTP. Please try again.";
-      toast.error(errorMessage, { 
-        duration: 6000,
-        style: {
-          maxWidth: '500px',
-        },
-      });
+      // Error will be shown in the OTP popup itself, don't show toast
       throw error;
     }
   };

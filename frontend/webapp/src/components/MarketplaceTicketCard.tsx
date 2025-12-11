@@ -172,13 +172,20 @@ export function MarketplaceTicketCard({ listing, onRemove }: MarketplaceTicketCa
           </div>
         </div>
 
-        {/* Price */}
+        {/* Price - Always show seller price (required field) */}
         <div className="flex items-center justify-between mb-4 pt-4 border-t border-border">
-          <div className="flex items-center gap-2">
-            <Banknote className="h-5 w-5 text-primary" />
-            <span className="text-2xl font-bold text-primary">
-              {(parseFloat(String(listing.ticket_price || 0))).toFixed(2)} {t("marketplace.currency", "EGP")}
-            </span>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <Banknote className="h-5 w-5 text-primary" />
+              <span className="text-2xl font-bold text-primary">
+                {(parseFloat(String(listing.seller_price || listing.ticket_price || 0))).toFixed(2)} {t("marketplace.currency", "EGP")}
+              </span>
+            </div>
+            {listing.seller_price && listing.seller_price !== listing.ticket_price && (
+              <span className="text-xs text-muted-foreground ml-7">
+                {t("marketplace.originalPrice", "Original price:")} {(parseFloat(String(listing.ticket_price || 0))).toFixed(2)} EGP
+              </span>
+            )}
           </div>
         </div>
 

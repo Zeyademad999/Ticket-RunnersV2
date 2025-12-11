@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OtpInput } from "@/components/ui/input-otp";
+import { OtpMessagePopup } from "./OtpMessagePopup";
 import { AuthService } from "@/lib/api/services/auth";
 import {
   SignupStartRequest,
@@ -90,6 +91,9 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   const [selectedDialCode, setSelectedDialCode] = useState<string>(DEFAULT_DIAL_CODE);
   const [otpDeliveryMethod, setOtpDeliveryMethod] = useState<"sms" | "email">("sms");
   const canUseEmailOtp = selectedDialCode !== "+20";
+  const [showOtpPopup, setShowOtpPopup] = useState(false);
+  const [otpPopupMessage, setOtpPopupMessage] = useState("");
+  const [otpPopupType, setOtpPopupType] = useState<"error" | "success">("error");
   const nationalityOptions = useMemo(() => {
     const uniqueNames = Array.from(
       new Set(COUNTRY_DIAL_CODES.map((country) => country.name))
@@ -299,7 +303,10 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otpCode.trim()) {
-      toast.error("Please enter the OTP code");
+      const errorMsg = "Please enter the OTP code";
+      setOtpPopupMessage(errorMsg);
+      setOtpPopupType("error");
+      setShowOtpPopup(true);
       return;
     }
 
@@ -315,17 +322,25 @@ export const SignupForm: React.FC<SignupFormProps> = ({
         const response = await AuthService.verifyMobileOtp(verifyData);
 
         if (response.mobile_verified) {
-          toast.success("Mobile number verified successfully!");
           // Skip email OTP step, go directly to password
           setCurrentStep("password");
           setOtpCode(""); // Clear OTP code
         } else {
-          toast.error("Invalid OTP code. Please try again.");
+          const errorMsg = "Invalid OTP code. Please try again.";
+          setOtpPopupMessage(errorMsg);
+          setOtpPopupType("error");
+          setShowOtpPopup(true);
         }
       }
     } catch (error: any) {
       console.error("OTP verification error:", error);
-      toast.error(error.message || "Failed to verify OTP. Please try again.");
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          "Failed to verify OTP. Please try again.";
+      setOtpPopupMessage(errorMessage);
+      setOtpPopupType("error");
+      setShowOtpPopup(true);
     } finally {
       setIsLoading(false);
     }
@@ -676,7 +691,14 @@ export const SignupForm: React.FC<SignupFormProps> = ({
       sessionStorage.removeItem('authRedirectUrl');
       navigate(redirectUrl, { replace: true });
     } catch (error: any) {
-      setLoginError(error.message || t("auth.otpLoginErrorMessage", "Failed to verify OTP"));
+      const errorMessage = error.response?.data?.error?.message || 
+                          error.response?.data?.message || 
+                          error.message || 
+                          t("auth.otpLoginErrorMessage", "Failed to verify OTP");
+      setLoginError(errorMessage);
+      setOtpPopupMessage(errorMessage);
+      setOtpPopupType("error");
+      setShowOtpPopup(true);
     }
   };
 
@@ -684,82 +706,106 @@ export const SignupForm: React.FC<SignupFormProps> = ({
   if (showLoginInstead) {
     if (showLoginOtp) {
       return (
+        <>
+          <div className="space-y-4">
+            <h2 className="text-xl font-bold">{t("auth.sign_in") || "Sign In"}</h2>
+            <p className="text-sm text-gray-600">
+              {t("auth.otpSentTo", { contact: prefilledPhone }) || `OTP sent to ${prefilledPhone}`}
+            </p>
+            <form onSubmit={handleLoginOtpSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="loginOtp">{t("auth.enterOtp", "Enter OTP Code")}</Label>
+                <OtpInput
+                  value={loginOtpCode}
+                  onChange={setLoginOtpCode}
+                  length={6}
+                />
+                {loginError && (
+                  <p className="text-sm text-red-500 mt-1">{loginError}</p>
+                )}
+              </div>
+              <Button type="submit" className="w-full" disabled={!loginOtpCode.trim()}>
+                {t("auth.verify", "Verify")}
+              </Button>
+            </form>
+          </div>
+          <OtpMessagePopup
+            isOpen={showOtpPopup}
+            onClose={() => setShowOtpPopup(false)}
+            type={otpPopupType}
+            message={otpPopupMessage}
+          />
+        </>
+      );
+    }
+
+    return (
+      <>
         <div className="space-y-4">
           <h2 className="text-xl font-bold">{t("auth.sign_in") || "Sign In"}</h2>
           <p className="text-sm text-gray-600">
-            {t("auth.otpSentTo", { contact: prefilledPhone }) || `OTP sent to ${prefilledPhone}`}
+            {t("auth.signup.userAlreadyRegistered", "You are already registered. Please login to claim your ticket.")}
           </p>
-          <form onSubmit={handleLoginOtpSubmit} className="space-y-4">
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="loginOtp">{t("auth.enterOtp", "Enter OTP Code")}</Label>
-              <OtpInput
-                value={loginOtpCode}
-                onChange={setLoginOtpCode}
-                length={6}
+              <Label htmlFor="loginPhone">{t("auth.phone_number", "Phone Number")}</Label>
+              <Input
+                id="loginPhone"
+                type="tel"
+                value={prefilledPhone}
+                disabled
+                className="bg-gray-100"
+              />
+            </div>
+            <div>
+              <Label htmlFor="loginPassword">{t("auth.password", "Password")}</Label>
+              <Input
+                id="loginPassword"
+                type="password"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder={t("auth.password", "Password")}
+                required
               />
               {loginError && (
                 <p className="text-sm text-red-500 mt-1">{loginError}</p>
               )}
             </div>
-            <Button type="submit" className="w-full" disabled={!loginOtpCode.trim()}>
-              {t("auth.verify", "Verify")}
+            <Button type="submit" className="w-full">
+              {t("auth.sign_in", "Sign In")}
             </Button>
           </form>
         </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold">{t("auth.sign_in") || "Sign In"}</h2>
-        <p className="text-sm text-gray-600">
-          {t("auth.signup.userAlreadyRegistered", "You are already registered. Please login to claim your ticket.")}
-        </p>
-        <form onSubmit={handleLoginSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="loginPhone">{t("auth.phone_number", "Phone Number")}</Label>
-            <Input
-              id="loginPhone"
-              type="tel"
-              value={prefilledPhone}
-              disabled
-              className="bg-gray-100"
-            />
-          </div>
-          <div>
-            <Label htmlFor="loginPassword">{t("auth.password", "Password")}</Label>
-            <Input
-              id="loginPassword"
-              type="password"
-              value={loginPassword}
-              onChange={(e) => setLoginPassword(e.target.value)}
-              placeholder={t("auth.password", "Password")}
-              required
-            />
-            {loginError && (
-              <p className="text-sm text-red-500 mt-1">{loginError}</p>
-            )}
-          </div>
-          <Button type="submit" className="w-full">
-            {t("auth.sign_in", "Sign In")}
-          </Button>
-        </form>
-      </div>
+        <OtpMessagePopup
+          isOpen={showOtpPopup}
+          onClose={() => setShowOtpPopup(false)}
+          type={otpPopupType}
+          message={otpPopupMessage}
+        />
+      </>
     );
   }
 
   if (currentStep === "completing" && signupId) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold">{t("auth.signup.completingSignup")}</h2>
-        <p className="text-sm text-gray-600">
-          {t("auth.signup.completingDescription")}
-        </p>
+      <>
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold">{t("auth.signup.completingSignup")}</h2>
+          <p className="text-sm text-gray-600">
+            {t("auth.signup.completingDescription")}
+          </p>
 
-        <div className="flex justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
         </div>
-      </div>
+        <OtpMessagePopup
+          isOpen={showOtpPopup}
+          onClose={() => setShowOtpPopup(false)}
+          type={otpPopupType}
+          message={otpPopupMessage}
+        />
+      </>
     );
   }
 
@@ -854,7 +900,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               <img
                 src="/profile-image-example.png"
                 alt={t("auth.signup.exampleOfClearImage")}
-                className="w-32 h-32 object-cover rounded-full border-2 border-gray-300"
+                className="w-32 h-32 object-contain rounded-full border-2 border-gray-300"
                 onError={(e) => {
                   // Fallback if image fails to load
                   e.currentTarget.style.display = 'none';
@@ -883,7 +929,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({
               <img
                 src={profileImagePreview}
                 alt={t("auth.signup.profilePreview")}
-                className="w-32 h-32 object-cover rounded-full border-2 border-gray-200"
+                className="w-32 h-32 object-contain rounded-full border-2 border-gray-200"
                 onError={(e) => {
                   // Fallback if image fails to load
                   e.currentTarget.src = "/Portrait_Placeholder.png";
@@ -1231,5 +1277,18 @@ export const SignupForm: React.FC<SignupFormProps> = ({
         </Button>
       </form>
     </div>
+  );
+
+  return (
+    <>
+      {mainContent}
+      {/* OTP Message Popup */}
+      <OtpMessagePopup
+        isOpen={showOtpPopup}
+        onClose={() => setShowOtpPopup(false)}
+        type={otpPopupType}
+        message={otpPopupMessage}
+      />
+    </>
   );
 };

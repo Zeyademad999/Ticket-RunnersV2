@@ -643,7 +643,17 @@ const UsherManagement: React.FC = () => {
       performance: usher.performance,
       zones: usher.zones || [],
       ticketCategories: usher.ticketCategories || [],
+      isTeamLeader: usher.isTeamLeader,
     });
+    // Initialize tempAssignedEvents with usher's assigned events
+    if (usher.isTeamLeader) {
+      // If team leader, set to all events
+      const allEventIds = events.map((event: EventType) => event.id);
+      setTempAssignedEvents(allEventIds);
+    } else {
+      // Otherwise, use assigned events
+      setTempAssignedEvents(usher.assignedEvents || []);
+    }
     setIsEditDialogOpen(true);
   };
 
@@ -863,10 +873,26 @@ const UsherManagement: React.FC = () => {
       return;
     }
 
-    // If team leader, assign to all events
+    // If team leader, assign to all events and all ticket categories
     const eventIds = newUsher.isTeamLeader 
       ? events.map((event: EventType) => parseInt(event.id))
       : selectedEventsForNewUsher.map((id: string) => parseInt(id));
+
+    // If team leader, get all ticket categories from all events
+    let ticketCategories = newUsher.ticketCategories || [];
+    if (newUsher.isTeamLeader) {
+      const allTicketCategories = new Set<string>();
+      events.forEach((event: EventType) => {
+        if (event.ticket_categories && Array.isArray(event.ticket_categories)) {
+          event.ticket_categories.forEach((cat: any) => {
+            if (cat.name) {
+              allTicketCategories.add(cat.name);
+            }
+          });
+        }
+      });
+      ticketCategories = Array.from(allTicketCategories);
+    }
 
     createUsherMutation.mutate({
       name: newUsher.name,
@@ -878,7 +904,7 @@ const UsherManagement: React.FC = () => {
       experience: newUsher.experience,
       status: 'active',
       zones: newUsher.zones || [],
-      ticket_categories: newUsher.ticketCategories || [],
+      ticket_categories: ticketCategories,
       is_team_leader: newUsher.isTeamLeader || false,
       ...(eventIds.length > 0 && {
         events: eventIds
@@ -926,7 +952,11 @@ const UsherManagement: React.FC = () => {
   const handleSaveUsherChanges = () => {
     if (!selectedUsher) return;
     
-    if (!editingUsher.name || !editingUsher.email || !editingUsher.phone) {
+    const finalName = editingUsher.name !== undefined ? editingUsher.name : selectedUsher.name;
+    const finalEmail = editingUsher.email !== undefined ? editingUsher.email : selectedUsher.email;
+    const finalPhone = editingUsher.phone !== undefined ? editingUsher.phone : selectedUsher.phone;
+    
+    if (!finalName || !finalEmail || !finalPhone) {
       toast({
         title: t("common.error"),
         description: t("admin.ushers.toast.requiredFields") || "Name, email, and phone are required",
@@ -935,27 +965,62 @@ const UsherManagement: React.FC = () => {
       return;
     }
 
+    // Determine if team leader (from editingUsher or selectedUsher)
+    const isTeamLeader = editingUsher.isTeamLeader !== undefined 
+      ? editingUsher.isTeamLeader 
+      : selectedUsher.isTeamLeader;
+
+    // Get event IDs - if team leader, use all events, otherwise use tempAssignedEvents or existing assigned events
+    const eventIds = isTeamLeader
+      ? events.map((event: EventType) => parseInt(event.id))
+      : (tempAssignedEvents.length > 0 
+          ? tempAssignedEvents.map((id: string) => parseInt(id))
+          : (selectedUsher.assignedEvents || []).map((id: string) => parseInt(id)));
+
+    // Get ticket categories - if team leader, get all from all events, otherwise use editingUsher or selectedUsher
+    let ticketCategories: string[] = [];
+    if (isTeamLeader) {
+      const allTicketCategories = new Set<string>();
+      events.forEach((event: EventType) => {
+        if (event.ticket_categories && Array.isArray(event.ticket_categories)) {
+          event.ticket_categories.forEach((cat: any) => {
+            if (cat.name) {
+              allTicketCategories.add(cat.name);
+            }
+          });
+        }
+      });
+      ticketCategories = Array.from(allTicketCategories);
+    } else {
+      ticketCategories = editingUsher.ticketCategories !== undefined
+        ? editingUsher.ticketCategories
+        : (selectedUsher.ticketCategories || []);
+    }
+
     const updateData: any = {
-      name: editingUsher.name,
-      email: editingUsher.email,
-      phone: editingUsher.phone,
-      role: editingUsher.role,
-      location: editingUsher.location,
-      hourly_rate: editingUsher.hourlyRate,
-      experience: editingUsher.experience,
+      name: finalName,
+      email: finalEmail,
+      phone: finalPhone,
+      role: editingUsher.role !== undefined ? editingUsher.role : selectedUsher.role,
+      location: editingUsher.location !== undefined ? editingUsher.location : (selectedUsher.location || ''),
+      hourly_rate: editingUsher.hourlyRate !== undefined ? editingUsher.hourlyRate : selectedUsher.hourlyRate,
+      experience: editingUsher.experience !== undefined ? editingUsher.experience : selectedUsher.experience,
+      status: editingUsher.status !== undefined ? editingUsher.status : selectedUsher.status,
+      is_team_leader: isTeamLeader,
+      zones: editingUsher.zones !== undefined ? editingUsher.zones : (selectedUsher.zones || []),
+      ticket_categories: ticketCategories,
     };
 
-    if (editingUsher.status) {
-      updateData.status = editingUsher.status;
-    }
-    if (editingUsher.performance) {
+    if (editingUsher.performance !== undefined) {
       updateData.performance = editingUsher.performance;
     }
-    if (editingUsher.zones !== undefined) {
-      updateData.zones = editingUsher.zones;
-    }
-    if (editingUsher.ticketCategories !== undefined) {
-      updateData.ticket_categories = editingUsher.ticketCategories;
+
+    // Include events if provided
+    if (eventIds.length > 0) {
+      updateData.events = eventIds;
+    } else if (!isTeamLeader) {
+      // If not team leader and no events selected, clear events
+      updateData.events = [];
     }
 
     updateUsherMutation.mutate({ id: selectedUsher.id, data: updateData });
@@ -963,11 +1028,13 @@ const UsherManagement: React.FC = () => {
 
   const handleToggleTeamLeader = (usher: Usher) => {
     if (usher.isTeamLeader) {
-      // Remove team leader: clear all event assignments
+      // Remove team leader: clear all event assignments and ticket categories
       updateUsherMutation.mutate({
         id: usher.id,
         data: {
+          is_team_leader: false,
           events: [], // Clear all event assignments
+          ticket_categories: [], // Clear all ticket categories
         },
       }, {
         onSuccess: () => {
@@ -979,7 +1046,7 @@ const UsherManagement: React.FC = () => {
         },
       });
     } else {
-      // Make team leader: assign to all events
+      // Make team leader: assign to all events and all ticket categories
       const allEventIds = events.map((event: EventType) => event.id);
       if (allEventIds.length === 0) {
         toast({
@@ -990,10 +1057,24 @@ const UsherManagement: React.FC = () => {
         return;
       }
       
+      // Get all unique ticket categories from all events
+      const allTicketCategories = new Set<string>();
+      events.forEach((event: EventType) => {
+        if (event.ticket_categories && Array.isArray(event.ticket_categories)) {
+          event.ticket_categories.forEach((cat: any) => {
+            if (cat.name) {
+              allTicketCategories.add(cat.name);
+            }
+          });
+        }
+      });
+      
       updateUsherMutation.mutate({
         id: usher.id,
         data: {
+          is_team_leader: true,
           events: allEventIds.map((id: string) => parseInt(id)),
+          ticket_categories: Array.from(allTicketCategories), // Assign all ticket categories
         },
       }, {
         onSuccess: () => {
@@ -1508,7 +1589,7 @@ const UsherManagement: React.FC = () => {
 
       {/* Edit Usher Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="rtl:text-right ltr:text-left">
+        <DialogContent className="rtl:text-right ltr:text-left max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="rtl:text-right ltr:text-left">
               {t("admin.ushers.dialogs.editUsher")}
@@ -1667,33 +1748,104 @@ const UsherManagement: React.FC = () => {
                 </div>
               </div>
               
+              {/* Assign Events Section */}
+              <div className="col-span-3 border-t pt-4">
+                <label className="text-sm font-medium rtl:text-right mb-2 block">
+                  {t("admin.ushers.form.assignEvents") || "Assign to Events"}
+                </label>
+                <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
+                  {events.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      {t("admin.ushers.noEventsAvailable") || "No events available"}
+                    </p>
+                  ) : (
+                    events.map((event: EventType) => {
+                      const isAssigned = tempAssignedEvents.length > 0 
+                        ? tempAssignedEvents.includes(event.id)
+                        : (selectedUsher.isTeamLeader || (selectedUsher.assignedEvents || []).includes(event.id));
+                      return (
+                        <div key={event.id} className="flex items-center space-x-2 rtl:space-x-reverse">
+                          <Checkbox
+                            id={`edit-event-${event.id}`}
+                            checked={isAssigned}
+                            disabled={selectedUsher.isTeamLeader || (editingUsher.isTeamLeader !== undefined && editingUsher.isTeamLeader)}
+                            onCheckedChange={(checked) => {
+                              if (!selectedUsher.isTeamLeader && !(editingUsher.isTeamLeader !== undefined && editingUsher.isTeamLeader)) {
+                                if (checked) {
+                                  setTempAssignedEvents([...tempAssignedEvents, event.id]);
+                                } else {
+                                  const newSelectedEvents = tempAssignedEvents.filter(id => id !== event.id);
+                                  setTempAssignedEvents(newSelectedEvents);
+                                  
+                                  // Remove ticket categories that are no longer available
+                                  const remainingEventIds = newSelectedEvents.length > 0 ? newSelectedEvents : (selectedUsher.assignedEvents || []);
+                                  const remainingCategories = new Set<string>();
+                                  events.forEach((e: EventType) => {
+                                    if (remainingEventIds.includes(e.id) && e.ticket_categories) {
+                                      e.ticket_categories.forEach((cat: any) => {
+                                        if (cat.name) {
+                                          remainingCategories.add(cat.name);
+                                        }
+                                      });
+                                    }
+                                  });
+                                  
+                                  const currentCategories = Array.isArray(editingUsher.ticketCategories) 
+                                    ? editingUsher.ticketCategories 
+                                    : (selectedUsher.ticketCategories || []);
+                                  const filteredCategories = currentCategories.filter(cat => remainingCategories.has(cat));
+                                  setEditingUsher({ ...editingUsher, ticketCategories: filteredCategories });
+                                }
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`edit-event-${event.id}`}
+                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                          >
+                            <div className="rtl:text-right ltr:text-left">
+                              <p className="font-medium">{event.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(parseISO(event.date), "MMM dd, yyyy", { locale: getDateLocale() })} - {event.venue}
+                              </p>
+                            </div>
+                          </label>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+              
               {/* Zones and Ticket Categories */}
-              <div className="space-y-4 border-t pt-4">
+              <div className="col-span-3 grid grid-cols-3 gap-3 border-t pt-3">
                 <div>
-                  <label className="text-sm font-medium rtl:text-right mb-2 block">
-                    {t("admin.ushers.form.zones") || "Zones"} <span className="text-muted-foreground text-xs">({t("admin.ushers.form.zonesDescription") || "Comma-separated list of zones"})</span>
+                  <label className="text-sm font-medium rtl:text-right mb-1 block">
+                    {t("admin.ushers.form.zones")}
                   </label>
                   <Input
-                    placeholder={t("admin.ushers.form.zonesPlaceholder") || "e.g., Zone A, Zone B, Zone C"}
+                    placeholder={t("admin.ushers.form.zonesPlaceholder")}
                     value={Array.isArray(editingUsher.zones) ? editingUsher.zones.join(", ") : (selectedUsher.zones?.join(", ") || "")}
                     onChange={(e) => {
                       const zones = e.target.value.split(",").map(z => z.trim()).filter(z => z.length > 0);
                       setEditingUsher({ ...editingUsher, zones });
                     }}
+                    className="text-xs"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">{t("admin.ushers.form.zonesDescription")}</p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium rtl:text-right mb-2 block">
-                    {t("admin.ushers.form.ticketCategories") || "Ticket Categories"} <span className="text-muted-foreground text-xs">({t("admin.ushers.form.ticketCategoriesDescription") || "Select ticket categories this usher can scan from assigned events"})</span>
+                  <label className="text-sm font-medium rtl:text-right mb-1 block">
+                    {t("admin.ushers.form.ticketCategories")}
                   </label>
                   {availableTicketCategoriesForEdit.length === 0 ? (
-                    <div className="text-sm text-muted-foreground p-3 border rounded-md bg-gray-50">
-                      {(!selectedUsher.assignedEvents || selectedUsher.assignedEvents.length === 0) && (!tempAssignedEvents || tempAssignedEvents.length === 0)
+                    <div className="text-xs text-muted-foreground p-2 border rounded-md bg-gray-50">
+                      {(tempAssignedEvents.length === 0 && !selectedUsher.isTeamLeader && !(editingUsher.isTeamLeader !== undefined && editingUsher.isTeamLeader) && (!selectedUsher.assignedEvents || selectedUsher.assignedEvents.length === 0))
                         ? t("admin.ushers.form.selectEventsFirst") || "Please assign events first to see available ticket categories"
                         : t("admin.ushers.form.noTicketCategories") || "No ticket categories available in assigned events"}
                     </div>
                   ) : (
-                    <div className="max-h-40 overflow-y-auto border rounded-md p-2 space-y-1">
+                    <div className="max-h-32 overflow-y-auto border rounded-md p-2 space-y-1">
                       {availableTicketCategoriesForEdit.map((categoryInfo) => {
                         const currentCategories = Array.isArray(editingUsher.ticketCategories) 
                           ? editingUsher.ticketCategories 
@@ -1703,14 +1855,17 @@ const UsherManagement: React.FC = () => {
                             <Checkbox
                               id={`edit-ticket-category-${categoryInfo.name}`}
                               checked={currentCategories.includes(categoryInfo.name)}
+                              disabled={selectedUsher.isTeamLeader || (editingUsher.isTeamLeader !== undefined && editingUsher.isTeamLeader)}
                               onCheckedChange={(checked) => {
-                                const current = Array.isArray(editingUsher.ticketCategories) 
-                                  ? editingUsher.ticketCategories 
-                                  : (selectedUsher.ticketCategories || []);
-                                if (checked) {
-                                  setEditingUsher({ ...editingUsher, ticketCategories: [...current, categoryInfo.name] });
-                                } else {
-                                  setEditingUsher({ ...editingUsher, ticketCategories: current.filter(c => c !== categoryInfo.name) });
+                                if (!selectedUsher.isTeamLeader && !(editingUsher.isTeamLeader !== undefined && editingUsher.isTeamLeader)) {
+                                  const current = Array.isArray(editingUsher.ticketCategories) 
+                                    ? editingUsher.ticketCategories 
+                                    : (selectedUsher.ticketCategories || []);
+                                  if (checked) {
+                                    setEditingUsher({ ...editingUsher, ticketCategories: [...current, categoryInfo.name] });
+                                  } else {
+                                    setEditingUsher({ ...editingUsher, ticketCategories: current.filter(c => c !== categoryInfo.name) });
+                                  }
                                 }
                               }}
                               className="mt-0.5"
@@ -1731,6 +1886,53 @@ const UsherManagement: React.FC = () => {
                       })}
                     </div>
                   )}
+                  <p className="text-xs text-muted-foreground mt-1">{t("admin.ushers.form.ticketCategoriesDescription")}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium rtl:text-right mb-1 block">
+                    {t("admin.ushers.form.teamLeaderStatus")}
+                  </label>
+                  <div className="flex items-center space-x-2 rtl:space-x-reverse mt-2">
+                    <Checkbox
+                      id="is-team-leader-edit"
+                      checked={editingUsher.isTeamLeader !== undefined ? editingUsher.isTeamLeader : selectedUsher.isTeamLeader}
+                      onCheckedChange={(checked) => {
+                        const isTeamLeader = checked === true;
+                        setEditingUsher({ ...editingUsher, isTeamLeader });
+                        // If making team leader, automatically select all events and all ticket categories
+                        if (isTeamLeader) {
+                          const allEventIds = events.map((event: EventType) => event.id);
+                          setTempAssignedEvents(allEventIds);
+                          
+                          // Get all unique ticket categories from all events
+                          const allTicketCategories = new Set<string>();
+                          events.forEach((event: EventType) => {
+                            if (event.ticket_categories && Array.isArray(event.ticket_categories)) {
+                              event.ticket_categories.forEach((cat: any) => {
+                                if (cat.name) {
+                                  allTicketCategories.add(cat.name);
+                                }
+                              });
+                            }
+                          });
+                          setEditingUsher({ ...editingUsher, isTeamLeader, ticketCategories: Array.from(allTicketCategories) });
+                        } else {
+                          // If removing team leader, clear ticket categories
+                          setEditingUsher({ ...editingUsher, isTeamLeader, ticketCategories: [] });
+                          setTempAssignedEvents([]);
+                        }
+                      }}
+                    />
+                    <label
+                      htmlFor="is-team-leader-edit"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                    >
+                      {t("admin.ushers.form.makeTeamLeader")}
+                    </label>
+                  </div>
+                  {(editingUsher.isTeamLeader !== undefined ? editingUsher.isTeamLeader : selectedUsher.isTeamLeader) && (
+                    <p className="text-xs text-purple-600 mt-1">{t("admin.ushers.form.teamLeaderNote")}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1742,6 +1944,7 @@ const UsherManagement: React.FC = () => {
                 setIsEditDialogOpen(false);
                 setEditingUsher({});
                 setSelectedUsher(null);
+                setTempAssignedEvents([]);
               }}
             >
               {t("admin.ushers.dialogs.cancel")}
@@ -2011,10 +2214,26 @@ const UsherManagement: React.FC = () => {
                       onCheckedChange={(checked) => {
                         const isTeamLeader = checked === true;
                         setNewUsher({ ...newUsher, isTeamLeader });
-                        // If making team leader, automatically select all events
+                        // If making team leader, automatically select all events and all ticket categories
                         if (isTeamLeader) {
                           const allEventIds = events.map((event: EventType) => event.id);
                           setSelectedEventsForNewUsher(allEventIds);
+                          
+                          // Get all unique ticket categories from all events
+                          const allTicketCategories = new Set<string>();
+                          events.forEach((event: EventType) => {
+                            if (event.ticket_categories && Array.isArray(event.ticket_categories)) {
+                              event.ticket_categories.forEach((cat: any) => {
+                                if (cat.name) {
+                                  allTicketCategories.add(cat.name);
+                                }
+                              });
+                            }
+                          });
+                          setNewUsher({ ...newUsher, isTeamLeader, ticketCategories: Array.from(allTicketCategories) });
+                        } else {
+                          // If removing team leader, clear ticket categories
+                          setNewUsher({ ...newUsher, isTeamLeader, ticketCategories: [] });
                         }
                       }}
                     />

@@ -28,6 +28,7 @@ export interface MarketplaceListing {
   seller_name: string;
   seller_mobile: string | null; // null for non-authenticated users
   seller_email: string | null; // null for non-authenticated users
+  seller_price: number | null; // Price set by seller for this listing
   listed_at: string;
   is_active: boolean;
   terms_accepted_at: string | null;
@@ -90,12 +91,14 @@ export class MarketplaceService {
    */
   static async listTicket(
     ticketId: string,
-    termsAccepted: boolean
+    termsAccepted: boolean,
+    sellerPrice: number
   ): Promise<ApiResponse<MarketplaceListing>> {
     return retryRequest(async () => {
       const response = await apiClient.post("/marketplace/listings/", {
         ticket_id: ticketId,
         terms_accepted: termsAccepted,
+        seller_price: sellerPrice,
       });
       return handleApiResponse(response);
     });
@@ -132,6 +135,24 @@ export class MarketplaceService {
   static async getFilterOptions(): Promise<ApiResponse<MarketplaceFilterOptions>> {
     return retryRequest(async () => {
       const response = await apiClient.get("/marketplace/filter-options/");
+      return handleApiResponse(response);
+    });
+  }
+
+  /**
+   * Get marketplace settings (for public access to max price)
+   * GET /api/v1/marketplace/settings/
+   */
+  static async getMarketplaceSettings(): Promise<ApiResponse<{
+    max_allowed_price: number;
+    updated_at?: string;
+    updated_by?: string | null;
+  }>> {
+    return retryRequest(async () => {
+      // Note: This endpoint requires admin auth, but we can make it public for read access
+      // For now, we'll handle it in the component by fetching event details which include marketplace_max_price
+      // If event doesn't have marketplace_max_price, we'll need to make this endpoint public
+      const response = await apiClient.get("/marketplace/settings/");
       return handleApiResponse(response);
     });
   }

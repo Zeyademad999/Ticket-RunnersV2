@@ -467,7 +467,7 @@ const CardInventory: React.FC = () => {
                         <img
                           src={selectedCard.customer_profile_image}
                           alt={selectedCard.customer_name}
-                          className="w-64 h-64 sm:w-72 sm:h-72 object-cover rounded-lg border-4 border-primary-200 shadow-xl mb-3"
+                          className="w-64 h-64 sm:w-72 sm:h-72 object-contain rounded-lg border-4 border-primary-200 shadow-xl mb-3"
                           loading="eager"
                           onError={(e) => {
                             e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedCard.customer_name || 'Customer')}&size=288&background=6366f1&color=fff`;
@@ -496,7 +496,7 @@ const CardInventory: React.FC = () => {
                           <img
                             src={selectedCard.collector_profile_image}
                             alt={selectedCard.collector_name || "Collector"}
-                            className="w-64 h-64 sm:w-72 sm:h-72 object-cover rounded-lg border-4 border-blue-300 shadow-xl mb-3"
+                            className="w-64 h-64 sm:w-72 sm:h-72 object-contain rounded-lg border-4 border-blue-300 shadow-xl mb-3"
                             loading="eager"
                             onError={(e) => {
                               const collectorName = selectedCard.collector_name || 'Collector';

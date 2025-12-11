@@ -496,7 +496,7 @@ const AdminUserManagement: React.FC = () => {
                             "/public/Portrait_Placeholder.png"
                           }
                           alt={user.fullName}
-                          className="w-10 h-10 rounded-full object-cover"
+                          className="w-10 h-10 rounded-full object-contain"
                         />
                         <div>
                           <p className="font-medium">{user.fullName}</p>
@@ -633,7 +633,7 @@ const AdminUserManagement: React.FC = () => {
                         "/public/Portrait_Placeholder.png"
                       }
                       alt={selectedUser.fullName}
-                      className="w-32 h-32 rounded-full object-cover mx-auto mb-4"
+                      className="w-32 h-32 rounded-full object-contain mx-auto mb-4"
                     />
                     <h3 className="text-xl font-bold">
                       {selectedUser.fullName}

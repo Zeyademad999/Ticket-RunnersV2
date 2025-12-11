@@ -207,29 +207,8 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
                 {t("admin.events.finances.deductions", "Deductions Applied")}:
               </h4>
               <div className="space-y-2">
-                {/* TR Commission Fee (Auto-added from form) */}
-                {event.commissionRate && (
-                  <div className="flex justify-between items-center p-2 bg-muted/30 rounded rtl:flex-row-reverse">
-                    <div>
-                      <span className="text-sm font-bold">TR Commission Fee</span>
-                      <p className="text-xs text-muted-foreground">
-                        {event.commissionRate.type === 'percentage' 
-                          ? `${event.commissionRate.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
-                          : `${formatCurrencyForLocale(event.commissionRate.value, i18n.language)} ${t("admin.events.finances.perTicket", "per ticket")}`
-                        }
-                      </p>
-                      <p className="text-xs text-muted-foreground italic">
-                        {t("admin.events.finances.autoAdded", "Auto-added from form")}
-                      </p>
-                    </div>
-                    <span className="text-xl font-bold text-green-600">
-                      {formatCurrencyForLocale(eventCommission, i18n.language)}
-                    </span>
-                  </div>
-                )}
-
                 {/* Custom Deductions */}
-                {eventDeductions.length === 0 && !event.commissionRate ? (
+                {eventDeductions.length === 0 ? (
                   <p className="text-xs text-muted-foreground rtl:text-right">
                     {t("admin.events.finances.noDeductions", "No deductions added yet")}
                   </p>
@@ -267,6 +246,29 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
               <p className="text-xs text-muted-foreground mt-1 rtl:text-right">
                 {t("admin.events.finances.organizerNetProfitDescription", "This amount will be shown to the organizer")}
               </p>
+              
+              {/* TR Commission Fee (Auto-added from form) - Displayed under Organizer Net Profit */}
+              {event.commissionRate && (
+                <div className="mt-4 p-2 bg-muted/30 rounded rtl:flex-row-reverse">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-sm font-bold">TR Commission Fee</span>
+                      <p className="text-xs text-muted-foreground">
+                        {event.commissionRate.type === 'percentage' 
+                          ? `${event.commissionRate.value}% ${t("admin.events.finances.ofRevenue", "of revenue")}`
+                          : `${formatCurrencyForLocale(event.commissionRate.value, i18n.language)} ${t("admin.events.finances.perTicket", "per ticket")}`
+                        }
+                      </p>
+                      <p className="text-xs text-muted-foreground italic">
+                        {t("admin.events.finances.autoAdded", "Auto-added from form")}
+                      </p>
+                    </div>
+                    <span className="text-xl font-bold text-green-600">
+                      {formatCurrencyForLocale(eventCommission, i18n.language)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -323,7 +325,7 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
                     {t("admin.events.finances.totalRevenue", "Total Revenue")}:
                   </p>
                   <p className="text-lg font-bold">
-                    {formatCurrencyForLocale(eventTicketRevenue, i18n.language)}
+                    {formatCurrencyForLocale(ticketRunnerProfit.total_revenue || 0, i18n.language)}
                   </p>
                 </div>
                 <div>
@@ -331,7 +333,7 @@ export const EventFinancesReport: React.FC<EventFinancesReportProps> = ({ event 
                     {t("admin.events.finances.netProfit", "Net Profit")}:
                   </p>
                   <p className="text-lg font-bold text-green-600">
-                    {formatCurrencyForLocale(organizerNetProfit, i18n.language)}
+                    {formatCurrencyForLocale(ticketRunnerProfit.ticket_runner_net_profit || 0, i18n.language)}
                   </p>
                 </div>
               </div>

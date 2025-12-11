@@ -575,9 +575,7 @@ const OwnerFinances = () => {
                             <Input
                               id={`profit-${owner.id}`}
                               type="number"
-                              min="0"
                               step="0.01"
-                              max={undistributedProfits}
                               value={profitDistribution[owner.id] || ""}
                               onChange={(e) =>
                                 setProfitDistribution((prev) => ({
@@ -649,19 +647,13 @@ const OwnerFinances = () => {
                       return;
                     }
 
-                    // Calculate total
+                    // Calculate total (allow negative totals for cases where someone receives more than their share)
                     const total = Object.values(profitDistribution).reduce(
                       (sum, val) => sum + parseFloat(val as string || "0"),
                       0
                     );
-                    if (total > undistributedProfits) {
-                      toast({
-                        title: t("admin.ownerFinances.validation.error"),
-                        description: t("admin.ownerFinances.validation.totalExceedsUndistributed", { available: undistributedProfits }),
-                        variant: "destructive",
-                      });
-                      return;
-                    }
+                    // Note: We allow negative totals and totals exceeding undistributed profits
+                    // to support cases where someone receives more than their share
 
                     try {
                       // Prepare distributions

@@ -1961,7 +1961,7 @@ const CustomerManagement: React.FC = () => {
                               "/Portrait_Placeholder.png"
                             }
                             alt={customer.name}
-                            className="w-10 h-10 rounded-full object-cover"
+                            className="w-10 h-10 rounded-full object-contain"
                             onError={(e) => {
                               // Fallback to placeholder if image fails to load
                               e.currentTarget.src = "/Portrait_Placeholder.png";
@@ -2244,7 +2244,7 @@ const CustomerManagement: React.FC = () => {
                         "/Portrait_Placeholder.png"
                       }
                       alt={selectedCustomer.name}
-                      className="w-32 h-32 rounded-full object-cover mx-auto mb-4"
+                      className="w-32 h-32 rounded-full object-contain mx-auto mb-4"
                       onError={(e) => {
                         // Fallback to placeholder if image fails to load
                         e.currentTarget.src = "/Portrait_Placeholder.png";
@@ -3076,7 +3076,7 @@ const CustomerManagement: React.FC = () => {
                   <img
                     src={newCustomer.profileImagePreview}
                     alt={newCustomer.name || "Customer preview"}
-                    className="h-16 w-16 rounded-full object-cover border"
+                    className="h-16 w-16 rounded-full object-contain border"
                   />
                   <Button
                     type="button"
@@ -3196,7 +3196,7 @@ const CustomerManagement: React.FC = () => {
                       // Fallback to placeholder if image fails to load
                       e.currentTarget.src = "/Portrait_Placeholder.png";
                     }}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-10 h-10 rounded-full object-contain"
                   />
                   <div>
                     <p className="font-medium">{selectedCustomer.name}</p>
@@ -3380,7 +3380,7 @@ const CustomerManagement: React.FC = () => {
                     "/public/Portrait_Placeholder.png"
                   }
                   alt={selectedCustomer.name}
-                  className="w-16 h-16 rounded-full object-cover"
+                  className="w-16 h-16 rounded-full object-contain"
                 />
                 <div>
                   <h3 className="text-lg font-semibold">
@@ -3563,7 +3563,7 @@ const CustomerManagement: React.FC = () => {
                       // Fallback to placeholder if image fails to load
                       e.currentTarget.src = "/Portrait_Placeholder.png";
                     }}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-10 h-10 rounded-full object-contain"
                   />
                   <div>
                     <p className="font-medium">{selectedCustomer.name}</p>

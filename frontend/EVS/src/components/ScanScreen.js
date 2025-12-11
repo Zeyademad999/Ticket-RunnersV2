@@ -54,6 +54,9 @@ export default function ScanScreen() {
   const [eventId, setEventId] = useState(locationEventId);
   const [username, setUsername] = useState(locationUsername);
   const [error, setError] = useState("");
+  const [cardExpirationWarning, setCardExpirationWarning] = useState(null);
+  const [showExpiredCardModal, setShowExpiredCardModal] = useState(false);
+  const [expiredCardMessage, setExpiredCardMessage] = useState("");
   const attendeeInfoRef = useRef(null);
 
   // Load event data and check authentication
@@ -99,6 +102,32 @@ export default function ScanScreen() {
       });
     }
   }, [attendee, scanResult]);
+
+  // Check card expiration status and set warning
+  useEffect(() => {
+    if (attendee && attendee.cardExpiryDate) {
+      const expiryDate = new Date(attendee.cardExpiryDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      expiryDate.setHours(0, 0, 0, 0);
+      
+      const daysUntilExpiry = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
+      const isExpired = attendee.cardExpired || daysUntilExpiry < 0;
+      const isExpiringSoon = daysUntilExpiry >= 0 && daysUntilExpiry <= 14;
+      
+      if (isExpired || isExpiringSoon) {
+        setCardExpirationWarning({
+          isExpired,
+          daysUntilExpiry,
+          expiryDate: attendee.cardExpiryDate,
+        });
+      } else {
+        setCardExpirationWarning(null);
+      }
+    } else {
+      setCardExpirationWarning(null);
+    }
+  }, [attendee]);
 
   // Auto-scan continuously - subscribe to card scans
   useEffect(() => {
@@ -169,6 +198,8 @@ export default function ScanScreen() {
           dependents: attendeeData.children || [],
           partTimeLeave: attendeeData.part_time_leave || null,
           lastScan: attendeeData.last_scan || null,
+          cardExpiryDate: attendeeData.card_expiry_date || null, // Card expiry date
+          cardExpired: attendeeData.card_expired || false, // Card expired status
           currentScan: {
             scannedBy: username || 'Current User',
             scanTime: new Date().toISOString(),
@@ -233,6 +264,18 @@ export default function ScanScreen() {
         setScanResult(null);
         let errorMessage = "Error looking up attendee. Please try again.";
         let isCategoryNotAllowed = false;
+        
+        // Check if error is due to expired card
+        if (error.response?.data?.error?.code === 'CARD_EXPIRED') {
+          const errorData = error.response.data.error;
+          const expiryDateStr = errorData.card_expiry_date ? new Date(errorData.card_expiry_date).toLocaleDateString() : 'N/A';
+          errorMessage = `⚠️ Card Expired\n\nThis NFC card has expired${errorData.card_expiry_date ? ` on ${expiryDateStr}` : ''}.\n\nThe customer needs to pay renewal fees to get a valid card.`;
+          setError(errorMessage);
+          setIsLoading(false);
+          setExpiredCardMessage(errorMessage);
+          setShowExpiredCardModal(true);
+          return;
+        }
         
         if (error.response?.data?.error) {
           const errorData = error.response.data.error;
@@ -360,6 +403,8 @@ export default function ScanScreen() {
         dependents: attendeeData.children || [],
         partTimeLeave: attendeeData.part_time_leave || null, // Part-time leave status
         lastScan: attendeeData.last_scan || null, // Last scan information
+        cardExpiryDate: attendeeData.card_expiry_date || null, // Card expiry date
+        cardExpired: attendeeData.card_expired || false, // Card expired status
         currentScan: {
           scannedBy: username || 'Current User',
           scanTime: new Date().toISOString(),
@@ -375,6 +420,20 @@ export default function ScanScreen() {
       // If we got a ticket_id from the response, store it for potential refetch
       const ticketIdFromResponse = attendeeData.ticket_id;
       
+      // Check if card is expired - prevent scanning if expired
+      if (attendeeData.card_expired) {
+        const expiryDateStr = attendeeData.card_expiry_date ? new Date(attendeeData.card_expiry_date).toLocaleDateString() : 'N/A';
+        const errorMessage = `⚠️ Card Expired\n\nThis NFC card has expired on ${expiryDateStr}.\n\nThe customer needs to pay renewal fees to get a valid card.`;
+        
+        setAttendee(null);
+        setScanResult("invalid");
+        setError(errorMessage);
+        setIsLoading(false);
+        setExpiredCardMessage(errorMessage);
+        setShowExpiredCardModal(true);
+        return;
+      }
+
       // Determine scan result
       let result = "valid";
       if (attendeeData.ticket_status !== 'valid') {
@@ -479,6 +538,22 @@ export default function ScanScreen() {
         detail: { cardId: idToLookup, eventId, result, logId } 
       }));
     } catch (error) {
+      // Check if error is due to expired card
+      if (error.response?.data?.error?.code === 'CARD_EXPIRED') {
+        const errorData = error.response.data.error;
+        const expiryDateStr = errorData.card_expiry_date ? new Date(errorData.card_expiry_date).toLocaleDateString() : 'N/A';
+        const errorMessage = `⚠️ Card Expired\n\nThis NFC card has expired${errorData.card_expiry_date ? ` on ${expiryDateStr}` : ''}.\n\nThe customer needs to pay renewal fees to get a valid card.`;
+        
+        setAttendee(null);
+        setScanResult("invalid");
+        setError(errorMessage);
+        setIsLoading(false);
+        
+        // Also show alert for immediate feedback
+        alert(errorMessage);
+        return;
+      }
+      
       // Enhanced error logging
       console.error("Lookup error:", {
         error: error,
@@ -750,6 +825,21 @@ export default function ScanScreen() {
             </div>
           )}
 
+          {/* Card Expiration Status - Show if card has expiry date */}
+          {attendee.cardExpiryDate && (
+            <div className="status-row">
+              <div className="status-icon">
+                <FaExclamationTriangle size={20} color={attendee.cardExpired ? "#E53935" : "hsl(81.8, 38.5%, 28%)"} />
+              </div>
+              <span className="status-label">Card Expiration</span>
+              <div className={`status-badge ${attendee.cardExpired ? "status-invalid" : "status-valid"}`}>
+                <span className="status-badge-text">
+                  {attendee.cardExpired ? "Expired" : "Valid"}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Has Child Status - Show if ticket has child */}
           {attendee.dependents && attendee.dependents.length > 0 && (() => {
             // Find child from ticket (has from_ticket flag) or any child with age
@@ -956,6 +1046,20 @@ export default function ScanScreen() {
 
   return (
     <div className="scan-container">
+      {/* Card Expiration Warning Bar */}
+      {cardExpirationWarning && (
+        <div className={`card-expiration-bar ${cardExpirationWarning.isExpired ? 'expired' : 'expiring-soon'}`}>
+          <div className="expiration-bar-content">
+            <FaExclamationTriangle className="expiration-icon" />
+            <span className="expiration-message">
+              {cardExpirationWarning.isExpired
+                ? `⚠️ Card Expired on ${new Date(cardExpirationWarning.expiryDate).toLocaleDateString()}`
+                : `⚠️ Card Expiring Soon: ${cardExpirationWarning.daysUntilExpiry} day${cardExpirationWarning.daysUntilExpiry !== 1 ? 's' : ''} remaining (Expires: ${new Date(cardExpirationWarning.expiryDate).toLocaleDateString()})`}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Header Section */}
       <div className="header">
         <div className="logo-container">
@@ -1053,17 +1157,20 @@ export default function ScanScreen() {
 
         {/* Error Message / Warning */}
         {error && (
-          <div className={`error-card ${error.includes('not allowed') || error.includes('contact your team leader') ? 'warning-card' : ''}`} style={
-            error.includes('not allowed') || error.includes('contact your team leader') 
+          <div className={`error-card ${error.includes('not allowed') || error.includes('contact your team leader') || error.includes('Card Expired') ? 'warning-card' : ''}`} style={
+            error.includes('not allowed') || error.includes('contact your team leader') || error.includes('Card Expired')
               ? { 
-                  backgroundColor: '#FFF3E0', 
-                  border: '2px solid #FF9800',
-                  color: '#E65100'
+                  backgroundColor: error.includes('Card Expired') ? '#FFEBEE' : '#FFF3E0', 
+                  border: `2px solid ${error.includes('Card Expired') ? '#F44336' : '#FF9800'}`,
+                  color: error.includes('Card Expired') ? '#C62828' : '#E65100'
                 } 
               : {}
           }>
-            <FaExclamationTriangle size={24} color={error.includes('not allowed') || error.includes('contact your team leader') ? "#FF9800" : "#E53935"} />
-            <p className="error-text" style={{ fontWeight: error.includes('not allowed') || error.includes('contact your team leader') ? 'bold' : 'normal' }}>
+            <FaExclamationTriangle size={24} color={error.includes('not allowed') || error.includes('contact your team leader') ? "#FF9800" : error.includes('Card Expired') ? "#F44336" : "#E53935"} />
+            <p className="error-text" style={{ 
+              fontWeight: (error.includes('not allowed') || error.includes('contact your team leader') || error.includes('Card Expired')) ? 'bold' : 'normal',
+              whiteSpace: 'pre-line'
+            }}>
               {typeof error === 'string' ? error : 'An error occurred'}
             </p>
           </div>
@@ -1410,6 +1517,47 @@ export default function ScanScreen() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Expired Card Modal */}
+      {showExpiredCardModal && (
+        <div className="modal-overlay" onClick={() => setShowExpiredCardModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 className="modal-title" style={{ color: '#F44336', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <FaExclamationTriangle size={24} color="#F44336" />
+                Card Expired
+              </h3>
+              <button
+                onClick={() => setShowExpiredCardModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '24px', color: '#666' }}
+              >
+                <FaTimes />
+              </button>
+            </div>
+            <div style={{ padding: '20px 0', textAlign: 'center' }}>
+              <FaExclamationTriangle size={64} color="#F44336" style={{ marginBottom: '20px' }} />
+              <p style={{ 
+                fontSize: '16px', 
+                lineHeight: '1.6', 
+                color: '#333',
+                whiteSpace: 'pre-line',
+                marginBottom: '20px'
+              }}>
+                {expiredCardMessage.replace('⚠️ ', '')}
+              </p>
+            </div>
+            <div className="modal-buttons" style={{ justifyContent: 'center' }}>
+              <button
+                className="modal-button submit-button"
+                onClick={() => setShowExpiredCardModal(false)}
+                style={{ backgroundColor: '#F44336', minWidth: '150px' }}
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

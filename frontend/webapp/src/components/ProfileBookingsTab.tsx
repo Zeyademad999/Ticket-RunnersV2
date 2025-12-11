@@ -264,7 +264,7 @@ export const ProfileBookingsTab: React.FC<any> = (props: any) => {
                 return (
                   <div
                     key={booking.id}
-                    className="border border-border rounded-lg p-4 space-y-3"
+                    className="border border-border rounded-lg p-4 space-y-3 mb-4"
                   >
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                       <div>

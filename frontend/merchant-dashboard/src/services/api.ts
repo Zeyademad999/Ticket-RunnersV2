@@ -258,6 +258,40 @@ class ApiService {
     }
   }
 
+  async checkCustomerCardStatus(mobile: string): Promise<ApiResponse<{
+    customer: {
+      id: string;
+      name: string;
+      mobile_number: string;
+    };
+    card_status: {
+      has_active_card: boolean;
+      has_paid_for_new_card: boolean;
+      has_paid_for_renewal: boolean;
+      can_assign_card: boolean;
+      status: string;
+      message: string;
+    };
+  }>> {
+    if (!this.api) {
+      throw new Error("API not initialized");
+    }
+    try {
+      const response: AxiosResponse = await this.api.get(
+        `/check-customer-card-status/?mobile=${encodeURIComponent(mobile)}`
+      );
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.response?.data?.error || { message: error.message },
+      };
+    }
+  }
+
   async verifyCustomerMobile(mobile: string): Promise<ApiResponse<Customer>> {
     if (!this.api) {
       throw new Error("API not initialized");

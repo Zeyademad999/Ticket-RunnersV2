@@ -484,7 +484,7 @@ const ProfileContent = () => {
           <img
             src={userInfo.profileImage}
             alt="Profile"
-            className="w-24 h-24 rounded-full object-cover border"
+            className="w-24 h-24 rounded-full object-contain border"
             onError={(e) => {
               // Only try placeholder once to prevent infinite loop
               if (!e.currentTarget.dataset.fallback) {

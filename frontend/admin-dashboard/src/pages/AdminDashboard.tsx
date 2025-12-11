@@ -40,6 +40,7 @@ import {
   Wallet,
   Layout,
   Edit,
+  Settings,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { format, parseISO, subDays, startOfMonth, endOfMonth } from "date-fns";
@@ -91,7 +92,7 @@ import VenueManagement from "@/components/admin/VenueManagement";
 import OrganizersManagement from "@/components/admin/OrganizerManagement";
 import UsherManagement from "@/components/admin/UsherManagment";
 import AdminAccountSettings from "@/components/admin/AdminAccountSettings";
-import ExpensesManagement from "@/components/admin/expansesManagment";
+import ExpensesManagement from "@/components/admin/expansesManagment.tsx";
 import PayoutsManagement from "@/components/admin/PayoutsManagement";
 import PaymentsManagement from "@/components/admin/PaymentsManagement";
 import MerchantManagement from "@/components/admin/MerchantManagement";
@@ -103,6 +104,7 @@ import EventEditRequestsManagement from "@/components/admin/EventEditRequestsMan
 import CompanyFinances from "@/components/admin/CompanyFinances";
 import OwnerFinances from "@/components/admin/OwnerFinances";
 import HomePageSectionsManagement from "@/components/admin/HomePageSectionsManagement";
+import MarketplaceValidations from "@/components/admin/MarketplaceValidations";
 
 // Types
 interface AdminUser {
@@ -357,6 +359,11 @@ const EnhancedTabsList: React.FC<EnhancedTabsListProps & { hasPermission?: (perm
           value: "nfc",
           label: t("admin.dashboard.tabs.nfc"),
           icon: CreditCard,
+        },
+        {
+          value: "marketplace-validations",
+          label: t("admin.dashboard.tabs.marketplaceValidations"),
+          icon: Settings,
         },
         {
           value: "logs",
@@ -1652,6 +1659,14 @@ const AdminDashboard: React.FC = () => {
               <NFCCardManagement />
             </TabsContent>
           )}
+
+          {/* Marketplace Validations Tab */}
+          <TabsContent
+            value="marketplace-validations"
+            className="space-y-6 transition-all duration-300 ease-in-out"
+          >
+            <MarketplaceValidations />
+          </TabsContent>
 
           {/* Customer Management Tab */}
           <TabsContent

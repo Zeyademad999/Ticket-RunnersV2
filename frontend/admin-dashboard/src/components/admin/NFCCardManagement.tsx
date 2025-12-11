@@ -519,7 +519,18 @@ const NFCCardManagement: React.FC = () => {
   };
 
   const isExpired = (expiryDate: string) => {
-    return isAfter(new Date(), parseISO(expiryDate));
+    if (!expiryDate || expiryDate === "" || expiryDate === "null") {
+      return false;
+    }
+    try {
+      const parsedDate = parseISO(expiryDate);
+      if (isNaN(parsedDate.getTime())) {
+        return false;
+      }
+      return isAfter(new Date(), parsedDate);
+    } catch (e) {
+      return false;
+    }
   };
 
   // Helper function to parse serial number and extract prefix and number
@@ -970,6 +981,40 @@ const NFCCardManagement: React.FC = () => {
 
   const handleDeactivateCard = (cardId: string) => {
     updateCardMutation.mutate({ id: cardId, data: { status: 'inactive' } });
+  };
+
+  const handleMarkAsExpired = async (cardId: string) => {
+    try {
+      await nfcCardsApi.markAsExpired(cardId);
+      toast({
+        title: t("admin.tickets.nfc.actions.markAsExpiredSuccess") || "Success",
+        description: t("admin.tickets.nfc.actions.markAsExpiredSuccessDesc") || "Card marked as expired successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ['nfcCards'] });
+    } catch (error: any) {
+      toast({
+        title: t("admin.tickets.nfc.actions.error") || "Error",
+        description: error.response?.data?.error || error.message || "Failed to mark card as expired",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleMarkAsUnpaid = async (cardId: string) => {
+    try {
+      await nfcCardsApi.markAsUnpaid(cardId);
+      toast({
+        title: t("admin.tickets.nfc.actions.markAsUnpaidSuccess") || "Success",
+        description: t("admin.tickets.nfc.actions.markAsUnpaidSuccessDesc") || "Card marked as unpaid. Customer will need to pay again.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['nfcCards'] });
+    } catch (error: any) {
+      toast({
+        title: t("admin.tickets.nfc.actions.error") || "Error",
+        description: error.response?.data?.error || error.message || "Failed to mark card as unpaid",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleReactivateCard = (cardId: string) => {
@@ -1650,19 +1695,27 @@ const NFCCardManagement: React.FC = () => {
                     </TableCell>
                     <TableCell>
                       <p className="text-sm rtl:text-right">
-                        {format(parseISO(card.issueDate), "MMM dd, yyyy", {
-                          locale: getDateLocale(),
-                        })}
+                        {card.issueDate ? (
+                          format(parseISO(card.issueDate), "MMM dd, yyyy", {
+                            locale: getDateLocale(),
+                          })
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
                       </p>
                     </TableCell>
                     <TableCell>
                       <div className="rtl:text-right">
                         <p className="text-sm">
-                          {format(parseISO(card.expiryDate), "MMM dd, yyyy", {
-                            locale: getDateLocale(),
-                          })}
+                          {card.expiryDate ? (
+                            format(parseISO(card.expiryDate), "MMM dd, yyyy", {
+                              locale: getDateLocale(),
+                            })
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
                         </p>
-                        {isExpired(card.expiryDate) && (
+                        {card.expiryDate && isExpired(card.expiryDate) && (
                           <p className="text-xs text-red-600">
                             {t("admin.tickets.nfc.table.expired")}
                           </p>
@@ -1679,7 +1732,7 @@ const NFCCardManagement: React.FC = () => {
                         <p className="font-medium">{card.usageCount}</p>
                         <p className="text-sm text-muted-foreground">
                           {t("admin.tickets.nfc.table.lastUsed")}:{" "}
-                          {card.lastUsed
+                          {card.lastUsed && card.lastUsed !== "" && card.lastUsed !== "null"
                             ? format(parseISO(card.lastUsed), "MMM dd", {
                                 locale: getDateLocale(),
                               })
@@ -1712,6 +1765,27 @@ const NFCCardManagement: React.FC = () => {
                               <UserCheck className="h-4 w-4 rtl:ml-2 ltr:mr-2" />
                               {t("admin.tickets.nfc.actions.reactivateCard")}
                             </DropdownMenuItem>
+                          )}
+                          {card.status !== "expired" && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleMarkAsExpired(card.id)}
+                                className="text-orange-600"
+                              >
+                                <CalendarX className="h-4 w-4 rtl:ml-2 ltr:mr-2" />
+                                {t("admin.tickets.nfc.actions.markAsExpired") || "Mark as Expired"}
+                              </DropdownMenuItem>
+                              {(card.customerId || card.customerName) && (
+                                <DropdownMenuItem
+                                  onClick={() => handleMarkAsUnpaid(card.id)}
+                                  className="text-red-600"
+                                >
+                                  <XCircle className="h-4 w-4 rtl:ml-2 ltr:mr-2" />
+                                  {t("admin.tickets.nfc.actions.markAsUnpaid") || "Mark as Unpaid"}
+                                </DropdownMenuItem>
+                              )}
+                            </>
                           )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem

@@ -502,7 +502,7 @@ export function Header() {
                     <img
                       src={normalizeImageUrl(user.profile_image)}
                       alt="Profile"
-                      className="w-6 h-6 rounded-full object-cover"
+                      className="w-6 h-6 rounded-full object-contain"
                       onError={() => {
                         setProfileImageError(true);
                       }}
@@ -685,7 +685,7 @@ export function Header() {
                     <img
                       src={normalizeImageUrl(user.profile_image)}
                       alt="Profile"
-                      className="h-5 w-5 rounded-full object-cover pt-0.5"
+                      className="h-5 w-5 rounded-full object-contain pt-0.5"
                       onError={() => {
                         setProfileImageError(true);
                       }}
@@ -789,7 +789,7 @@ export function Header() {
                           <img
                             src={normalizeImageUrl(user.profile_image)}
                             alt="Profile"
-                            className="h-4 w-4 rounded-full object-cover mr-2"
+                            className="h-4 w-4 rounded-full object-contain mr-2"
                             onError={() => {
                               setProfileImageError(true);
                             }}
